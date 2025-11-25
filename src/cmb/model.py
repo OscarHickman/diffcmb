@@ -1,5 +1,3 @@
-"""Contain the main Cosmology_Advanced_Sampling class moved from Main.py"""
-
 import numpy as np
 
 from .alm import noisemapfunc
