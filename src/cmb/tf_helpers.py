@@ -1,5 +1,3 @@
-"""TensorFlow helper functions extracted from the notebook."""
-
 import numpy as np
 
 try:
