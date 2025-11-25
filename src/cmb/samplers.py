@@ -1,5 +1,3 @@
-"""Sampler functions for HMC and NUTS moved from Main.ipynb."""
-
 try:
     import tensorflow_probability as tfp
 except Exception:
