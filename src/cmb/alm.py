@@ -1,8 +1,3 @@
-"""Alm/map utilities extracted from Main.ipynb/Main.py
-
-Only pure-python functions and those that import numpy/scipy/healpy are included.
-"""
-
 import numpy as np
 
 try:
