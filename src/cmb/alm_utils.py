@@ -1,5 +1,3 @@
-"""Alm and map utilities moved from Main.py/Main.ipynb"""
-
 import numpy as np
 
 try:
