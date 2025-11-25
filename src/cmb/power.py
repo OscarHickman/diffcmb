@@ -1,8 +1,3 @@
-"""Power spectrum helpers extracted from Main.ipynb/Main.py
-
-Contains call_CAMB_map and plotting helper.
-"""
-
 from typing import List
 
 import numpy as np
