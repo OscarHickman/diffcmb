@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 
 try:
@@ -6,6 +8,25 @@ try:
 except Exception:
     hp = None
     sp = None
+
+
+@functools.lru_cache(maxsize=8)
+def _ordering_indices(lmax):
+    """Precompute ho<->mo index permutations for a given lmax (cached)."""
+    n = lmax * (lmax + 1) // 2
+    ho_to_mo = np.empty(n, dtype=np.intp)
+    mo_to_ho = np.empty(n, dtype=np.intp)
+    ho_idx = 0
+    for m in range(lmax):
+        for L in range(m, lmax):
+            mo_idx = L * (L + 1) // 2 + m
+            ho_idx_val = m * lmax - m * (m - 1) // 2 + (L - m)
+            ho_to_mo[ho_idx] = mo_idx
+            mo_to_ho[mo_idx] = ho_idx_val
+            ho_idx += 1
+    ho_to_mo.flags.writeable = False
+    mo_to_ho.flags.writeable = False
+    return ho_to_mo, mo_to_ho
 
 
 def cltoalm(_cls, _NSIDE, _lmax):
@@ -240,36 +261,14 @@ def almtomap_tf(_alm, _NSIDE, _lmax, _sph):
 
 def almmotho(_moalm, _lmax):
     """Change alm ordering from author's ordering to healpy's ordering."""
-    _hoalm = []
-    _count4 = []
-    _count5 = 0
-    for i in np.arange(2, _lmax + 2):
-        _count4.append(_count5)
-        _count5 = _count5 + i
-    for i in range(_lmax):
-        _count1 = 0
-        for j in np.arange(i + 1, _lmax + 1):
-            _hoalm.append(_moalm[_count1 + _count4[i]])
-            _count1 = _count1 + j
-    return np.array(_hoalm)
+    ho_to_mo, _ = _ordering_indices(_lmax)
+    return np.asarray(_moalm)[ho_to_mo]
 
 
 def almhotmo(_hoalm, _lmax):
     """Change alm ordering from healpy to author's ordering."""
-    _moalm = np.zeros(sum(np.arange(_lmax + 1)), dtype=complex)
-    _count4 = []
-    _count5 = 0
-    for i in np.arange(2, _lmax + 2):
-        _count4.append(_count5)
-        _count5 = _count5 + i
-    _count1 = 0
-    for i in range(_lmax):
-        _count2 = 0
-        for j in np.arange(i + 1, _lmax + 1):
-            _moalm[_count2 + _count4[i]] = _hoalm[_count1]
-            _count1 = _count1 + 1
-            _count2 = _count2 + j
-    return np.array(_moalm)
+    _, mo_to_ho = _ordering_indices(_lmax)
+    return np.asarray(_hoalm)[mo_to_ho]
 
 
 def alminit(_alms, _lmax):
