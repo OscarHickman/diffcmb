@@ -1,5 +1,9 @@
 # Cosmology-from-the-CMB-with-advanced-sampling-techniques
+
+[![Python Tests](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml/badge.svg)](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml)
+
 The aim of this repository is to accurately sample from the CMB using Tensorflow probability and advanced sampling techniques. 
+ 
 
 Code is written for python and uses the package healpy - which is only supported by linux and macos. Windows users must therefore either use Google Colab or a virtualbox to use the healpy functions in this repository. The other packages which must be installed prior to use are CAMB, Tensorflow and Tensorflow Probability.
 
