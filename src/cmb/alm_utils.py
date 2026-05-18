@@ -203,27 +203,29 @@ def splittosingularalm(_realalm, _imagalm, lmax):
     return _alm
 
 
+@functools.lru_cache(maxsize=8)
+def _alm_scatter_indices(lmax):
+    """Precompute scatter indices for splittosingularalm_tf (cached by lmax)."""
+    len_alm = lmax * (lmax + 1) // 2
+    real_indices = np.arange(3, len_alm, dtype=np.intp)[:, np.newaxis]
+    imag_indices = np.array(
+        [L * (L + 1) // 2 + m for L in range(2, lmax) for m in range(2, L + 1)],
+        dtype=np.intp,
+    )[:, np.newaxis]
+    real_indices.flags.writeable = False
+    imag_indices.flags.writeable = False
+    return real_indices, imag_indices, len_alm
+
+
 def splittosingularalm_tf(_realalm, _imagalm, lmax):
     try:
         import tensorflow as tf
     except Exception as exc:
         raise ImportError("tensorflow is required for splittosingularalm_tf") from exc
-    _zero = tf.zeros(1, dtype=np.float64)
-    _count = 0
-    for _ in range(3):
-        _realalm = tf.concat([_zero, _realalm], axis=0)
-    for L in range(lmax):
-        for m in range(L + 1):
-            if m == 0 or m == 1:
-                if L == 0:
-                    _imagalm = tf.concat([_zero, _imagalm], axis=0)
-                else:
-                    _front = _imagalm[:_count]
-                    _back = _imagalm[_count:]
-                    _term = tf.concat([_zero, _back], axis=0)
-                    _imagalm = tf.concat([_front, _term], axis=0)
-            _count = _count + 1
-    return tf.complex(_realalm, _imagalm)
+    real_idx, imag_idx, len_alm = _alm_scatter_indices(lmax)
+    real_out = tf.scatter_nd(real_idx, _realalm, shape=[len_alm])
+    imag_out = tf.scatter_nd(imag_idx, _imagalm, shape=[len_alm])
+    return tf.complex(real_out, imag_out)
 
 
 def sphharm(m, ell, _pixno, _NSIDE):
