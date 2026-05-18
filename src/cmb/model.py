@@ -128,20 +128,19 @@ class CosmologyAdvancedSampling:
                 "healpy and scipy are required to build spherical harmonics"
             )
 
-        # build spherical harmonics tensor
-        _sph = []
-        for i in range(int((self.NSIDE**2) * 12)):
-            _sph.append([])
-            _count = 0
-            for L in range(self.lmax):
-                for m in range(L + 1):
-                    _theta, _phi = hp.pix2ang(nside=self.NSIDE, ipix=i)
-                    _sph[i].append(sp.special.sph_harm(m, L, _phi, _theta))
-                    if L == 0:
-                        _sph[i][_count] = complex(
-                            np.real(_sph[i][_count]), np.float64(0.0)
-                        )
-                    _count = _count + 1
+        # build spherical harmonics tensor — vectorized over pixels
+        NPIX = int(self.NSIDE**2 * 12)
+        len_alm = int(self.lmax * (self.lmax + 1) / 2)
+        thetas, phis = hp.pix2ang(nside=self.NSIDE, ipix=np.arange(NPIX))
+        _sph = np.empty((NPIX, len_alm), dtype=np.complex128)
+        col = 0
+        for L in range(self.lmax):
+            for m in range(L + 1):
+                vals = sp.special.sph_harm(m, L, phis, thetas)
+                if L == 0:
+                    vals = vals.real.astype(np.complex128)
+                _sph[:, col] = vals
+                col += 1
         self.sph = tf.convert_to_tensor(_sph, dtype=np.complex128)
 
         # create multtensor via helper (import here to avoid dependency)
