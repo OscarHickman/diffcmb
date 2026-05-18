@@ -128,19 +128,25 @@ class CosmologyAdvancedSampling:
                 "healpy and scipy are required to build spherical harmonics"
             )
 
-        # build spherical harmonics tensor — vectorized over pixels
+        # build spherical harmonics tensor
+        # Try the Rust extension (parallel Holmes-Featherstone recurrence) first;
+        # fall back to vectorized scipy calls if cmb_sph is not built.
         NPIX = int(self.NSIDE**2 * 12)
         len_alm = int(self.lmax * (self.lmax + 1) / 2)
         thetas, phis = hp.pix2ang(nside=self.NSIDE, ipix=np.arange(NPIX))
-        _sph = np.empty((NPIX, len_alm), dtype=np.complex128)
-        col = 0
-        for L in range(self.lmax):
-            for m in range(L + 1):
-                vals = sp.special.sph_harm(m, L, phis, thetas)
-                if L == 0:
-                    vals = vals.real.astype(np.complex128)
-                _sph[:, col] = vals
-                col += 1
+        try:
+            from cmb_sph import compute_sph as _rust_compute_sph
+            _sph = _rust_compute_sph(thetas, phis, self.lmax)
+        except ImportError:
+            _sph = np.empty((NPIX, len_alm), dtype=np.complex128)
+            col = 0
+            for L in range(self.lmax):
+                for m in range(L + 1):
+                    vals = sp.special.sph_harm(m, L, phis, thetas)
+                    if L == 0:
+                        vals = vals.real.astype(np.complex128)
+                    _sph[:, col] = vals
+                    col += 1
         self.sph = tf.convert_to_tensor(_sph, dtype=np.complex128)
 
         # create multtensor via helper (import here to avoid dependency)

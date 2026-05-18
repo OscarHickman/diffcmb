@@ -3,7 +3,7 @@ PYTHON=${venv}/bin/python
 PIP=${venv}/bin/pip
 ACTIVATE=. ${venv}/bin/activate
 
-.PHONY: all setup install precommit examples test clean
+.PHONY: all setup install precommit examples test build-rust clean
 
 all: setup
 
@@ -17,6 +17,9 @@ setup: ${venv}/bin/activate
 ${venv}/bin/activate:
 	python -m venv ${venv}
 	@echo "created venv at ${venv}"
+
+build-rust:
+	cd src/rust_sph && maturin develop --release
 
 precommit:
 	${PYTHON} -m pre_commit run --all-files
