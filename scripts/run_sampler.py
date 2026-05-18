@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--lmax", type=int, default=200)
     parser.add_argument("--nside", type=int, default=128)
     parser.add_argument("--noise_sig", type=float, default=1.0)
+    parser.add_argument("--data_mode", type=str, choices=["synthetic", "real"], default="synthetic")
+    parser.add_argument("--data_dir", type=str, default=None)
     parser.add_argument("--n_samples", type=int, default=5000)
     parser.add_argument("--n_burnin", type=int, default=500)
     parser.add_argument("--step_size", type=float, default=0.01)
@@ -33,12 +35,19 @@ def main():
 
     print(f"=== Chain {args.chain_id} Starting ===")
     print(f"Sampler: {args.sampler.upper()}")
+    print(f"Data: {args.data_mode}")
     print(f"LMAX: {args.lmax}, NSIDE: {args.nside}, Noise: {args.noise_sig}")
     print(f"Samples: {args.n_samples}, Burn-in: {args.n_burnin}, Step Size: {args.step_size}")
 
     print("Constructing model...")
     t0 = time.time()
-    model = CosmologyAdvancedSampling(_lmax=args.lmax, _NSIDE=args.nside, _noisesig=args.noise_sig)
+    model = CosmologyAdvancedSampling(
+        _lmax=args.lmax, 
+        _NSIDE=args.nside, 
+        _noisesig=args.noise_sig,
+        data_mode=args.data_mode,
+        data_dir=args.data_dir
+    )
     print(f"Model init took {time.time()-t0:.1f}s")
 
     print("Pre-loading spherical harmonic matrix...")

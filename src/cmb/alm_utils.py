@@ -235,30 +235,28 @@ def sphharm(m, ell, _pixno, _NSIDE):
     return sp.special.sph_harm(m, ell, _phi, _theta)
 
 
-def almtomap_tf(_alm, _NSIDE, _lmax, _sph):
+def almtomap_tf(_alm, _NSIDE, _lmax, _sph, _weights=None):
     try:
         import tensorflow as tf
     except Exception as exc:
         raise ImportError("tensorflow is required for almtomap_tf") from exc
-    _ones = np.ones(len(_alm), dtype=np.complex128)
-    _count = 0
-    for L in range(_lmax):
-        for m in range(L + 1):
-            if m == 0:
-                _ones[_count] = complex(0.5, 0)
-            _count = _count + 1
-    _ones = tf.convert_to_tensor(_ones)
-    _alm = _ones * _alm
-    _ralm = tf.math.real(_alm)
-    _ialm = tf.math.imag(_alm)
-    _rsph = tf.math.real(_sph)
-    _isph = tf.math.imag(_sph)
 
-    _map1 = tf.linalg.matvec(_rsph, _ralm)
-    _map2 = tf.linalg.matvec(_isph, _ialm)
-    _map = 2 * (_map1 - _map2)
-    return _map
-    # almtomap_tf2 was removed - it relied on a module-level _sph and
+    if _weights is not None:
+        _alm = _weights * _alm
+    else:
+        # Fallback for backward compatibility or when weights aren't precomputed
+        _w = np.ones(len(_alm), dtype=np.complex128)
+        _count = 0
+        for L in range(_lmax):
+            for m in range(L + 1):
+                if m == 0:
+                    _w[_count] = complex(0.5, 0)
+                _count = _count + 1
+        _alm = tf.convert_to_tensor(_w) * _alm
+
+    # Compute 2 * real(sph @ alm)
+    # This avoids splitting _sph into real/imag parts, saving significant memory
+    return 2.0 * tf.math.real(tf.linalg.matvec(_sph, _alm))
 
 
 def almmotho(_moalm, _lmax):

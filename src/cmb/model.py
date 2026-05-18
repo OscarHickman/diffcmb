@@ -1,3 +1,5 @@
+import gc
+import os
 import numpy as np
 
 from .alm import noisemapfunc
@@ -32,46 +34,79 @@ class CosmologyAdvancedSampling:
     refactors can split responsibilities.
     """
 
-    def __init__(self, _lmax, _NSIDE, _noisesig):
+    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None):
         lcdm_parameters = np.array([67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066])
 
-        NPIX = 12 * (_NSIDE**2)
-        n = np.linspace(_noisesig, _noisesig, NPIX)
-        Ninv = [1.0 / (ni**2) for ni in n]
+        if data_mode == 'synthetic':
+            print("Generating synthetic data...")
+            NPIX = 12 * (_NSIDE**2)
+            n = np.linspace(_noisesig, _noisesig, NPIX)
+            Ninv = [1.0 / (ni**2) for ni in n]
 
-        lcdm_cls = None
-        try:
-            from .power import call_CAMB_map
+            lcdm_cls = None
+            try:
+                from .power import call_CAMB_map
 
-            lcdm_cls = call_CAMB_map(lcdm_parameters, _lmax)
-        except Exception:
-            # call_CAMB_map may be unavailable (missing camb) — keep None
-            lcdm_cls = np.zeros(_lmax)
+                lcdm_cls = call_CAMB_map(lcdm_parameters, _lmax)
+            except Exception:
+                lcdm_cls = np.zeros(_lmax)
 
-        notpad_lcdm_alms = hpcltoalm(lcdm_cls, _NSIDE, _lmax)
-        pad_lcdm_alms = hpalminit(notpad_lcdm_alms, _lmax)
-        pad_lcdm_map = hpalmtomap(pad_lcdm_alms, _NSIDE, _lmax)
-        pad_lcdm_map = hpmapsmooth(pad_lcdm_map, _lmax)
-        notpad_prior_map = noisemapfunc(pad_lcdm_map, n[0])[0]
-        notpad_prior_halms = hpmaptoalm(notpad_prior_map, _lmax)
-        pad_prior_halms = hpalminit(notpad_prior_halms, _lmax)
-        pad_prior_map = hpalmtomap(pad_prior_halms, _NSIDE, _lmax)
-        pad_prior_alms = almhotmo(pad_prior_halms, _lmax)
-        pad_prior_cls = hpalmtocl(pad_prior_halms, _lmax)
+            notpad_lcdm_alms = hpcltoalm(lcdm_cls, _NSIDE, _lmax)
+            pad_lcdm_alms = hpalminit(notpad_lcdm_alms, _lmax)
+            pad_lcdm_map = hpalmtomap(pad_lcdm_alms, _NSIDE, _lmax)
+            pad_lcdm_map = hpmapsmooth(pad_lcdm_map, _lmax)
+            notpad_prior_map = noisemapfunc(pad_lcdm_map, n[0])[0]
+            notpad_prior_halms = hpmaptoalm(notpad_prior_map, _lmax)
+            pad_prior_halms = hpalminit(notpad_prior_halms, _lmax)
+            pad_prior_map = hpalmtomap(pad_prior_halms, _NSIDE, _lmax)
+            pad_prior_alms = almhotmo(pad_prior_halms, _lmax)
+            pad_prior_cls = hpalmtocl(pad_prior_halms, _lmax)
+            
+            self.prior_map = pad_prior_map
+            self.NPIX = NPIX
+            self.Ninv = Ninv
+            self.prior_alms = pad_prior_alms
+            self.prior_cls = pad_prior_cls
 
-        # Defer TensorFlow/heavy dependency work to runtime (lazy creation).
-        # Creating spherical harmonics and the multtensor requires TensorFlow,
-        # healpy and scipy; do this only when needed to allow lightweight
-        # import of the module.
+        elif data_mode == 'real':
+            print(f"Loading real Planck data from {data_dir}...")
+            # Load SMICA map and mask
+            map_file = os.path.join(data_dir, 'COM_CMB_IQU-smica_2048_R3.00_full.fits')
+            mask_file = os.path.join(data_dir, 'COM_Mask_CMB-common-Mask-Int_2048_R3.00.fits')
+            
+            # Load and downsample to _NSIDE
+            raw_map = hp.read_map(map_file, field=0)
+            self.prior_map = hp.ud_grade(raw_map, nside_out=_NSIDE)
+            self.NPIX = hp.nside2npix(_NSIDE)
+            
+            # Load mask
+            raw_mask = hp.read_map(mask_file, field=0)
+            mask = hp.ud_grade(raw_mask, nside_out=_NSIDE)
+            # Mask out invalid pixels (set to 0 for simplicity in this implementation)
+            self.prior_map[mask < 0.9] = 0.0 
+            
+            # Approximate noise from Half-Mission maps if available, or uniform
+            # For now, start with uniform noise as placeholder for real-world integration
+            self.Ninv = np.ones(self.NPIX) / (_noisesig**2)
+            
+            # Initial estimate of alms
+            self.prior_alms = hp.map2alm(self.prior_map, lmax=_lmax)
+            self.prior_cls = hp.anafast(self.prior_map, lmax=_lmax)
+            
+        else:
+            raise ValueError("data_mode must be 'synthetic' or 'real'")
+
         self.sph = None
         self.shape = None
-        r_alms_init = pad_prior_alms.real
-        i_alms_init = pad_prior_alms.imag
+        self.alm_weights = None
+
+        r_alms_init = self.prior_alms.real
+        i_alms_init = self.prior_alms.imag
         x0 = []
 
         for i in range(_lmax - 2):
-            if pad_prior_cls[i + 2] > 0:
-                x0.append(np.log(pad_prior_cls[i + 2]))
+            if self.prior_cls[i + 2] > 0:
+                x0.append(np.log(self.prior_cls[i + 2]))
             else:
                 x0.append(0)
 
@@ -96,27 +131,10 @@ class CosmologyAdvancedSampling:
         self.lmax = _lmax
         self.NSIDE = _NSIDE
         self.noisesig = _noisesig
-        self.Ninv = Ninv
-        self.NPIX = NPIX
-
-        self.lcdm_cls = lcdm_cls
-        self.lcdm_alms = pad_lcdm_alms
-        self.lcdm_map = pad_lcdm_map
-        self.prior_cls = pad_prior_cls
-        self.prior_alms = pad_prior_alms
-        self.prior_map = pad_prior_map
-
-        # shape and sph will be created lazily by _ensure_tf_tensors()
-        self.shape = None
-        self.sph = None
         self.x0 = x0
 
     def _ensure_tf_tensors(self):
-        """Create TensorFlow-dependent tensors (self.sph, self.shape) on demand.
-
-        Raises ImportError if TensorFlow (or required libs) are not available.
-        """
-        # already created
+        """Create TensorFlow-dependent tensors on demand with memory optimizations."""
         if self.sph is not None and self.shape is not None:
             return
 
@@ -128,34 +146,44 @@ class CosmologyAdvancedSampling:
                 "healpy and scipy are required to build spherical harmonics"
             )
 
-        # build spherical harmonics tensor
-        # Try the Rust extension (parallel Holmes-Featherstone recurrence) first;
-        # fall back to vectorized scipy calls if cmb_sph is not built.
         NPIX = int(self.NSIDE**2 * 12)
         len_alm = int(self.lmax * (self.lmax + 1) / 2)
         thetas, phis = hp.pix2ang(nside=self.NSIDE, ipix=np.arange(NPIX))
+        
         try:
             from cmb_sph import compute_sph as _rust_compute_sph
-            _sph = _rust_compute_sph(thetas, phis, self.lmax)
+            _sph_np = _rust_compute_sph(thetas, phis, self.lmax)
         except ImportError:
-            _sph = np.empty((NPIX, len_alm), dtype=np.complex128)
+            _sph_np = np.empty((NPIX, len_alm), dtype=np.complex128)
             col = 0
             for L in range(self.lmax):
                 for m in range(L + 1):
                     vals = sp.special.sph_harm(m, L, phis, thetas)
                     if L == 0:
                         vals = vals.real.astype(np.complex128)
-                    _sph[:, col] = vals
+                    _sph_np[:, col] = vals
                     col += 1
-        self.sph = tf.convert_to_tensor(_sph, dtype=np.complex128)
+        
+        self.sph = tf.convert_to_tensor(_sph_np, dtype=np.complex128)
+        
+        # Critical memory optimization: delete large numpy array immediately
+        del _sph_np
+        gc.collect()
 
-        # create multtensor via helper (import here to avoid dependency)
+        # Precompute weights for almtomap_tf to avoid repeat allocations
+        _w = np.ones(len_alm, dtype=np.complex128)
+        _count = 0
+        for L in range(self.lmax):
+            for m in range(L + 1):
+                if m == 0:
+                    _w[_count] = complex(0.5, 0)
+                _count = _count + 1
+        self.alm_weights = tf.convert_to_tensor(_w, dtype=np.complex128)
+
         try:
             from .tf_helpers import multtensor
-
-            self.shape = multtensor(self.lmax, int(self.lmax * (self.lmax + 1) / 2))
+            self.shape = multtensor(self.lmax, len_alm)
         except Exception as e:
-            # cleanup and re-raise to keep state consistent
             self.sph = None
             self.shape = None
             raise ImportError("failed to create TF multtensor: %s" % e) from e
@@ -163,13 +191,7 @@ class CosmologyAdvancedSampling:
     def prior_parameters_tf(self):
         return tf.convert_to_tensor(self.x0)
 
-    # psi and psi_tf are intentionally kept as thin wrappers referencing
-    # the existing functions moved to helper modules; these can be
-    # refactored further when needed.
-
     def psi(self, _params):
-        # kept minimal - original code used many globals; here we reuse
-        # class attributes to compute psi
         _params = self.x0
         _lmax = self.lmax
         _NSIDE = self.NSIDE
@@ -215,7 +237,10 @@ class CosmologyAdvancedSampling:
 
         _d = _map
         _a = splittosingularalm_tf(_realalm, _imagalm, _lmax)
-        _Ya = almtomap_tf(_a, _NSIDE, _lmax, self.sph)
+        
+        # Use optimized almtomap_tf with precomputed weights
+        _Ya = almtomap_tf(_a, _NSIDE, _lmax, self.sph, _weights=self.alm_weights)
+        
         _BYa = _Ya
         _elem = _d - _BYa
         _psi1 = 0.5 * (_elem**2) * _Ninv

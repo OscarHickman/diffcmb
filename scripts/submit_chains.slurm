@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=80G
+#SBATCH --mem=200G
 #SBATCH --time=24:00:00
 #SBATCH -J cmb_sampling
 #SBATCH -o logs/cmb_%j_%a.out
@@ -18,7 +18,11 @@ NSIDE=128
 SAMPLES=5000
 BURNIN=500
 STEP_SIZE=0.01
-OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}"
+# New options for data campaign
+# Ensure DATA_MODE and DATA_DIR are correct for your current intent
+DATA_MODE="real" # Can be 'synthetic' or 'real'
+DATA_DIR="/cosma7/data/dp004/dc-hick2/Plank"
+OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}"
 # ---------------------
 
 # Create necessary directories
@@ -46,5 +50,7 @@ python scripts/run_sampler.py \
     --n_samples $SAMPLES \
     --n_burnin $BURNIN \
     --step_size $STEP_SIZE \
+    --data_mode $DATA_MODE \
+    --data_dir $DATA_DIR \
     --chain_id $SLURM_ARRAY_TASK_ID \
     --output_dir $OUTPUT_DIR
