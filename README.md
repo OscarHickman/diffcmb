@@ -2,56 +2,87 @@
 
 [![Python Tests](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml/badge.svg)](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml)
 
-The aim of this repository is to accurately sample from the CMB using Tensorflow probability and advanced sampling techniques. 
- 
+Accurate CMB power spectrum sampling using TensorFlow Probability and advanced MCMC techniques (HMC and NUTS). The pipeline goes from ΛCDM cosmological parameters through CAMB → spherical harmonics → Bayesian posterior sampling over `{C_ℓ, a_ℓm}`.
 
-Code is written for python and uses the package healpy - which is only supported by linux and macos. Windows users must therefore either use Google Colab or a virtualbox to use the healpy functions in this repository. The other packages which must be installed prior to use are CAMB, Tensorflow and Tensorflow Probability.
+healpy is Linux/macOS only. Windows users should use Google Colab or a VM.
 
 ## Project Structure
 
-The code has been fully refactored into a Python package structure:
-
-### Source Code (`src/cmb/`)
-All functionality has been extracted into organized modules:
-- **`power.py`** - CAMB power spectrum generation (`call_CAMB_map`)
-- **`alm.py`** - Basic alm/map utilities (`noisemapfunc`, `sphharm`)
-- **`alm_utils.py`** - Comprehensive alm transformation utilities (cltoalm, hpcltomap, almtomap, almtocl, etc.)
-- **`tf_helpers.py`** - TensorFlow tensor construction helpers (`multtensor`)
-- **`model.py`** - Main `CosmologyAdvancedSampling` class with `psi` and `psi_tf` methods
-- **`samplers.py`** - MCMC samplers (`run_chain_hmc`, `run_chain_nut`)
-
-### Examples (`examples/`)
-Example Jupyter notebooks demonstrating usage:
-- **`basic_usage.ipynb`** - Getting started guide with the refactored package
-- **`hmc_sampling.ipynb`** - HMC sampling examples
-- **`nut_sampling.ipynb`** - NUTS sampling examples
-
-### Tests (`tests/`)
-Unit tests using pytest:
-- **`test_alm.py`** - Tests for alm utilities
-- **`test_power.py`** - Tests for power spectrum functions
-
-### Legacy Files
-- **`CMB_with_advanced_sampling_techniques.ipynb`** - Original usage examples and demonstrations
-
-## Usage
-
-```python
-from src.cmb import CosmologyAdvancedSampling, run_chain_hmc
-
-# Create model
-model = CosmologyAdvancedSampling(_lmax=8, _NSIDE=2, _noisesig=1.0)
-
-# Run HMC sampling
-samples, results = run_chain_hmc(model, initial_state, num_results=1000)
 ```
+src/
+├── cmb/                        # Python package
+│   ├── power.py                # CAMB power spectrum generation
+│   ├── alm.py                  # Noise map and single-pixel sph_harm
+│   ├── alm_utils.py            # All alm/map transforms (two index orderings)
+│   ├── tf_helpers.py           # TF weight tensor for psi3 term
+│   ├── model.py                # CosmologyAdvancedSampling class + psi_tf
+│   ├── samplers.py             # HMC and NUTS wrappers
+│   └── load_results.py         # Chain loading utilities
+└── rust_sph/                   # Rust extension (optional, recommended)
+    ├── spherical_harmonics.rs  # Holmes-Featherstone ALF recurrence (Rayon parallel)
+    ├── Cargo.toml
+    └── pyproject.toml
 
-See `examples/basic_usage.ipynb` for a complete walkthrough.
+examples/
+├── basic_usage.ipynb           # Getting started: HMC + NUTS walkthrough
+├── further_investigation.ipynb # Large-lmax run on COSMA with convergence diagnostics
+└── analyze_hpc_results.ipynb   # Post-processing HPC chain output
+
+tests/
+├── test_alm.py
+├── test_model.py
+└── test_power.py
+
+archive/
+└── CMB_with_advanced_sampling_techniques.ipynb  # Original reference notebook
+```
 
 ## Installation
 
-To run the tests and examples, install dependencies:
 ```bash
-pip install -r requirements.txt
-pytest  # Run tests
+# Create venv and install Python dependencies
+make setup
+
+# Build the Rust spherical-harmonic extension (optional but strongly recommended)
+# Requires: cargo (rustup) + maturin (pip install maturin)
+make build-rust
+```
+
+The Rust extension (`cmb_sph`) parallelises spherical harmonic matrix construction using Rayon. Without it, `model._ensure_tf_tensors()` falls back to sequential scipy calls, which is significantly slower at large lmax.
+
+## Quick Start
+
+```python
+from src.cmb import CosmologyAdvancedSampling, run_chain_hmc, run_chain_nut
+import tensorflow as tf
+import numpy as np
+
+model = CosmologyAdvancedSampling(_lmax=8, _NSIDE=2, _noisesig=1.0)
+
+initial_state = tf.constant(np.random.randn(len(model.x0)) * 0.1, dtype=tf.float64)
+
+# HMC
+samples, results = run_chain_hmc(model, initial_state, num_results=1000)
+
+# NUTS
+samples, results = run_chain_nut(model, initial_state, _step_size=0.01, num_results=1000)
+```
+
+See `examples/basic_usage.ipynb` for a full walkthrough.
+
+## Performance Notes
+
+| Component | Approach |
+|-----------|----------|
+| Spherical harmonic matrix | Rust + Rayon (Holmes-Featherstone recurrence), falls back to scipy |
+| alm index reordering (`almmotho`/`almhotmo`) | Precomputed numpy fancy-index permutation |
+| `splittosingularalm_tf` | `tf.scatter_nd` with precomputed indices, replaces O(lmax²) `tf.concat` loop |
+| `psi_tf` | Compiled with `tf.function` on first call; graph reused for all subsequent HMC steps |
+
+## Running Tests
+
+```bash
+make test
+# or
+PYTHONPATH=src pytest
 ```

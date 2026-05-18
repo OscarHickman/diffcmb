@@ -24,11 +24,13 @@ This project is designed for the COSMA HPC environment.
 
 ### Development
 - **Linting/Formatting**: The project uses `ruff`.
-- **Code Organization**: Core logic resides in `src/cmb/`.
-  - `model.py`: Main `CosmologyAdvancedSampling` model.
-  - `samplers.py`: MCMC sampling routines.
-  - `power.py`: CAMB utilities.
-  - `alm_utils.py`: ALM transformations.
+- **Code Organization**: Core logic resides in `src/cmb/` and `src/rust_sph/`.
+  - `src/cmb/`: Python package (`model.py`, `samplers.py`, `power.py`, `alm_utils.py`).
+  - `src/rust_sph/`: Rust extension for parallelised spherical harmonic matrix construction.
+- **Commands**:
+  - `make setup`: Set up virtualenv and dependencies.
+  - `make build-rust`: Build the Rust extension.
+  - `make test`: Run tests.
 
 ## Conventions
 - **Naming**: Consistent with Python `snake_case`.

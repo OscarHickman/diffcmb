@@ -5,10 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run all tests (PYTHONPATH=src is required)
-PYTHONPATH=src pytest
-# or via make:
+# Run all tests
 make test
+# or
+PYTHONPATH=src pytest
 
 # Run a single test file
 PYTHONPATH=src pytest tests/test_alm.py
@@ -21,6 +21,9 @@ ruff check src/ tests/ --fix
 # Set up virtualenv with all dependencies
 make setup
 
+# Build the Rust spherical-harmonic extension (optional but recommended)
+make build-rust
+
 # Run the minimal entry point
 PYTHONPATH=src python Main.py
 ```
@@ -32,6 +35,8 @@ The package lives in `src/cmb/` and is structured as a pipeline from raw cosmolo
 ```
 CAMB params → power.py → alm_utils.py → model.py → samplers.py
 ```
+
+The `src/rust_sph/` directory contains an optional Rust extension that parallelises spherical harmonic matrix construction using Rayon, providing significant speedups for large lmax.
 
 ### Module responsibilities
 
