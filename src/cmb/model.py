@@ -199,10 +199,8 @@ class CosmologyAdvancedSampling:
         _psi = sum(_psi1) + sum(_psi2) + sum(_psi3)
         return _psi
 
-    def psi_tf(self, _params):
-        if self.sph is None:
-            self._ensure_tf_tensors()
-
+    def _psi_tf_raw(self, _params):
+        """Core computation for psi_tf; accessed via psi_tf for the compiled version."""
         _map, _lmax, _NSIDE, _Ninv = self.prior_map, self.lmax, self.NSIDE, self.Ninv
         _lnclstart = tf.zeros(2, np.float64)
         _lncl = tf.concat([_lnclstart, _params[: (_lmax - 2)]], axis=0)
@@ -222,5 +220,11 @@ class CosmologyAdvancedSampling:
         _as = tf.linalg.matvec(self.shape, _a)
         _psi3 = 0.5 * _as / tf.math.exp(_lncl)
 
-        _psi = tf.reduce_sum(_psi1) + tf.reduce_sum(_psi2) + tf.reduce_sum(_psi3)
-        return _psi
+        return tf.reduce_sum(_psi1) + tf.reduce_sum(_psi2) + tf.reduce_sum(_psi3)
+
+    def psi_tf(self, _params):
+        if self.sph is None:
+            self._ensure_tf_tensors()
+        if not hasattr(self, "_compiled_psi_tf"):
+            self._compiled_psi_tf = tf.function(self._psi_tf_raw)
+        return self._compiled_psi_tf(_params)
