@@ -39,7 +39,7 @@ echo "Working directory: $(pwd)"
 echo "Python path: $(which python)"
 
 # Run the sampler
-python run_sampler.py \
+python scripts/run_sampler.py \
     --sampler $SAMPLER \
     --lmax $LMAX \
     --nside $NSIDE \
