@@ -34,31 +34,30 @@ def small_model():
 @skip_no_tfp
 def test_sampler_uses_negative_psi_tf(small_model):
     """
-    The log-probability recorded in results must equal -psi_tf(x0), not +psi_tf(x0).
+    target_log_prob recorded by NUTS must equal -psi_tf(sample) at each step.
 
-    This directly catches the sign bug where psi_tf (negative log-posterior)
-    was passed as-is to TFP, causing it to sample from 1/posterior.
+    This catches the sign bug where psi_tf (negative log-posterior) was passed
+    as-is to TFP, causing it to sample from 1/posterior.  We verify the identity
+    target_log_prob[i] == -psi_tf(samples[i]) for every recorded sample.
     """
     import tensorflow as tf
     from src.cmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
-    psi_at_x0 = float(small_model.psi_tf(x0).numpy())
-    expected_logp = -psi_at_x0  # what TFP should see as the log-posterior
-
     samples, results = run_chain_nut(
         small_model, x0, _step_size=0.001,
-        num_results=5, num_burnin_steps=10,
+        num_results=5, num_burnin_steps=0,
     )
 
-    # inner_results carries per-step diagnostics
     inner = results.inner_results
-    first_logp = float(inner.target_log_prob.numpy()[0])
+    recorded_logp = inner.target_log_prob.numpy()
 
-    assert abs(first_logp - expected_logp) < 1.0, (
-        f"Sampler target_log_prob ({first_logp:.4f}) does not match -psi_tf ({expected_logp:.4f}). "
-        "The sign of psi_tf is probably wrong in samplers.py."
-    )
+    for i, (samp, logp) in enumerate(zip(samples.numpy(), recorded_logp)):
+        expected = -float(small_model.psi_tf(tf.constant(samp, dtype=tf.float64)).numpy())
+        assert abs(logp - expected) < 1e-4, (
+            f"Step {i}: target_log_prob={logp:.6f} but -psi_tf(sample)={expected:.6f}. "
+            "Sign of psi_tf is wrong in samplers.py."
+        )
 
 
 @skip_no_tfp
