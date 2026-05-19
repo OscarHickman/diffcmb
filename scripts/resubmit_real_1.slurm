@@ -9,40 +9,35 @@
 #SBATCH -J cmb_sampling
 #SBATCH -o logs/cmb_%j_%a.out
 #SBATCH -e logs/cmb_%j_%a.err
-#SBATCH --array=1-4
+#SBATCH --array=1
 
-# --- Configuration ---
+# Resubmit for real chain 1 (OOM killed on first attempt)
+
 SAMPLER="nuts"
 LMAX=200
 NSIDE=128
 SAMPLES=5000
 BURNIN=1000
 STEP_SIZE=0.001
-# New options for data campaign
-# Ensure DATA_MODE and DATA_DIR are correct for your current intent
-DATA_MODE="real" # Can be 'synthetic' or 'real'
+DATA_MODE="real"
 DATA_DIR="/cosma7/data/dp004/dc-hick2/Plank"
 OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}"
-# ---------------------
 
-# Create necessary directories
 mkdir -p logs
 mkdir -p $OUTPUT_DIR
 
-# Load module Python so the venv symlinks resolve on compute nodes
 module load python/3.9.19
-
-# Activate virtual environment
 source $(pwd)/.venv/bin/activate
-
-# Add current directory to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
+echo "===="
+echo "Starting job ${SLURM_JOB_ID} at $(date) for user ${USER}."
+echo "Running on nodes: $(hostname -s)"
+echo "===="
 echo "Starting job ${SLURM_ARRAY_TASK_ID} on $(hostname)"
 echo "Working directory: $(pwd)"
 echo "Python path: $(which python)"
 
-# Run the sampler
 python scripts/run_sampler.py \
     --sampler $SAMPLER \
     --lmax $LMAX \

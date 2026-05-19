@@ -81,14 +81,23 @@ def main():
     elapsed = time.time() - t_chain
     print(f"Chain {args.chain_id} complete in {elapsed/3600:.2f}h")
 
-    # Convert to numpy for saving
+    # Convert to numpy for saving.
+    # With adaptive kernels, inner_results holds per-step diagnostics.
     samps_np = samples.numpy()
-    logp_np = results.target_log_prob.numpy()
-    
+    inner = getattr(results, "inner_results", results)
     try:
-        accept_rate = float(results.is_accepted.numpy().mean())
+        logp_np = inner.target_log_prob.numpy()
+    except AttributeError:
+        logp_np = np.full(args.n_samples, np.nan)
+    try:
+        accept_rate = float(inner.is_accepted.numpy().mean())
     except AttributeError:
         accept_rate = np.nan
+    try:
+        final_step_size = float(results.new_step_size.numpy()[-1])
+        print(f"Adapted step size: {final_step_size:.6f}")
+    except Exception:
+        pass
 
     filename = os.path.join(args.output_dir, f"chain_{args.chain_id}.npz")
     np.savez(filename, samples=samps_np, logp=logp_np, accept_rate=accept_rate, sampler=args.sampler)
