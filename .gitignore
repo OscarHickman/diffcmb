@@ -153,3 +153,4 @@ logs/
 archive/
 *.png
 *.npz
+.antigravitycli/

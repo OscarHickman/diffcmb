@@ -242,7 +242,7 @@ def almtomap_tf(_alm, _NSIDE, _lmax, _sph, _weights=None):
         raise ImportError("tensorflow is required for almtomap_tf") from exc
 
     if _weights is not None:
-        _alm = _weights * _alm
+        _alm = tf.cast(_weights, _alm.dtype) * _alm
     else:
         # Fallback for backward compatibility or when weights aren't precomputed
         _w = np.ones(len(_alm), dtype=np.complex128)
@@ -252,7 +252,7 @@ def almtomap_tf(_alm, _NSIDE, _lmax, _sph, _weights=None):
                 if m == 0:
                     _w[_count] = complex(0.5, 0)
                 _count = _count + 1
-        _alm = tf.convert_to_tensor(_w) * _alm
+        _alm = tf.cast(tf.convert_to_tensor(_w), _alm.dtype) * _alm
 
     # Compute 2 * real(sph @ alm)
     # This avoids splitting _sph into real/imag parts, saving significant memory

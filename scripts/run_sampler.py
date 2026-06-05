@@ -1,15 +1,17 @@
-import sys
-import os
-import time
 import argparse
+import os
+import sys
+import time
+
 import numpy as np
 
-# Ensure src is in python path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# Ensure repo root is in path so 'from src.cmb import ...' resolves
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
     import tensorflow as tf
-    from src.cmb import CosmologyAdvancedSampling, run_chain_nut, run_chain_hmc
+
+    from src.cmb import CosmologyAdvancedSampling, run_chain_hmc, run_chain_nut
 except ImportError as e:
     print(f"Error importing dependencies: {e}")
     sys.exit(1)
@@ -28,6 +30,10 @@ def main():
     parser.add_argument("--n_lfs", type=int, default=2, help="Number of leapfrog steps (HMC only)")
     parser.add_argument("--chain_id", type=int, required=True)
     parser.add_argument("--output_dir", type=str, default="results")
+    parser.add_argument("--parameterization", type=str, choices=["centered", "non-centered"], default="centered",
+                        help="Sampling strategy: 'centered' (standard) or 'non-centered' (reparameterized for speed)")
+    parser.add_argument("--data_seed", type=int, default=42,
+                        help="RNG seed for synthetic data generation (fixed so all chains share the same dataset)")
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -35,18 +41,24 @@ def main():
 
     print(f"=== Chain {args.chain_id} Starting ===")
     print(f"Sampler: {args.sampler.upper()}")
-    print(f"Data: {args.data_mode}")
+    print(f"Data: {args.data_mode}  (data_seed={args.data_seed})")
+    print(f"Parameterization: {args.parameterization}")
     print(f"LMAX: {args.lmax}, NSIDE: {args.nside}, Noise: {args.noise_sig}")
     print(f"Samples: {args.n_samples}, Burn-in: {args.n_burnin}, Step Size: {args.step_size}")
+
+    # Fix the data-generation RNG so all chains sample the same posterior.
+    if args.data_mode == "synthetic":
+        np.random.seed(args.data_seed)
 
     print("Constructing model...")
     t0 = time.time()
     model = CosmologyAdvancedSampling(
-        _lmax=args.lmax, 
-        _NSIDE=args.nside, 
+        _lmax=args.lmax,
+        _NSIDE=args.nside,
         _noisesig=args.noise_sig,
         data_mode=args.data_mode,
-        data_dir=args.data_dir
+        data_dir=args.data_dir,
+        parameterization=args.parameterization
     )
     print(f"Model init took {time.time()-t0:.1f}s")
 
@@ -56,10 +68,10 @@ def main():
     print(f"Tensor loading took {time.time()-t1:.1f}s")
 
     initial_state = model.prior_parameters_tf()
-    
+
     print(f"Starting {args.sampler.upper()} sampling for chain {args.chain_id}...")
     t_chain = time.time()
-    
+
     if args.sampler == "nuts":
         samples, results = run_chain_nut(
             model,
@@ -77,12 +89,11 @@ def main():
             num_burnin_steps=args.n_burnin,
             _n_lfs=args.n_lfs
         )
-        
+
     elapsed = time.time() - t_chain
     print(f"Chain {args.chain_id} complete in {elapsed/3600:.2f}h")
 
     # Convert to numpy for saving.
-    # With adaptive kernels, inner_results holds per-step diagnostics.
     samps_np = samples.numpy()
     inner = getattr(results, "inner_results", results)
     try:

@@ -2,22 +2,20 @@
 Analyse completed NUTS chains for both synthetic and real data runs.
 Produces a text summary and plots saved to results/analysis/.
 """
-import sys
 import os
-import numpy as np
+import sys
+
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
+import argparse
+
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.cmb import load_cmb_chains
 
-LMAX   = 200
-NSIDE  = 128
-RUNS = {
-    "synthetic": f"results/lmax{LMAX}_nside{NSIDE}_nuts_synthetic",
-    "real":      f"results/lmax{LMAX}_nside{NSIDE}_nuts_real",
-}
 OUT_DIR = "results/analysis"
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -37,7 +35,7 @@ def gelman_rubin(chains):
     return np.sqrt(var_hat / (W + 1e-30))
 
 
-def load_and_summarise(label, results_dir):
+def load_and_summarise(label, results_dir, lmax):
     if not os.path.exists(results_dir):
         print(f"[{label}] Directory not found: {results_dir}")
         return None, None, None
@@ -45,7 +43,7 @@ def load_and_summarise(label, results_dir):
     chains_samples, chains_logprob, chains_accepted = load_cmb_chains(results_dir)
     n = len(chains_samples)
     if n == 0:
-        print(f"[{label}] No chains found.")
+        print(f"[{label}] No chains found in {results_dir}")
         return None, None, None
 
     print(f"\n=== {label.upper()} ===")
@@ -59,7 +57,7 @@ def load_and_summarise(label, results_dir):
     # Gelman-Rubin (need ≥2 chains)
     if n >= 2:
         rhat = gelman_rubin(chains_samples)
-        n_lncl = LMAX - 2
+        n_lncl = lmax - 2
         rhat_cl   = rhat[:n_lncl]
         rhat_alm  = rhat[n_lncl:]
         print(f"  R-hat (ln Cl):  max={rhat_cl.max():.4f}  median={np.median(rhat_cl):.4f}")
@@ -88,20 +86,20 @@ def plot_traces(label, chains_logprob):
     print(f"  Saved trace plot → {path}")
 
 
-def plot_power_spectrum(label, chains_samples):
+def plot_power_spectrum(label, chains_samples, lmax):
     # Try to import CAMB for fiducial spectrum
     try:
         from src.cmb.power import call_CAMB_map
-        cl_lcdm = call_CAMB_map(LCDM_PARAMS, LMAX)
+        cl_lcdm = call_CAMB_map(LCDM_PARAMS, lmax)
         have_lcdm = True
     except Exception:
         have_lcdm = False
 
     all_samples = np.concatenate(chains_samples, axis=0)
-    n_lncl = LMAX - 2
+    n_lncl = lmax - 2
     ln_cl  = all_samples[:, :n_lncl]
     cl_samps = np.exp(ln_cl)
-    ells = np.arange(2, LMAX)
+    ells = np.arange(2, lmax)
 
     cl_mean   = cl_samps.mean(axis=0)
     cl_lo     = np.percentile(cl_samps, 16, axis=0)
@@ -114,7 +112,7 @@ def plot_power_spectrum(label, chains_samples):
     ax.fill_between(ells, dl_lo, dl_hi, alpha=0.3, color="steelblue", label="68% CI")
     ax.plot(ells, dl_mean, color="steelblue", lw=1.5, label="Posterior mean")
     if have_lcdm:
-        dl_lcdm = ells * (ells + 1) * cl_lcdm[2:LMAX] / (2 * np.pi)
+        dl_lcdm = ells * (ells + 1) * cl_lcdm[2:lmax] / (2 * np.pi)
         ax.plot(ells, dl_lcdm, "r--", lw=1.5, label="ΛCDM fiducial")
     ax.set_xlabel(r"$\ell$")
     ax.set_ylabel(r"$D_\ell = \ell(\ell+1)C_\ell / 2\pi$")
@@ -146,15 +144,30 @@ def plot_rhat_histogram(label, chains_samples):
 
 
 def main():
-    print(f"Analysis of NUTS chains — lmax={LMAX}, nside={NSIDE}")
+    parser = argparse.ArgumentParser(description="Analyse MCMC chains for CMB sampling.")
+    parser.add_argument("--lmax", type=int, default=100)
+    parser.add_argument("--nside", type=int, default=64)
+    args = parser.parse_args()
+
+    lmax = args.lmax
+    nside = args.nside
+
+    print(f"Analysis of NUTS chains — lmax={lmax}, nside={nside}")
     print(f"Output directory: {OUT_DIR}\n")
 
-    for label, results_dir in RUNS.items():
-        chains_samples, chains_logprob, chains_accepted = load_and_summarise(label, results_dir)
+    runs = {
+        "synthetic": f"results/lmax{lmax}_nside{nside}_nuts_synthetic",
+        "real":      f"results/lmax{lmax}_nside{nside}_nuts_real",
+    }
+
+    for label, results_dir in runs.items():
+        if not os.path.exists(results_dir):
+            continue
+        chains_samples, chains_logprob, chains_accepted = load_and_summarise(label, results_dir, lmax)
         if chains_samples is None:
             continue
         plot_traces(label, chains_logprob)
-        plot_power_spectrum(label, chains_samples)
+        plot_power_spectrum(label, chains_samples, lmax)
         plot_rhat_histogram(label, chains_samples)
 
     print("\nDone.")

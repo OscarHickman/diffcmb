@@ -8,6 +8,7 @@ def _has_deps():
         import healpy  # noqa: F401
         import scipy  # noqa: F401
         import tensorflow as tf  # noqa: F401
+
         from src.cmb import CosmologyAdvancedSampling  # noqa: F401
         return True
     except Exception:
@@ -45,6 +46,7 @@ def test_model_synthetic_x0_shape():
 @skip_no_deps
 def test_model_prior_parameters_tf_dtype():
     import tensorflow as tf
+
     from src.cmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=8, _NSIDE=2, _noisesig=1.0)
     x0 = m.prior_parameters_tf()
@@ -56,7 +58,6 @@ def test_model_prior_parameters_tf_dtype():
 @skip_no_deps
 def test_psi_tf_is_finite_at_x0():
     """psi_tf must return a finite scalar at the initial state."""
-    import tensorflow as tf
     from src.cmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
@@ -70,6 +71,7 @@ def test_psi_tf_is_finite_at_x0():
 def test_psi_tf_gradient_finite_at_x0():
     """Gradient of psi_tf must be finite at the initial state (no NaN/Inf)."""
     import tensorflow as tf
+
     from src.cmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
@@ -98,6 +100,7 @@ def test_psi_tf_is_negative_log_posterior():
     Also verifies gradient(-psi_tf) == -gradient(psi_tf).
     """
     import tensorflow as tf
+
     from src.cmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
@@ -131,7 +134,7 @@ def test_psi_tf_positive_definite_terms():
     Verify by comparing psi_tf to psi2-only contribution: psi_tf >= psi2.
     """
     import tensorflow as tf
-    from src.cmb import CosmologyAdvancedSampling
+
     from src.cmb.model import CosmologyAdvancedSampling as CAS
     m = CAS(_lmax=10, _NSIDE=4, _noisesig=1.0, data_mode='synthetic')
     m._ensure_tf_tensors()

@@ -9,7 +9,12 @@ def _has_all():
         import scipy  # noqa: F401
         import tensorflow as tf  # noqa: F401
         import tensorflow_probability as tfp  # noqa: F401
-        from src.cmb import CosmologyAdvancedSampling, run_chain_nut, run_chain_hmc  # noqa: F401
+
+        from src.cmb import (  # noqa: F401
+            CosmologyAdvancedSampling,
+            run_chain_hmc,
+            run_chain_nut,
+        )
         return True
     except Exception:
         return False
@@ -41,6 +46,7 @@ def test_sampler_uses_negative_psi_tf(small_model):
     target_log_prob[i] == -psi_tf(samples[i]) for every recorded sample.
     """
     import tensorflow as tf
+
     from src.cmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
@@ -63,7 +69,6 @@ def test_sampler_uses_negative_psi_tf(small_model):
 @skip_no_tfp
 def test_hmc_sampler_uses_negative_psi_tf(small_model):
     """Same sign check for the HMC path."""
-    import tensorflow as tf
     from src.cmb import run_chain_hmc
 
     x0 = small_model.prior_parameters_tf()

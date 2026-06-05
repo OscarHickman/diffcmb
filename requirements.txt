@@ -9,7 +9,6 @@ astropy>=4.2
 emcee>=3.0
 pyyaml>=5.4
 mpi4py>=3.0
-mpi4py-mpi>=3.0
 corner>=2.2
 healpy>=1.15
 camb>=1.3

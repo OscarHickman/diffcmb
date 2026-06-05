@@ -2,7 +2,6 @@
 import numpy as np
 import pytest
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _has_tf():
@@ -25,7 +24,7 @@ def _has_healpy():
 
 def test_splittosingularalm_roundtrip():
     """Real and imaginary alm vectors survive a split→combine round-trip."""
-    from src.cmb.alm_utils import splittosingularalm, singulartosplitalm
+    from src.cmb.alm_utils import singulartosplitalm, splittosingularalm
 
     rng = np.random.default_rng(0)
     lmax = 6
@@ -89,6 +88,7 @@ def test_splittosingularalm_m01_imaginary_zero():
 def test_splittosingularalm_tf_matches_numpy():
     """TF scatter_nd implementation must match the numpy reference exactly."""
     import tensorflow as tf
+
     from src.cmb.alm_utils import splittosingularalm, splittosingularalm_tf
 
     rng = np.random.default_rng(3)
@@ -114,7 +114,7 @@ def test_splittosingularalm_tf_matches_numpy():
 @pytest.mark.skipif(not _has_healpy(), reason="healpy not available")
 def test_ordering_indices_roundtrip():
     """almmotho(almhotmo(x)) == x and vice versa."""
-    from src.cmb.alm_utils import almmotho, almhotmo
+    from src.cmb.alm_utils import almhotmo, almmotho
 
     rng = np.random.default_rng(4)
     lmax = 10
@@ -130,11 +130,14 @@ def test_ordering_indices_roundtrip():
 @pytest.mark.skipif(not _has_tf() or not _has_healpy(), reason="TF or healpy not available")
 def test_almtomap_tf_matches_healpy():
     """almtomap_tf must produce the same map as hp.alm2map for random alms."""
-    import tensorflow as tf
     import healpy as hp
     import scipy
+    import tensorflow as tf
+
     from src.cmb.alm_utils import (
-        almtomap_tf, hpalminit, splittosingularalm_tf, _alm_scatter_indices
+        almtomap_tf,
+        hpalminit,
+        splittosingularalm_tf,
     )
 
     lmax, nside = 6, 4
