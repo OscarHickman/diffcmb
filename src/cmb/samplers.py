@@ -206,12 +206,11 @@ def run_gibbs_chain(
         full_params = tf.concat([lncl_var[2:], alm], axis=0)
         return -model.psi_tf(full_params)
 
-    inner_hmc = tfp.mcmc.HamiltonianMonteCarlo(
+    hmc_kernel = tfp.mcmc.HamiltonianMonteCarlo(
         target_log_prob_fn=log_prob_whitened,
         step_size=step_size_var,
         num_leapfrog_steps=n_lfs,
     )
-    hmc_kernel = tfp.mcmc.MetropolisHastings(inner_kernel=inner_hmc)
     pkr = hmc_kernel.bootstrap_results(state_var)
 
     @tf.function
@@ -253,9 +252,8 @@ def run_gibbs_chain(
         state_var.assign(new_state)
         pkr = new_pkr
 
-        inner = new_pkr.inner_results
-        accepted = bool(inner.is_accepted.numpy())
-        logp_val = float(-inner.accepted_results.target_log_prob.numpy())
+        accepted = bool(new_pkr.is_accepted.numpy())
+        logp_val = float(-new_pkr.accepted_results.target_log_prob.numpy())
         recent.append(accepted)
 
         # Multiplicative step-size adaptation during burn-in

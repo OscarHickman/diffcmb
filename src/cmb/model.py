@@ -39,26 +39,32 @@ def matvec_on_device(sph, a):
     except ImportError:
         raise ImportError("tensorflow is required for matvec_on_device")
 
+    dev = getattr(sph, "device", None)
+
     @tf.custom_gradient
-    def _matvec_custom(matrix, vector):
-        dev = getattr(matrix, "device", None)
+    def _matvec_custom(vector):
         if dev:
             with tf.device(dev):
-                val = tf.linalg.matvec(matrix, tf.cast(vector, matrix.dtype))
+                val = tf.linalg.matvec(sph, tf.cast(vector, sph.dtype))
         else:
-            val = tf.linalg.matvec(matrix, tf.cast(vector, matrix.dtype))
+            val = tf.linalg.matvec(sph, tf.cast(vector, sph.dtype))
 
         def grad(dy):
+            # Mathematically: sph^H * dy = conj(sph^T * conj(dy))
+            # This avoids conjugating the massive sph matrix, saving 11GB of temp memory.
+            dy_c = tf.math.conj(tf.cast(dy, sph.dtype))
             if dev:
                 with tf.device(dev):
-                    grad_x = tf.linalg.matvec(matrix, tf.cast(dy, matrix.dtype), adjoint_a=True)
+                    grad_x = tf.math.conj(tf.linalg.matvec(sph, dy_c, transpose_a=True))
             else:
-                grad_x = tf.linalg.matvec(matrix, tf.cast(dy, matrix.dtype), adjoint_a=True)
-            return None, tf.cast(grad_x, vector.dtype)
+                grad_x = tf.math.conj(tf.linalg.matvec(sph, dy_c, transpose_a=True))
+            return tf.cast(grad_x, vector.dtype)
+
 
         return val, grad
 
-    return _matvec_custom(sph, a)
+    return _matvec_custom(a)
+
 
 
 class CosmologyAdvancedSampling:
@@ -205,6 +211,54 @@ class CosmologyAdvancedSampling:
                         _count_i += 1
             self.x0 = x0
 
+    def build_mass_sqrt_diag(self):
+        """Diagonal sqrt(M) for HMC preconditioning, ordered to match x0.
+
+        For centered:  alm[l,m] ~ N(0, Cl[l])  → M = 1/Cl[l], scale = 1/sqrt(Cl[l])
+        For non-centered: u[l,m] ~ N(0,1)       → M = 1,       scale = 1
+        For lnCl[l]:  posterior width ~ 1/sqrt(2l+1) → M = 2l+1, scale = sqrt(2l+1)
+
+        Extreme values are capped at 1000x the 1st-percentile to keep the
+        condition number manageable when individual Cl estimates are near zero.
+        """
+        lmax = self.lmax
+        cls = np.asarray(self.prior_cls, dtype=np.float64)
+        mass_sqrt = np.empty(len(self.x0), dtype=np.float64)
+        idx = 0
+
+        # lnCl parameters: l = 2 .. lmax-1
+        for i in range(lmax - 2):
+            mass_sqrt[idx] = np.sqrt(2.0 * (i + 2) + 1.0)
+            idx += 1
+
+        if self.parameterization == 'centered':
+            # real alm: L=2..lmax-1, m=0..L
+            for L in range(2, lmax):
+                cl = max(abs(float(cls[L])) if L < len(cls) else 0.0, 1e-30)
+                scale = 1.0 / np.sqrt(cl)
+                for _ in range(L + 1):
+                    mass_sqrt[idx] = scale
+                    idx += 1
+            # imaginary alm: L=2..lmax-1, m=2..L
+            for L in range(2, lmax):
+                cl = max(abs(float(cls[L])) if L < len(cls) else 0.0, 1e-30)
+                scale = 1.0 / np.sqrt(cl)
+                for m in range(L + 1):
+                    if m >= 2:
+                        mass_sqrt[idx] = scale
+                        idx += 1
+        else:
+            # non-centered: u params have N(0,1) prior → identity mass
+            mass_sqrt[idx:] = 1.0
+            idx = len(self.x0)
+
+        assert idx == len(self.x0), f"mass_sqrt size mismatch: {idx} vs {len(self.x0)}"
+
+        # Cap to limit condition number: clip anything above 1000x the 1st percentile
+        lo = np.percentile(mass_sqrt, 1)
+        mass_sqrt = np.clip(mass_sqrt, lo * 0.1, lo * 1000.0)
+        return mass_sqrt
+
     def _ensure_tf_tensors(self):
         """Create TensorFlow-dependent tensors with matrix splitting to avoid 24GB allocation limit."""
         if self.sph1 is not None:
@@ -338,7 +392,9 @@ class CosmologyAdvancedSampling:
             _a_tmp = splittosingularalm_tf(_realalm, _imagalm, _lmax)
             _abs_a2 = tf.cast(tf.math.abs(_a_tmp), tf.float32) ** 2
             _as = tf.math.unsorted_segment_sum(_abs_a2 * self.l_weights, self.l_indices, num_segments=_lmax)
-            _psi_prior_alm = 0.5 * tf.reduce_sum(tf.cast(_as, tf.float64) / tf.math.exp(_lncl))
+            # Added a small epsilon in denominator to prevent division by zero and NaNs during MAP estimation/optimization
+            _psi_prior_alm = 0.5 * tf.reduce_sum(tf.cast(_as, tf.float64) / (tf.math.exp(_lncl) + 1e-30))
+
 
         _a = splittosingularalm_tf(_realalm, _imagalm, _lmax)
         _a_c64 = self.alm_weights * tf.cast(_a, tf.complex64)
@@ -363,3 +419,92 @@ class CosmologyAdvancedSampling:
             print(f"Compiling psi_tf with jit_compile={use_jit}...")
             self._compiled_psi_tf = tf.function(self._psi_tf_raw, jit_compile=use_jit)
         return self._compiled_psi_tf(_params)
+
+    # ------------------------------------------------------------------
+    # Gibbs sampler support
+    # ------------------------------------------------------------------
+
+    def compute_sl_np(self, alm_flat_np):
+        """Compute S_l = sum_{m=-l}^{l} |a_{lm}|^2 for l=0..lmax-1.
+
+        alm_flat_np: 1-D numpy array = x0[lmax-2:] (real parts then imaginary parts).
+        """
+        lmax = self.lmax
+        n_real = lmax * (lmax + 1) // 2 - 3
+        real_p = alm_flat_np[:n_real]
+        imag_p = alm_flat_np[n_real:]
+        S = np.zeros(lmax)
+        r_idx = 0
+        i_idx = 0
+        for L in range(2, lmax):
+            for m in range(L + 1):
+                re = real_p[r_idx]
+                r_idx += 1
+                im = imag_p[i_idx] if m >= 2 else 0.0
+                if m >= 2:
+                    i_idx += 1
+                if m == 0:
+                    S[L] += re * re
+                else:
+                    S[L] += 2.0 * (re * re + im * im)
+        return S
+
+    def sample_cl_given_alm(self, alm_flat_np, rng=None):
+        """Sample ln(C_l) | alm for l=2..lmax-1 from the exact inverse-Gamma conditional.
+
+        The log-posterior implied by psi_tf gives:
+            C_l | alm ~ InvGamma(alpha=l-0.5, beta=S_l/2)
+        where S_l = sum_{m=-l}^{l} |a_{lm}|^2.
+
+        Returns lncl array of shape (lmax-2,).
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+        lmax = self.lmax
+        S = self.compute_sl_np(alm_flat_np)
+        lncl = np.empty(lmax - 2)
+        for i in range(lmax - 2):
+            l = i + 2
+            alpha = float(l) - 0.5
+            beta = max(S[l] * 0.5, 1e-60)
+            g = rng.gamma(alpha, scale=1.0)
+            lncl[i] = np.log(beta / max(g, 1e-300))
+        return lncl
+
+    def build_posterior_mass_sqrt(self, cl_full):
+        """Diagonal sqrt(posterior Hessian) for HMC preconditioning of the alm block.
+
+        Uses the diagonal approximation of the posterior precision in alm space:
+            H[l,m] ≈ 1/C_l + Ninv_eff
+        where Ninv_eff = f_sky * mean(Ninv_unmasked) * Npix / (4π).
+
+        For high-S/N CMB problems this nearly diagonalises the posterior,
+        giving a condition number close to 1 in the whitened space.
+
+        Returns a 1-D float64 array of length n_real_alm + n_imag_alm.
+        """
+        lmax = self.lmax
+        n_unmasked = len(self.unmasked_idx)
+        Ninv_mean = float(np.mean(self.Ninv[self.unmasked_idx])) if n_unmasked > 0 else 1.0
+        f_sky = n_unmasked / self.NPIX
+        Ninv_eff = f_sky * Ninv_mean * self.NPIX / (4.0 * np.pi)
+
+        n_real = lmax * (lmax + 1) // 2 - 3
+        n_imag = (lmax - 2) * (lmax - 1) // 2
+        mass_sqrt = np.empty(n_real + n_imag, dtype=np.float64)
+        idx = 0
+        for L in range(2, lmax):
+            cl = max(float(cl_full[L]) if L < len(cl_full) else 1e-30, 1e-30)
+            scale = np.sqrt(1.0 / cl + Ninv_eff)
+            for _ in range(L + 1):
+                mass_sqrt[idx] = scale
+                idx += 1
+        for L in range(2, lmax):
+            cl = max(float(cl_full[L]) if L < len(cl_full) else 1e-30, 1e-30)
+            scale = np.sqrt(1.0 / cl + Ninv_eff)
+            for m in range(L + 1):
+                if m >= 2:
+                    mass_sqrt[idx] = scale
+                    idx += 1
+        assert idx == n_real + n_imag
+        return mass_sqrt

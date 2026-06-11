@@ -68,16 +68,19 @@ def test_sampler_uses_negative_psi_tf(small_model):
 
 @skip_no_tfp
 def test_hmc_sampler_uses_negative_psi_tf(small_model):
-    """Same sign check for the HMC path."""
+    """Verify HMC targets -psi_tf (sign check).
+
+    Run with no burnin so the first recorded sample starts from x0 and
+    its target_log_prob must equal -psi_tf(x0) exactly.
+    """
     from src.cmb import run_chain_hmc
 
     x0 = small_model.prior_parameters_tf()
-    psi_at_x0 = float(small_model.psi_tf(x0).numpy())
-    expected_logp = -psi_at_x0
+    expected_logp = -float(small_model.psi_tf(x0).numpy())
 
     samples, results = run_chain_hmc(
         small_model, x0, _step_size=0.001,
-        num_results=5, num_burnin_steps=10,
+        num_results=5, num_burnin_steps=0,
     )
 
     inner = results.inner_results
@@ -85,6 +88,37 @@ def test_hmc_sampler_uses_negative_psi_tf(small_model):
 
     assert abs(first_logp - expected_logp) < 1.0, (
         f"HMC target_log_prob ({first_logp:.4f}) != -psi_tf ({expected_logp:.4f})"
+    )
+
+
+# ── MAP initialisation ───────────────────────────────────────────────────────
+
+@skip_no_tfp
+def test_find_map_reduces_psi(small_model):
+    """find_map_estimate must strictly decrease psi_tf from the prior mean."""
+    from src.cmb import find_map_estimate
+
+    x0 = small_model.prior_parameters_tf()
+    psi_before = float(small_model.psi_tf(x0))
+
+    map_state = find_map_estimate(small_model, n_steps=50, learning_rate=0.001, print_every=50)
+
+    psi_after = float(small_model.psi_tf(map_state))
+    assert psi_after < psi_before, (
+        f"MAP did not reduce psi: {psi_before:.4f} → {psi_after:.4f}"
+    )
+
+
+@skip_no_tfp
+def test_find_map_returns_correct_shape(small_model):
+    """MAP estimate must have the same shape as the initial state."""
+    from src.cmb import find_map_estimate
+
+    x0 = small_model.prior_parameters_tf()
+    map_state = find_map_estimate(small_model, n_steps=10, print_every=10)
+
+    assert map_state.shape == x0.shape, (
+        f"MAP shape {map_state.shape} != x0 shape {x0.shape}"
     )
 
 
@@ -175,3 +209,23 @@ def test_nuts_results_have_inner_results(small_model):
     assert hasattr(inner, "is_accepted"), "inner_results missing is_accepted"
     assert inner.target_log_prob.shape[0] == n
     assert inner.is_accepted.shape[0] == n
+
+
+@skip_no_tfp
+def test_gibbs_chain_moves(small_model):
+    """Verify that the Gibbs sampler runs without crashing and moves."""
+    from src.cmb import run_gibbs_chain
+
+    samples, logp, accepts, final_step = run_gibbs_chain(
+        small_model,
+        n_samples=5,
+        n_burnin=5,
+        hmc_step_size=0.01,
+        n_lfs=5,
+        seed=42,
+    )
+    assert samples.shape == (5, len(small_model.x0))
+    assert logp.shape == (5,)
+    assert accepts.shape == (5,)
+    assert isinstance(final_step, float)
+    assert not np.allclose(samples[0], samples[-1])
