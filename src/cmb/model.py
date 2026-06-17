@@ -74,7 +74,10 @@ class CosmologyAdvancedSampling:
     refactors can split responsibilities.
     """
 
-    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered'):
+    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered', dtype=None):
+        if dtype is None:
+            dtype = tf.complex64 if tf is not None else None
+        self.dtype = dtype
         lcdm_parameters = np.array([67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066])
         self.parameterization = parameterization
 
@@ -280,57 +283,65 @@ class CosmologyAdvancedSampling:
         phis = phis_full[self.unmasked_idx]
         NPIX_CROP = len(thetas)
 
-        print(f"Pre-computing {len_alm} spherical harmonics for {NPIX_CROP} unmasked pixels...")
-        try:
-            from cmb_sph import compute_sph as _rust_compute_sph
-            _sph_np = _rust_compute_sph(thetas, phis, self.lmax)
-            print("  Using Rust extension.")
-        except ImportError:
-            print("  Rust extension not found, using slow Scipy fallback...")
-            _sph_np = np.empty((NPIX_CROP, len_alm), dtype=np.complex64)
-            col = 0
-            for L in range(self.lmax):
-                for m in range(L + 1):
-                    vals = sp.special.sph_harm(m, L, phis, thetas)
-                    if L == 0:
-                        vals = vals.real.astype(np.complex64)
-                    _sph_np[:, col] = vals
-                    col += 1
+        np_dtype = np.complex128 if self.dtype == tf.complex128 else np.complex64
+        bytes_per_val = 16 if self.dtype == tf.complex128 else 8
 
-        # Split matrix into 2 parts (by pixel) to fit in GPU allocator bins
-        mid = NPIX_CROP // 2
-        print(f"  Splitting matrix: Part 1 ({mid}), Part 2 ({NPIX_CROP-mid})")
-
-        matrix_size_gb = (NPIX_CROP * len_alm * 8) / (1024**3)
-        print(f"  Total matrix size: {matrix_size_gb:.2f} GB")
+        # Dynamic splitting to fit in GPU/allocator limits (e.g. 10GB per part)
+        MAX_PART_GB = 10.0
+        pix_per_part = int((MAX_PART_GB * 1024**3) / (len_alm * bytes_per_val))
+        num_parts = int(np.ceil(NPIX_CROP / pix_per_part))
 
         # Check available GPUs
         gpus = tf.config.list_physical_devices('GPU')
+        print(f"Pre-computing {len_alm} spherical harmonics for {NPIX_CROP} unmasked pixels...")
+        print(f"  Splitting matrix into {num_parts} parts of max {MAX_PART_GB} GB each")
         print(f"  Available GPUs: {len(gpus)}")
 
-        if len(gpus) >= 2 and matrix_size_gb > 12.0:
-            print("  Large matrix & multiple GPUs: placing Part 1 on GPU 0 and Part 2 on GPU 1")
-            self.multi_device = True
-            with tf.device('/GPU:0'):
-                self.sph1 = tf.convert_to_tensor(_sph_np[:mid], dtype=np.complex64)
-            with tf.device('/GPU:1'):
-                self.sph2 = tf.convert_to_tensor(_sph_np[mid:], dtype=np.complex64)
-        elif len(gpus) == 1 and matrix_size_gb > 12.0:
-            print("  Large matrix & single GPU: placing Part 1 on GPU 0 and offloading Part 2 to CPU")
-            self.multi_device = True
-            with tf.device('/GPU:0'):
-                self.sph1 = tf.convert_to_tensor(_sph_np[:mid], dtype=np.complex64)
-            with tf.device('/CPU:0'):
-                self.sph2 = tf.convert_to_tensor(_sph_np[mid:], dtype=np.complex64)
-        else:
-            self.multi_device = False
-            self.sph1 = tf.convert_to_tensor(_sph_np[:mid], dtype=np.complex64)
-            self.sph2 = tf.convert_to_tensor(_sph_np[mid:], dtype=np.complex64)
+        try:
+            from cmb_sph import compute_sph as _rust_compute_sph
+            use_rust = True
+            print("  Using Rust extension (chunk-by-chunk to save RAM).")
+        except ImportError:
+            use_rust = False
+            print("  Rust extension not found, using slow Scipy fallback...")
 
-        del _sph_np
-        gc.collect()
+        self.sph_parts = []
+        self.prior_map_parts = []
+        self.Ninv_parts = []
 
-        _w = np.ones(len_alm, dtype=np.complex64)
+        for i in range(num_parts):
+            start = i * pix_per_part
+            end = min((i + 1) * pix_per_part, NPIX_CROP)
+
+            if use_rust:
+                _chunk_np = _rust_compute_sph(thetas[start:end], phis[start:end], self.lmax).astype(np_dtype)
+            else:
+                _chunk_np = np.empty((end - start, len_alm), dtype=np_dtype)
+                col = 0
+                for L in range(self.lmax):
+                    for m in range(L + 1):
+                        vals = sp.special.sph_harm(m, L, phis[start:end], thetas[start:end])
+                        if L == 0:
+                            vals = vals.real.astype(np_dtype)
+                        _chunk_np[:, col] = vals
+                        col += 1
+
+            # Place first part on GPU, rest on CPU
+            dev = f'/GPU:{i}' if i < len(gpus) else '/CPU:0'
+            print(f"  Part {i+1}/{num_parts}: pixels {start}-{end} on {dev}")
+            with tf.device(dev):
+                self.sph_parts.append(tf.convert_to_tensor(_chunk_np, dtype=self.dtype))
+                self.prior_map_parts.append(tf.convert_to_tensor(self.prior_map[self.unmasked_idx[start:end]], dtype=tf.float64))
+                self.Ninv_parts.append(tf.convert_to_tensor(self.Ninv[self.unmasked_idx[start:end]], dtype=tf.float64))
+
+            del _chunk_np
+            gc.collect()
+
+        self.multi_device = (num_parts > 1 or len(gpus) > 0)
+        self.sph1 = self.sph_parts[0]  # Compatibility
+        self.sph2 = self.sph_parts[1] if num_parts > 1 else self.sph_parts[0]  # Compatibility
+
+        _w = np.ones(len_alm, dtype=np_dtype)
         _l_idx = np.empty(len_alm, dtype=np.int32)
         _count = 0
         for L in range(self.lmax):
@@ -339,7 +350,7 @@ class CosmologyAdvancedSampling:
                     _w[_count] = complex(0.5, 0)
                 _l_idx[_count] = L
                 _count = _count + 1
-        self.alm_weights = tf.convert_to_tensor(_w, dtype=np.complex64)
+        self.alm_weights = tf.convert_to_tensor(_w, dtype=self.dtype)
         self.l_indices = tf.convert_to_tensor(_l_idx, dtype=np.int32)
 
         _lw = np.ones(len_alm, dtype=np.float32)
@@ -357,11 +368,6 @@ class CosmologyAdvancedSampling:
                 _imag_mask.append(L * (L + 1) // 2 + m)
         self.imag_indices = tf.convert_to_tensor(_imag_mask, dtype=np.int32)
 
-        # Split data and Ninv to match split matrix
-        self.prior_map1_tf = tf.convert_to_tensor(self.prior_map[self.unmasked_idx[:mid]], dtype=tf.float64)
-        self.prior_map2_tf = tf.convert_to_tensor(self.prior_map[self.unmasked_idx[mid:]], dtype=tf.float64)
-        self.Ninv1_tf = tf.convert_to_tensor(self.Ninv[self.unmasked_idx[:mid]], dtype=tf.float64)
-        self.Ninv2_tf = tf.convert_to_tensor(self.Ninv[self.unmasked_idx[mid:]], dtype=tf.float64)
         self.sph = self.sph1 # For backward compatibility in utils
 
     def prior_parameters_tf(self):
@@ -397,14 +403,13 @@ class CosmologyAdvancedSampling:
 
 
         _a = splittosingularalm_tf(_realalm, _imagalm, _lmax)
-        _a_c64 = self.alm_weights * tf.cast(_a, tf.complex64)
+        _a_c64 = self.alm_weights * tf.cast(_a, self.dtype)
 
-        # Matrix splitting matvecs
-        _Ya1 = 2.0 * tf.math.real(matvec_on_device(self.sph1, _a_c64))
-        _Ya2 = 2.0 * tf.math.real(matvec_on_device(self.sph2, _a_c64))
-
-        _psi_lik = 0.5 * (tf.reduce_sum((self.prior_map1_tf - tf.cast(_Ya1, tf.float64))**2 * self.Ninv1_tf) +
-                          tf.reduce_sum((self.prior_map2_tf - tf.cast(_Ya2, tf.float64))**2 * self.Ninv2_tf))
+        # Matrix splitting matvecs (loop over parts)
+        _psi_lik = 0.0
+        for i in range(len(self.sph_parts)):
+            _Ya = 2.0 * tf.math.real(matvec_on_device(self.sph_parts[i], _a_c64))
+            _psi_lik += 0.5 * tf.reduce_sum((self.prior_map_parts[i] - tf.cast(_Ya, tf.float64))**2 * self.Ninv_parts[i])
 
         _l = tf.range(_lmax, dtype=tf.float64)
         _psi_cl = tf.reduce_sum((_l + 0.5) * _lncl)
@@ -461,14 +466,22 @@ class CosmologyAdvancedSampling:
         if rng is None:
             rng = np.random.default_rng()
         lmax = self.lmax
+        if np.any(~np.isfinite(alm_flat_np)):
+            raise ValueError("Non-finite values (NaNs/Infs) detected in alm_flat_np during sample_cl_given_alm!")
         S = self.compute_sl_np(alm_flat_np)
         lncl = np.empty(lmax - 2)
         for i in range(lmax - 2):
             l = i + 2
             alpha = float(l) - 0.5
-            beta = max(S[l] * 0.5, 1e-60)
+            s_val = S[l]
+            if not np.isfinite(s_val) or s_val < 0.0:
+                s_val = 0.0
+            beta = max(s_val * 0.5, 1e-60)
             g = rng.gamma(alpha, scale=1.0)
-            lncl[i] = np.log(beta / max(g, 1e-300))
+            val_cl = beta / max(g, 1e-300)
+            # Clip between exp(-15) and exp(15) to keep log-scale calculations stable
+            val_cl = np.clip(val_cl, 3e-7, 3e6)
+            lncl[i] = np.log(val_cl)
         return lncl
 
     def build_posterior_mass_sqrt(self, cl_full):

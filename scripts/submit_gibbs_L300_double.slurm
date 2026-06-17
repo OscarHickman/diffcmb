@@ -4,47 +4,45 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=512G
-#SBATCH --time=48:00:00
-#SBATCH -J cmb_final_L200
-#SBATCH -o logs/cmb_L200_%j_%a.out
-#SBATCH -e logs/cmb_L200_%j_%a.err
+#SBATCH --mem=1500G
+#SBATCH --time=72:00:00
+#SBATCH -J cmb_gibbs_L300_dp
+#SBATCH -o logs/cmb_gibbs_L300_dp_%j_%a.out
+#SBATCH -e logs/cmb_gibbs_L300_dp_%j_%a.err
 #SBATCH --array=1-4
 #SBATCH --exclusive
 
-
-# Final High-Resolution Real Planck Data Run (Mask-Cropped & High Memory)
-SAMPLER="hmc"
-LMAX=200
-NSIDE=128
-SAMPLES=5000
-BURNIN=1000
-STEP_SIZE=0.001
+# Gibbs sampler: exact C_l | alm (inverse-Gamma) + HMC alm | C_l in double precision.
+# Resolution: L=300, captures the trough between peaks 1 and 2.
+# Precision: double precision (complex128/float64) for matrix operations to prevent gradient noise collapse.
+SAMPLER="gibbs"
+LMAX=300
+NSIDE=256
+SAMPLES=2000
+BURNIN=500
+STEP_SIZE=0.01
+N_LFS=20
 DATA_MODE="real"
 DATA_DIR="/cosma8/data/dp004/dc-hick2/Plank"
-OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}"
+OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}_double"
 
 mkdir -p logs
 mkdir -p $OUTPUT_DIR
 
-# Use absolute path for robustness
 REPO_DIR="/cosma/apps/durham/dc-hick2/CMB_Advanced_Sampling"
 cd $REPO_DIR
 
-# Use the venv python directly
 PYTHON=".venv/bin/python"
 export PYTHONPATH=$PYTHONPATH:.
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
+export CUDA_VISIBLE_DEVICES=0
 
-echo "Starting FINAL L=200 Real Run (L=${LMAX}, NSIDE=${NSIDE}) on GPU Partition (Optimized)"
+echo "Starting Gibbs L=300 Real Double Precision Run (L=${LMAX}, NSIDE=${NSIDE})"
 echo "Chain ID: ${SLURM_ARRAY_TASK_ID}"
 echo "Using Python: $($PYTHON --version 2>&1)"
-
-# Check memory before starting
 free -h
 
-# Use -u for unbuffered output
 $PYTHON -u scripts/run_sampler.py \
     --sampler $SAMPLER \
     --lmax $LMAX \
@@ -52,10 +50,11 @@ $PYTHON -u scripts/run_sampler.py \
     --n_samples $SAMPLES \
     --n_burnin $BURNIN \
     --step_size $STEP_SIZE \
+    --n_lfs $N_LFS \
     --data_mode $DATA_MODE \
     --data_dir $DATA_DIR \
-    --parameterization "non-centered" \
+    --map_steps 2000 \
+    --map_lr 0.01 \
     --chain_id $SLURM_ARRAY_TASK_ID \
     --output_dir $OUTPUT_DIR \
-    --n_lfs 20
-
+    --double_precision

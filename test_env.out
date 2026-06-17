@@ -1,0 +1,60 @@
+====
+Starting job 11373441 at Fri 12 Jun 16:58:08 BST 2026 for user dc-hick2.
+Running on nodes: m5005
+====
+=== hostname ===
+m5005.pri.cosma.local
+=== ls local ===
+/cosma/local
+=== module cmd ===
+CPATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/include:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/include; export CPATH;
+CMPLR_ROOT=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2; export CMPLR_ROOT;
+CMAKE_PREFIX_PATH=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13; export CMAKE_PREFIX_PATH;
+TBBROOT=/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13; export TBBROOT;
+I_MPI_F90=ifx; export I_MPI_F90;
+_COSMA_MPI=intel_mpi_2024.2.0; export _COSMA_MPI;
+_COSMA_SYS=intel_2024.2.0; export _COSMA_SYS;
+CMAKE_PREFIX_PATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2:1:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13:1; export CMAKE_PREFIX_PATH_modshare;
+F77=ifx; export F77;
+COSMA_ALL_OPT=-O3\ -mavx; export COSMA_ALL_OPT;
+CLASSPATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/share/java/mpi.jar:1; export CLASSPATH_modshare;
+I_MPI_CXX=icpx; export I_MPI_CXX;
+MANPATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/share/man:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/share/man:/cosma/home/durham/dc-hick2/.nvm/versions/node/v24.15.0/share/man:/cosma/local/Modules/default/share/man:/usr/man:/usr/share/man:/usr/local/man:/usr/local/share/man:/usr/X11R6/man:/opt/man:/var/lib/snapd/snap/man; export MANPATH;
+PKG_CONFIG_PATH=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/pkgconfig:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib/pkgconfig; export PKG_CONFIG_PATH;
+MANPATH_modshare=/usr/man:1:/usr/local/share/man:1:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/share/man:1:/cosma/local/Modules/default/share/man:1:/usr/X11R6/man:1:/opt/man:1:/usr/share/man:1:/usr/local/man:1:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/share/man:1:/cosma/home/durham/dc-hick2/.nvm/versions/node/v24.15.0/share/man:1:/var/lib/snapd/snap/man:1; export MANPATH_modshare;
+F90=ifx; export F90;
+LD_LIBRARY_PATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/lib:1:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/lib:1:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib:1:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/opt/compiler/lib:1:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib:1; export LD_LIBRARY_PATH_modshare;
+MODULEPATH=/cosma/local/intel/oneAPI_2024.2.0/modulefiles:/cosma/local/Modules/modulefiles/mpi:/cosma/local/Modules/modulefiles/versions:/cosma/local/Modules/modulefiles/compilers:/cosma/local/Modules/modulefiles/libraries:/cosma/local/Modules/modulefiles/tools:/cosma/local/Modules/modulefiles/MAD; export MODULEPATH;
+COSMA_7_OPT=-O3\ -xSKYLAKE-AVX512; export COSMA_7_OPT;
+PATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/bin:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/bin:/cosma/local/gcc/11.1.0/bin/:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/bin:/cosma/home/durham/dc-hick2/.gemini/antigravity-cli/bin:/cosma/home/durham/dc-hick2/.local/bin:/cosma/home/durham/dc-hick2/.local/bin:/cosma/home/durham/dc-hick2/.nvm/versions/node/v24.15.0/bin:/cosma/home/durham/dc-hick2/.local/bin:/cosma/home/durham/dc-hick2/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/cosma/home/durham/dc-hick2/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/cosma/home/durham/dc-hick2/.vscode-server/cli/servers/Stable-6a44c352bd24569c417e530095901b649960f9f8/server/bin/remote-cli:/cosma/home/durham/dc-hick2/.local/bin:/cosma/home/durham/dc-hick2/.local/bin:/cosma/home/durham/dc-hick2/.cargo/bin:/cosma/local/Modules/default/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/cosma/home/durham/dc-hick2/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts; export PATH;
+COSMA_OPT=-O3\ -mavx; export COSMA_OPT;
+CC=icx; export CC;
+LD_LIBRARY_PATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/lib:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/lib:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/opt/compiler/lib:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib; export LD_LIBRARY_PATH;
+LOADEDMODULES=intel_comp/2024.2.0:compiler-rt/latest:tbb/latest:compiler/latest:mpi/latest; export LOADEDMODULES;
+CXX=icpx; export CXX;
+I_MPI_CC=icx; export I_MPI_CC;
+PKG_CONFIG_PATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/pkgconfig:1:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib/pkgconfig:1; export PKG_CONFIG_PATH_modshare;
+OCL_ICD_FILENAMES_modshare=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libintelocl.so:1; export OCL_ICD_FILENAMES_modshare;
+NLSPATH=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/compiler/locale/%l_%t/%N; export NLSPATH;
+LOADEDMODULES_modshare=tbb/latest:1:mpi/latest:1:compiler-rt/latest:1:compiler/latest:1:intel_comp/2024.2.0:1; export LOADEDMODULES_modshare;
+MODULEPATH_modshare=/cosma/local/Modules/modulefiles/tools:1:/cosma/local/Modules/modulefiles/libraries:1:/cosma/local/Modules/modulefiles/versions:1:/cosma/local/Modules/modulefiles/MAD:1:/cosma/local/Modules/modulefiles/compilers:1:/cosma/local/Modules/modulefiles/mpi:1:/cosma/local/intel/oneAPI_2024.2.0/modulefiles:1; export MODULEPATH_modshare;
+OCL_ICD_FILENAMES=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libintelocl.so; export OCL_ICD_FILENAMES;
+DIAGUTIL_PATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/etc/compiler/sys_check/sys_check.sh:2; export DIAGUTIL_PATH_modshare;
+LIBRARY_PATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/lib:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/lib:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib; export LIBRARY_PATH;
+I_MPI_ROOT=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13; export I_MPI_ROOT;
+_LMFILES_=/cosma/local/Modules/modulefiles/compilers/intel_comp/2024.2.0:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/compiler-rt/latest:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/tbb/latest:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/compiler/latest:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/mpi/latest; export _LMFILES_;
+LIBRARY_PATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/lib:1:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/lib:1:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib:1:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/lib:1; export LIBRARY_PATH_modshare;
+NLSPATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/compiler/locale/%l_%t/%N:1; export NLSPATH_modshare;
+unset INTEL_TARGET_ARCH_IA32;
+FC=ifx; export FC;
+I_MPI_F77=ifx; export I_MPI_F77;
+CPATH_modshare=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/include:1:/cosma/local/intel/oneAPI_2024.2.0/tbb/2021.13/include:1; export CPATH_modshare;
+CLASSPATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/share/java/mpi.jar; export CLASSPATH;
+_LMFILES__modshare=/cosma/local/intel/oneAPI_2024.2.0/modulefiles/mpi/latest:1:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/compiler-rt/latest:1:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/compiler/latest:1:/cosma/local/intel/oneAPI_2024.2.0/modulefiles/tbb/latest:1:/cosma/local/Modules/modulefiles/compilers/intel_comp/2024.2.0:1; export _LMFILES__modshare;
+COSMA_8_OPT=-O3\ -march=core-avx2; export COSMA_8_OPT;
+FI_PROVIDER_PATH=/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/lib/prov:/usr/lib64/libfabric; export FI_PROVIDER_PATH;
+DIAGUTIL_PATH=/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/etc/compiler/sys_check/sys_check.sh; export DIAGUTIL_PATH;
+PATH_modshare=/usr/bin:1:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/bin:1:/cosma/home/durham/dc-hick2/.gemini/antigravity-cli/bin:1:/usr/local/bin:1:/cosma/local/gcc/11.1.0/bin/:1:/cosma/home/durham/dc-hick2/.nvm/versions/node/v24.15.0/bin:1:/cosma/home/durham/dc-hick2/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:1:/cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/bin:1:/cosma/local/Modules/default/bin:1:/cosma/home/durham/dc-hick2/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts:1:/cosma/home/durham/dc-hick2/.vscode-server/cli/servers/Stable-6a44c352bd24569c417e530095901b649960f9f8/server/bin/remote-cli:1:/cosma/home/durham/dc-hick2/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:1:/usr/sbin:1:/cosma/local/intel/oneAPI_2024.2.0/mpi/2021.13/opt/mpi/libfabric/bin:1:/cosma/home/durham/dc-hick2/.local/bin:1:/usr/local/sbin:1:/cosma/home/durham/dc-hick2/.cargo/bin:1; export PATH_modshare;
+F9X=ifx; export F9X;
+test 0;
+=== end ===

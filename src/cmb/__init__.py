@@ -2,6 +2,6 @@
 
 from .load_results import load_cmb_chains
 from .model import CosmologyAdvancedSampling
-from .samplers import run_chain_hmc, run_chain_nut
+from .samplers import find_map_estimate, run_chain_hmc, run_chain_nut, run_gibbs_chain
 
-__all__ = ["CosmologyAdvancedSampling", "run_chain_hmc", "run_chain_nut", "load_cmb_chains"]
+__all__ = ["CosmologyAdvancedSampling", "find_map_estimate", "run_chain_hmc", "run_chain_nut", "run_gibbs_chain", "load_cmb_chains"]

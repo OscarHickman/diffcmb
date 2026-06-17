@@ -1,0 +1,19 @@
+====
+Starting job 11373446 at Fri 12 Jun 16:58:38 BST 2026 for user dc-hick2.
+Running on nodes: m5005
+====
+	linux-vdso.so.1 (0x00007fffb0eca000)
+	libhdf5_fortran.so.310 => /cosma/local/hdf5//intel_2024.2.0/1.14.4/lib/libhdf5_fortran.so.310 (0x0000149591468000)
+	libhdf5.so.310 => /cosma/local/hdf5//intel_2024.2.0/1.14.4/lib/libhdf5.so.310 (0x0000149591005000)
+	libz.so.1 => /lib64/libz.so.1 (0x0000149590fdd000)
+	libm.so.6 => /lib64/libm.so.6 (0x0000149590efe000)
+	libirng.so => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libirng.so (0x0000149590e05000)
+	libc.so.6 => /lib64/libc.so.6 (0x0000149590a00000)
+	libgcc_s.so.1 => /lib64/libgcc_s.so.1 (0x0000149590de8000)
+	libifport.so.5 => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libifport.so.5 (0x0000149590dbe000)
+	libifcoremt.so.5 => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libifcoremt.so.5 (0x0000149590c50000)
+	libimf.so => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libimf.so (0x00001495905f4000)
+	libintlc.so.5 => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libintlc.so.5 (0x0000149590593000)
+	libsvml.so => /cosma/local/intel/oneAPI_2024.2.0/compiler/2024.2/lib/libsvml.so (0x000014958ef4f000)
+	/lib64/ld-linux-x86-64.so.2 (0x00001495914ce000)
+	libpthread.so.0 => /lib64/libpthread.so.0 (0x0000149590c4b000)

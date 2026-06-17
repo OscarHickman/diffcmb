@@ -33,7 +33,7 @@ class WrapperResults:
         return self
 
 
-def find_map_estimate(model, n_steps=500, learning_rate=0.001, print_every=50):
+def find_map_estimate(model, n_steps=500, learning_rate=0.0002, print_every=50):
     """Find the MAP estimate by minimising psi_tf with Adam.
 
     psi_tf is the negative log-posterior, so its minimum is the MAP.
@@ -57,7 +57,14 @@ def find_map_estimate(model, n_steps=500, learning_rate=0.001, print_every=50):
         with tf.GradientTape() as tape:
             loss = model._psi_tf_raw(params)
         grads = tape.gradient(loss, params)
-        optimizer.apply_gradients([(grads, params)])
+        # Clip gradients by norm to preserve direction while preventing numeric explosion
+        grads_clipped = tf.clip_by_norm(grads, 100.0)
+        optimizer.apply_gradients([(grads_clipped, params)])
+
+        # Clip lncl parameters to prevent runaway underflow/overflow
+        lmax = model.lmax
+        lncl_clipped = tf.clip_by_value(params[:lmax-2], -12.0, 12.0)
+        params.assign(tf.concat([lncl_clipped, params[lmax-2:]], axis=0))
         return loss
 
     print(f"Finding MAP estimate ({n_steps} Adam steps, lr={learning_rate})...")
@@ -66,8 +73,11 @@ def find_map_estimate(model, n_steps=500, learning_rate=0.001, print_every=50):
     loss_val = None
     for i in range(n_steps):
         loss_val = _step()
+        loss_float = float(loss_val)
+        if not np.isfinite(loss_float):
+            raise ValueError(f"MAP optimization failed: loss became {loss_float} at step {i}")
         if i % print_every == 0 or i == n_steps - 1:
-            print(f"  step {i:4d}: psi = {float(loss_val):.6g}  ({time.time()-t0:.1f}s)")
+            print(f"  step {i:4d}: psi = {loss_float:.6g}  ({time.time()-t0:.1f}s)")
 
     improvement = psi_at_x0 - float(loss_val)
     print(f"MAP complete: psi {psi_at_x0:.6g} → {float(loss_val):.6g}  (Δ={improvement:.4g})")
@@ -182,6 +192,8 @@ def run_gibbs_chain(
     n_lncl = lmax - 2
 
     if initial_params is not None:
+        if np.any(~np.isfinite(initial_params)):
+            raise ValueError("initial_params contains NaNs or Infs at start of Gibbs chain!")
         x0 = np.array(initial_params, dtype=np.float64).ravel()
     else:
         x0 = np.array(model.x0, dtype=np.float64)
@@ -256,15 +268,13 @@ def run_gibbs_chain(
         logp_val = float(-new_pkr.accepted_results.target_log_prob.numpy())
         recent.append(accepted)
 
-        # Multiplicative step-size adaptation during burn-in
-        if i < n_burnin and len(recent) >= 50:
-            rate = float(np.mean(recent[-50:]))
-            if rate > target_accept + 0.05:
-                step_float = min(step_float * 1.04, 2.0)
-                step_size_var.assign(step_float)
-            elif rate < target_accept - 0.05:
-                step_float = max(step_float * 0.96, 1e-7)
-                step_size_var.assign(step_float)
+        # Robbins-Monro step-size adaptation during burn-in (prevents control loop lag/collapse)
+        if i < n_burnin:
+            gamma = 1.0 / ((i + 1) ** 0.6)
+            log_step = np.log(step_float) + gamma * (float(accepted) - target_accept)
+            step_float = float(np.exp(log_step))
+            step_float = np.clip(step_float, 1e-7, 2.0)
+            step_size_var.assign(step_float)
 
         if i % 200 == 0:
             rate_str = f"{np.mean(recent[-100:]):.2f}" if len(recent) >= 100 else "n/a"

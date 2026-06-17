@@ -71,22 +71,22 @@ def load_and_summarise(label, results_dir, lmax):
     return chains_samples, chains_logprob, chains_accepted
 
 
-def plot_traces(label, chains_logprob):
+def plot_traces(label, sampler, chains_logprob, lmax):
     fig, ax = plt.subplots(figsize=(12, 4))
     for i, lp in enumerate(chains_logprob):
         ax.plot(lp, label=f"Chain {i+1}", alpha=0.75, lw=0.8)
     ax.set_xlabel("Sample")
     ax.set_ylabel("Log-posterior")
-    ax.set_title(f"NUTS log-posterior traces — {label}")
+    ax.set_title(f"{sampler.upper()} log-posterior traces — {label} (L={lmax})")
     ax.legend(fontsize=8)
     plt.tight_layout()
-    path = os.path.join(OUT_DIR, f"traces_{label}.png")
+    path = os.path.join(OUT_DIR, f"traces_{label}_{sampler}_L{lmax}.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  Saved trace plot → {path}")
 
 
-def plot_power_spectrum(label, chains_samples, lmax):
+def plot_power_spectrum(label, sampler, chains_samples, lmax):
     # Try to import CAMB for fiducial spectrum
     try:
         from src.cmb.power import call_CAMB_map
@@ -116,16 +116,16 @@ def plot_power_spectrum(label, chains_samples, lmax):
         ax.plot(ells, dl_lcdm, "r--", lw=1.5, label="ΛCDM fiducial")
     ax.set_xlabel(r"$\ell$")
     ax.set_ylabel(r"$D_\ell = \ell(\ell+1)C_\ell / 2\pi$")
-    ax.set_title(f"Inferred CMB power spectrum — {label}")
+    ax.set_title(f"Inferred CMB power spectrum — {label} ({sampler.upper()})")
     ax.legend()
     plt.tight_layout()
-    path = os.path.join(OUT_DIR, f"power_spectrum_{label}.png")
+    path = os.path.join(OUT_DIR, f"power_spectrum_{label}_{sampler}_L{lmax}.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  Saved power spectrum → {path}")
 
 
-def plot_rhat_histogram(label, chains_samples):
+def plot_rhat_histogram(label, sampler, chains_samples, lmax):
     if len(chains_samples) < 2:
         return
     rhat = gelman_rubin(chains_samples)
@@ -134,10 +134,10 @@ def plot_rhat_histogram(label, chains_samples):
     ax.axvline(1.1, color="red", ls="--", label="R-hat = 1.1")
     ax.set_xlabel("R-hat")
     ax.set_ylabel("Count")
-    ax.set_title(f"Gelman-Rubin R-hat — {label}")
+    ax.set_title(f"Gelman-Rubin R-hat — {label} ({sampler.upper()}) (L={lmax})")
     ax.legend()
     plt.tight_layout()
-    path = os.path.join(OUT_DIR, f"rhat_{label}.png")
+    path = os.path.join(OUT_DIR, f"rhat_{label}_{sampler}_L{lmax}.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  Saved R-hat histogram → {path}")
@@ -147,17 +147,19 @@ def main():
     parser = argparse.ArgumentParser(description="Analyse MCMC chains for CMB sampling.")
     parser.add_argument("--lmax", type=int, default=100)
     parser.add_argument("--nside", type=int, default=64)
+    parser.add_argument("--sampler", type=str, choices=["nuts", "hmc", "gibbs"], default="nuts")
     args = parser.parse_args()
 
     lmax = args.lmax
     nside = args.nside
+    sampler = args.sampler
 
-    print(f"Analysis of NUTS chains — lmax={lmax}, nside={nside}")
+    print(f"Analysis of {sampler.upper()} chains — lmax={lmax}, nside={nside}")
     print(f"Output directory: {OUT_DIR}\n")
 
     runs = {
-        "synthetic": f"results/lmax{lmax}_nside{nside}_nuts_synthetic",
-        "real":      f"results/lmax{lmax}_nside{nside}_nuts_real",
+        "synthetic": f"results/lmax{lmax}_nside{nside}_{sampler}_synthetic",
+        "real":      f"results/lmax{lmax}_nside{nside}_{sampler}_real",
     }
 
     for label, results_dir in runs.items():
@@ -166,9 +168,9 @@ def main():
         chains_samples, chains_logprob, chains_accepted = load_and_summarise(label, results_dir, lmax)
         if chains_samples is None:
             continue
-        plot_traces(label, chains_logprob)
-        plot_power_spectrum(label, chains_samples, lmax)
-        plot_rhat_histogram(label, chains_samples)
+        plot_traces(label, sampler, chains_logprob, lmax)
+        plot_power_spectrum(label, sampler, chains_samples, lmax)
+        plot_rhat_histogram(label, sampler, chains_samples, lmax)
 
     print("\nDone.")
 
