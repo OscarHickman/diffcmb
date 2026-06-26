@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=1500G
+#SBATCH --mem=0
 #SBATCH --time=72:00:00
 #SBATCH -J cmb_gibbs_L300_dp
 #SBATCH -o logs/cmb_gibbs_L300_dp_%j_%a.out
@@ -18,7 +18,7 @@
 SAMPLER="gibbs"
 LMAX=300
 NSIDE=256
-SAMPLES=2000
+SAMPLES=1000
 BURNIN=500
 STEP_SIZE=0.01
 N_LFS=20

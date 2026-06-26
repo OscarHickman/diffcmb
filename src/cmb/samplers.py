@@ -1,3 +1,4 @@
+import os
 import time
 
 import numpy as np
@@ -173,8 +174,10 @@ def run_gibbs_chain(
     target_accept=0.65,
     seed=None,
     initial_params=None,
+    checkpoint_path=None,
+    checkpoint_every=100,
 ):
-    """Gibbs sampler alternating exact C_l | alm and HMC alm | C_l steps.
+    """Gibbs sampler alternating exact C_l | alm (inverse-Gamma) + HMC alm | C_l steps.
 
     Step 1 – C_l | alm: exact inverse-Gamma sample (O(lmax), no MCMC error).
     Step 2 – alm | C_l: one HMC accept/reject with posterior-based diagonal mass
@@ -183,6 +186,9 @@ def run_gibbs_chain(
 
     Returns (samples, logp, accepts, final_step_size) where samples shape is
     (n_samples, n_params) with the same x0 layout as the rest of the codebase.
+
+    If checkpoint_path is provided, saves state every checkpoint_every collected samples
+    and resumes from that file if it already exists (skipping burnin on resume).
     """
     if tfp is None or tf is None:
         raise ImportError("tensorflow and tensorflow_probability are required")
@@ -191,27 +197,60 @@ def run_gibbs_chain(
     lmax = model.lmax
     n_lncl = lmax - 2
 
-    if initial_params is not None:
-        if np.any(~np.isfinite(initial_params)):
-            raise ValueError("initial_params contains NaNs or Infs at start of Gibbs chain!")
-        x0 = np.array(initial_params, dtype=np.float64).ravel()
+    # --- Resume from checkpoint or initialise fresh ---
+    samples_out = []
+    logp_out = []
+    accepts_out = []
+    step_float = hmc_step_size
+    resuming = False
+
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        ckpt = np.load(checkpoint_path, allow_pickle=True)
+        samples_out = list(ckpt["samples"])
+        logp_out = list(ckpt["logp"])
+        accepts_out = list(ckpt["accepts"].tolist())
+        current_alm_np = ckpt["alm_state"].copy()
+        current_lncl = ckpt["lncl_state"].copy()
+        mass_sqrt_np = ckpt["mass_sqrt"].copy()
+        step_float = float(ckpt["step_size"])
+        resuming = True
+        print(f"Resumed from checkpoint: {len(samples_out)}/{n_samples} samples collected")
     else:
-        x0 = np.array(model.x0, dtype=np.float64)
-    current_lncl = x0[:n_lncl].copy()
-    current_alm_np = x0[n_lncl:].copy()
+        if initial_params is not None:
+            if np.any(~np.isfinite(initial_params)):
+                raise ValueError("initial_params contains NaNs or Infs at start of Gibbs chain!")
+            x0 = np.array(initial_params, dtype=np.float64).ravel()
+        else:
+            x0 = np.array(model.x0, dtype=np.float64)
+        current_lncl = x0[:n_lncl].copy()
+        current_alm_np = x0[n_lncl:].copy()
+        cl_full = np.zeros(lmax)
+        cl_full[2:] = np.exp(current_lncl)
+        mass_sqrt_np = model.build_posterior_mass_sqrt(cl_full)
+
+    n_collected = len(samples_out)
+    n_samples_remaining = n_samples - n_collected
+    burnin_remaining = 0 if resuming else n_burnin
+
+    if n_samples_remaining <= 0:
+        print("All samples already collected from checkpoint.")
+        return (
+            np.array(samples_out, dtype=np.float64),
+            np.array(logp_out, dtype=np.float64),
+            np.array(accepts_out, dtype=bool),
+            step_float,
+        )
 
     cl_full = np.zeros(lmax)
     cl_full[2:] = np.exp(current_lncl)
-    mass_sqrt_np = model.build_posterior_mass_sqrt(cl_full)
 
     mass_sqrt_var = tf.Variable(tf.constant(mass_sqrt_np, dtype=tf.float64))
     lncl_var = tf.Variable(
         tf.constant(np.concatenate([np.zeros(2), current_lncl]), dtype=tf.float64)
     )
-
     # Whitened state: u = alm * mass_sqrt
     state_var = tf.Variable(tf.constant(current_alm_np * mass_sqrt_np, dtype=tf.float64))
-    step_size_var = tf.Variable(hmc_step_size, dtype=tf.float64)
+    step_size_var = tf.Variable(step_float, dtype=tf.float64)
 
     def log_prob_whitened(u):
         alm = u / mass_sqrt_var
@@ -229,18 +268,16 @@ def run_gibbs_chain(
     def hmc_one_step(state, pkr):
         return hmc_kernel.one_step(state, pkr)
 
-    samples_out = []
-    logp_out = []
-    accepts_out = []
     recent = []
-    step_float = hmc_step_size
-
+    resume_tag = "resuming, " if resuming else ""
     print(
-        f"Starting Gibbs chain ({n_burnin} burn-in + {n_samples} samples, "
-        f"step_size={hmc_step_size:.3g}, n_lfs={n_lfs})"
+        f"Starting Gibbs chain ({resume_tag}{burnin_remaining} burn-in + {n_samples_remaining} samples, "
+        f"step_size={step_float:.3g}, n_lfs={n_lfs})"
     )
 
-    for i in range(n_burnin + n_samples):
+    for i in range(burnin_remaining + n_samples_remaining):
+        is_burnin = i < burnin_remaining
+
         # --- Step 1: exact C_l | alm ---
         alm_np = state_var.numpy() / mass_sqrt_np
         new_lncl = model.sample_cl_given_alm(alm_np, rng)
@@ -269,7 +306,7 @@ def run_gibbs_chain(
         recent.append(accepted)
 
         # Robbins-Monro step-size adaptation during burn-in (prevents control loop lag/collapse)
-        if i < n_burnin:
+        if is_burnin:
             gamma = 1.0 / ((i + 1) ** 0.6)
             log_step = np.log(step_float) + gamma * (float(accepted) - target_accept)
             step_float = float(np.exp(log_step))
@@ -278,14 +315,26 @@ def run_gibbs_chain(
 
         if i % 200 == 0:
             rate_str = f"{np.mean(recent[-100:]):.2f}" if len(recent) >= 100 else "n/a"
-            phase = "burn-in" if i < n_burnin else "sampling"
-            print(f"  iter {i:5d} ({phase}): step={step_float:.3e}  accept={rate_str}")
+            phase = "burn-in" if is_burnin else "sampling"
+            print(f"  iter {i:5d} ({phase}): step={step_float:.3e}  accept={rate_str}  total_samples={len(samples_out)}")
 
-        if i >= n_burnin:
+        if not is_burnin:
             alm_sample = state_var.numpy() / mass_sqrt_np
             samples_out.append(np.concatenate([current_lncl, alm_sample]))
             logp_out.append(logp_val)
             accepts_out.append(accepted)
+
+            if checkpoint_path and len(samples_out) % checkpoint_every == 0:
+                np.savez(
+                    checkpoint_path,
+                    samples=np.array(samples_out, dtype=np.float64),
+                    logp=np.array(logp_out, dtype=np.float64),
+                    accepts=np.array(accepts_out, dtype=bool),
+                    alm_state=(state_var.numpy() / mass_sqrt_np).astype(np.float64),
+                    lncl_state=current_lncl.astype(np.float64),
+                    mass_sqrt=mass_sqrt_np.astype(np.float64),
+                    step_size=np.float64(step_float),
+                )
 
     print(
         f"Gibbs chain done. Final step_size={step_float:.4g}, "

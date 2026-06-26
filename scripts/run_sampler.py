@@ -61,6 +61,9 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    checkpoint_path = os.path.join(args.output_dir, f"checkpoint_chain_{args.chain_id}.npz")
+    map_cache_path = os.path.join(args.output_dir, f"map_init_chain_{args.chain_id}.npy")
+
     print(f"=== Chain {args.chain_id} Starting ===")
     print(f"Sampler: {args.sampler.upper()}")
     print(f"Data: {args.data_mode}  (data_seed={args.data_seed})")
@@ -94,10 +97,17 @@ def main():
 
     initial_state = model.prior_parameters_tf()
 
-    if args.map_steps > 0:
+    if os.path.exists(checkpoint_path):
+        print("Gibbs checkpoint found — skipping MAP init.")
+        initial_state = None
+    elif os.path.exists(map_cache_path):
+        print("MAP cache found — loading and skipping MAP init.")
+        initial_state = np.load(map_cache_path)
+    elif args.map_steps > 0:
         t_map = time.time()
         initial_state = find_map_estimate(model, n_steps=args.map_steps, learning_rate=args.map_lr)
         print(f"MAP initialisation took {time.time()-t_map:.1f}s")
+        np.save(map_cache_path, initial_state)
 
     mass_sqrt_diag = None
     if args.sampler == "hmc" and not args.no_mass_matrix:
@@ -119,6 +129,8 @@ def main():
             n_lfs=args.n_lfs,
             seed=args.chain_id,
             initial_params=initial_state,
+            checkpoint_path=checkpoint_path,
+            checkpoint_every=100,
         )
         accept_rate = float(accepts_np.mean())
         print(f"Adapted step size: {final_step:.6g}")
