@@ -124,7 +124,7 @@ def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
 
     # Spin-1 SHT: (Q, U) = alm2map_spin([E-alm, B-alm])
     # Q corresponds to the colatitude component, U sinθ × longitude component.
-    d_theta, d_phi_sinTheta = hp.alm2map_spin([glm, blm], nside, 1, lmax, verbose=False)
+    d_theta, d_phi_sinTheta = hp.alm2map_spin([glm, blm], nside, 1, lmax)
 
     theta_pix, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     sin_theta = np.clip(np.sin(theta_pix), 1e-10, None)
