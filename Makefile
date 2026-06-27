@@ -19,7 +19,7 @@ ${venv}/bin/activate:
 	@echo "created venv at ${venv}"
 
 build-rust:
-	cd src/rust_sph && maturin develop --release
+	cd diffcmb/rust_sph && maturin develop --release
 
 precommit:
 	${PYTHON} -m pre_commit run --all-files
@@ -28,7 +28,7 @@ examples:
 
 test:
 	# run tests inside venv with src on PYTHONPATH
-	PYTHONPATH=src ${PYTHON} -m pytest -q
+	PYTHONPATH=diffcmb ${PYTHON} -m pytest -q
 
 clean:
 	rm -rf ${venv}

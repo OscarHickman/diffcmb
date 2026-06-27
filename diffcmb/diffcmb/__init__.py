@@ -1,4 +1,4 @@
-"""CMB analysis package with advanced sampling techniques."""
+"""diffcmb: CMB analysis package with advanced sampling techniques."""
 
 from .load_results import load_cmb_chains
 from .model import CosmologyAdvancedSampling

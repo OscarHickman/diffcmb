@@ -5,8 +5,8 @@ import time
 
 import numpy as np
 
-# Ensure repo root is in path so 'from src.cmb import ...' resolves
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Ensure diffcmb/ source dir is in path so 'from diffcmb import ...' resolves
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "diffcmb")))
 
 try:
     import tensorflow as tf
@@ -19,7 +19,7 @@ try:
         except RuntimeError as e:
             print(f"GPU memory growth configuration error: {e}")
 
-    from src.cmb import (
+    from diffcmb import (
         CosmologyAdvancedSampling,
         find_map_estimate,
         run_chain_hmc,

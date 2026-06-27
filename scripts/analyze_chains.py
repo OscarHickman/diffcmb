@@ -14,7 +14,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.cmb import load_cmb_chains
+from diffcmb import load_cmb_chains
 
 OUT_DIR = "results/analysis"
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -89,7 +89,7 @@ def plot_traces(label, sampler, chains_logprob, lmax):
 def plot_power_spectrum(label, sampler, chains_samples, lmax):
     # Try to import CAMB for fiducial spectrum
     try:
-        from src.cmb.power import call_CAMB_map
+        from diffcmb.power import call_CAMB_map
         cl_lcdm = call_CAMB_map(LCDM_PARAMS, lmax)
         have_lcdm = True
     except Exception:

@@ -10,11 +10,11 @@
 #SBATCH -o logs/analyze_L200_%j.out
 #SBATCH -e logs/analyze_L200_%j.err
 
-REPO_DIR="/cosma/apps/durham/dc-hick2/CMB_Advanced_Sampling"
+REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 
 PYTHON=".venv/bin/python"
-export PYTHONPATH=$PYTHONPATH:.
+export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 
 echo "Starting analysis for L=200 Gibbs Real chains..."
 $PYTHON scripts/analyze_chains.py --lmax 200 --nside 128 --sampler gibbs

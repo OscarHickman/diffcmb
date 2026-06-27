@@ -1,7 +1,7 @@
 # Project Instructions: cosmology-from-the-cmb-with-advanced-sampling-techniques
 
 ## Project Overview
-This repository contains tools for performing CMB analysis and sampling using TensorFlow Probability. It implements advanced sampling techniques (HMC, NUTS) for cosmological parameter estimation. The codebase is structured as a Python package (`src/cmb`).
+This repository contains tools for performing CMB analysis and sampling using TensorFlow Probability. It implements advanced sampling techniques (HMC, NUTS) for cosmological parameter estimation. The codebase is structured as a Python package (`diffcmb/diffcmb`).
 
 ## Dependencies
 - **Core**: `tensorflow`, `tensorflow-probability`, `healpy`, `camb`, `astropy`, `emcee`, `numpy`, `scipy`, `pandas`.
@@ -24,9 +24,9 @@ This project is designed for the COSMA HPC environment.
 
 ### Development
 - **Linting/Formatting**: The project uses `ruff`.
-- **Code Organization**: Core logic resides in `src/cmb/` and `src/rust_sph/`.
-  - `src/cmb/`: Python package (`model.py`, `samplers.py`, `power.py`, `alm_utils.py`).
-  - `src/rust_sph/`: Rust extension for parallelised spherical harmonic matrix construction.
+- **Code Organization**: Core logic resides in `diffcmb/diffcmb/` and `diffcmb/rust_sph/`.
+  - `diffcmb/diffcmb/`: Python package (`model.py`, `samplers.py`, `power.py`, `alm_utils.py`).
+  - `diffcmb/rust_sph/`: Rust extension for parallelised spherical harmonic matrix construction.
 - **Commands**:
   - `make setup`: Set up virtualenv and dependencies.
   - `make build-rust`: Build the Rust extension.
@@ -34,5 +34,5 @@ This project is designed for the COSMA HPC environment.
 
 ## Conventions
 - **Naming**: Consistent with Python `snake_case`.
-- **Organization**: Package-based structure in `src/`.
+- **Organization**: Package-based structure in `diffcmb/`.
 - **Notebooks**: `examples/` contains pedagogical notebooks; `CMB_with_advanced_sampling_techniques.ipynb` is a legacy reference.

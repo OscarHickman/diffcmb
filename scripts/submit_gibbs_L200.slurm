@@ -29,11 +29,11 @@ OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}"
 mkdir -p logs
 mkdir -p $OUTPUT_DIR
 
-REPO_DIR="/cosma/apps/durham/dc-hick2/CMB_Advanced_Sampling"
+REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 
 PYTHON=".venv/bin/python"
-export PYTHONPATH=$PYTHONPATH:.
+export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
 export CUDA_VISIBLE_DEVICES=0

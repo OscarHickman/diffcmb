@@ -9,7 +9,7 @@ def _has_deps():
         import scipy  # noqa: F401
         import tensorflow as tf  # noqa: F401
 
-        from src.cmb import CosmologyAdvancedSampling  # noqa: F401
+        from diffcmb import CosmologyAdvancedSampling  # noqa: F401
         return True
     except Exception:
         return False
@@ -22,7 +22,7 @@ skip_no_deps = pytest.mark.skipif(not _has_deps(), reason="heavy deps unavailabl
 
 def test_model_constructs_or_skips():
     try:
-        from src.cmb.model import CosmologyAdvancedSampling
+        from diffcmb.model import CosmologyAdvancedSampling
     except Exception:
         pytest.skip("Could not import CosmologyAdvancedSampling (missing deps)")
 
@@ -35,7 +35,7 @@ def test_model_constructs_or_skips():
 
 @skip_no_deps
 def test_model_synthetic_x0_shape():
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     lmax, nside = 8, 2
     m = CosmologyAdvancedSampling(_lmax=lmax, _NSIDE=nside, _noisesig=1.0,
                                    data_mode='synthetic')
@@ -47,7 +47,7 @@ def test_model_synthetic_x0_shape():
 def test_model_prior_parameters_tf_dtype():
     import tensorflow as tf
 
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=8, _NSIDE=2, _noisesig=1.0)
     x0 = m.prior_parameters_tf()
     assert x0.dtype == tf.float64
@@ -58,7 +58,7 @@ def test_model_prior_parameters_tf_dtype():
 @skip_no_deps
 def test_psi_tf_is_finite_at_x0():
     """psi_tf must return a finite scalar at the initial state."""
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
     m._ensure_tf_tensors()
@@ -72,7 +72,7 @@ def test_psi_tf_gradient_finite_at_x0():
     """Gradient of psi_tf must be finite at the initial state (no NaN/Inf)."""
     import tensorflow as tf
 
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
     m._ensure_tf_tensors()
@@ -101,7 +101,7 @@ def test_psi_tf_is_negative_log_posterior():
     """
     import tensorflow as tf
 
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=10, _NSIDE=4, _noisesig=1.0,
                                    data_mode='synthetic')
     m._ensure_tf_tensors()
@@ -135,7 +135,7 @@ def test_psi_tf_positive_definite_terms():
     """
     import tensorflow as tf
 
-    from src.cmb.model import CosmologyAdvancedSampling as CAS
+    from diffcmb.model import CosmologyAdvancedSampling as CAS
     m = CAS(_lmax=10, _NSIDE=4, _noisesig=1.0, data_mode='synthetic')
     m._ensure_tf_tensors()
     x0 = m.prior_parameters_tf()
@@ -158,7 +158,7 @@ def test_psi_tf_positive_definite_terms():
 @skip_no_deps
 def test_ensure_tf_tensors_idempotent():
     """Calling _ensure_tf_tensors twice must not change sph or shape."""
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=8, _NSIDE=2, _noisesig=1.0)
     m._ensure_tf_tensors()
     sph_first = m.sph

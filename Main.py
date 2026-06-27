@@ -1,5 +1,5 @@
 """Minimal runner for the refactored package."""
-from src.cmb.model import CosmologyAdvancedSampling
+from diffcmb.model import CosmologyAdvancedSampling
 
 
 def main():
@@ -10,8 +10,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-        #__psi_record3.append(tf.reduce_sum(_psi3).numpy())
-        #__psi_record.append(_psi.numpy())
-        #print('psi1',tf.reduce_sum(_psi1),'psi2',tf.reduce_sum(_psi2),'psi3',tf.reduce_sum(_psi3))
-        return _psi
-

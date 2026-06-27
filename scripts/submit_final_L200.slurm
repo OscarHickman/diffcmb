@@ -28,12 +28,12 @@ mkdir -p logs
 mkdir -p $OUTPUT_DIR
 
 # Use absolute path for robustness
-REPO_DIR="/cosma/apps/durham/dc-hick2/CMB_Advanced_Sampling"
+REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 
 # Use the venv python directly
 PYTHON=".venv/bin/python"
-export PYTHONPATH=$PYTHONPATH:.
+export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
 

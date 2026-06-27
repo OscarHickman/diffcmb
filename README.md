@@ -1,6 +1,6 @@
 # Cosmology-from-the-CMB-with-advanced-sampling-techniques
 
-[![Python Tests](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml/badge.svg)](https://github.com/OscarHickman/CMB_Advanced_Sampling/actions/workflows/test.yml)
+[![Python Tests](https://github.com/OscarHickman/diffcmb/actions/workflows/test.yml/badge.svg)](https://github.com/OscarHickman/diffcmb/actions/workflows/test.yml)
 
 Accurate CMB power spectrum sampling using TensorFlow Probability and advanced MCMC techniques (HMC and NUTS). The pipeline goes from ΛCDM cosmological parameters through CAMB → spherical harmonics → Bayesian posterior sampling over `{C_ℓ, a_ℓm}`.
 
@@ -9,8 +9,8 @@ healpy is Linux/macOS only. Windows users should use Google Colab or a VM.
 ## Project Structure
 
 ```
-src/
-├── cmb/                        # Python package
+diffcmb/diffcmb/
+├──                             # Python package
 │   ├── power.py                # CAMB power spectrum generation
 │   ├── alm.py                  # Noise map and single-pixel sph_harm
 │   ├── alm_utils.py            # All alm/map transforms (two index orderings)
@@ -53,7 +53,7 @@ The Rust extension (`cmb_sph`) parallelises spherical harmonic matrix constructi
 ## Quick Start
 
 ```python
-from src.cmb import CosmologyAdvancedSampling, run_chain_hmc, run_chain_nut
+from diffcmb import CosmologyAdvancedSampling, run_chain_hmc, run_chain_nut
 import tensorflow as tf
 import numpy as np
 
@@ -84,5 +84,5 @@ See `examples/basic_usage.ipynb` for a full walkthrough.
 ```bash
 make test
 # or
-PYTHONPATH=src pytest
+PYTHONPATH=diffcmb pytest
 ```

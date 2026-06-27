@@ -10,7 +10,7 @@ def _has_all():
         import tensorflow as tf  # noqa: F401
         import tensorflow_probability as tfp  # noqa: F401
 
-        from src.cmb import (  # noqa: F401
+        from diffcmb import (  # noqa: F401
             CosmologyAdvancedSampling,
             run_chain_hmc,
             run_chain_nut,
@@ -27,7 +27,7 @@ LMAX, NSIDE = 10, 4  # small enough to run in CI
 
 @pytest.fixture(scope="module")
 def small_model():
-    from src.cmb import CosmologyAdvancedSampling
+    from diffcmb import CosmologyAdvancedSampling
     m = CosmologyAdvancedSampling(_lmax=LMAX, _NSIDE=NSIDE, _noisesig=1.0,
                                    data_mode='synthetic')
     m._ensure_tf_tensors()
@@ -47,7 +47,7 @@ def test_sampler_uses_negative_psi_tf(small_model):
     """
     import tensorflow as tf
 
-    from src.cmb import run_chain_nut
+    from diffcmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
     samples, results = run_chain_nut(
@@ -73,7 +73,7 @@ def test_hmc_sampler_uses_negative_psi_tf(small_model):
     Run with no burnin so the first recorded sample starts from x0 and
     its target_log_prob must equal -psi_tf(x0) exactly.
     """
-    from src.cmb import run_chain_hmc
+    from diffcmb import run_chain_hmc
 
     x0 = small_model.prior_parameters_tf()
     expected_logp = -float(small_model.psi_tf(x0).numpy())
@@ -96,7 +96,7 @@ def test_hmc_sampler_uses_negative_psi_tf(small_model):
 @skip_no_tfp
 def test_find_map_reduces_psi(small_model):
     """find_map_estimate must strictly decrease psi_tf from the prior mean."""
-    from src.cmb import find_map_estimate
+    from diffcmb import find_map_estimate
 
     x0 = small_model.prior_parameters_tf()
     psi_before = float(small_model.psi_tf(x0))
@@ -112,7 +112,7 @@ def test_find_map_reduces_psi(small_model):
 @skip_no_tfp
 def test_find_map_returns_correct_shape(small_model):
     """MAP estimate must have the same shape as the initial state."""
-    from src.cmb import find_map_estimate
+    from diffcmb import find_map_estimate
 
     x0 = small_model.prior_parameters_tf()
     map_state = find_map_estimate(small_model, n_steps=10, print_every=10)
@@ -131,7 +131,7 @@ def test_nuts_chain_moves(small_model):
 
     The original bug caused 0% acceptance and every sample == x0.
     """
-    from src.cmb import run_chain_nut
+    from diffcmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
     samples, results = run_chain_nut(
@@ -151,7 +151,7 @@ def test_nuts_chain_moves(small_model):
 @skip_no_tfp
 def test_nuts_acceptance_rate_nonzero(small_model):
     """NUTS acceptance rate must be > 0 with the fixed sign and adaptation."""
-    from src.cmb import run_chain_nut
+    from diffcmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
     samples, results = run_chain_nut(
@@ -170,7 +170,7 @@ def test_nuts_acceptance_rate_nonzero(small_model):
 @skip_no_tfp
 def test_nuts_has_adapted_step_size(small_model):
     """Results object must expose a new_step_size from DualAveragingStepSizeAdaptation."""
-    from src.cmb import run_chain_nut
+    from diffcmb import run_chain_nut
 
     x0 = small_model.prior_parameters_tf()
     samples, results = run_chain_nut(
@@ -194,7 +194,7 @@ def test_nuts_results_have_inner_results(small_model):
     With adaptive wrapper, results.inner_results must exist and contain
     target_log_prob and is_accepted tensors of the correct length.
     """
-    from src.cmb import run_chain_nut
+    from diffcmb import run_chain_nut
 
     n = 15
     x0 = small_model.prior_parameters_tf()
@@ -214,7 +214,7 @@ def test_nuts_results_have_inner_results(small_model):
 @skip_no_tfp
 def test_gibbs_chain_moves(small_model):
     """Verify that the Gibbs sampler runs without crashing and moves."""
-    from src.cmb import run_gibbs_chain
+    from diffcmb import run_gibbs_chain
 
     samples, logp, accepts, final_step = run_gibbs_chain(
         small_model,

@@ -28,7 +28,7 @@ mkdir -p $OUTPUT_DIR
 
 module load python/3.9.19
 source $(pwd)/.venv/bin/activate
-export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 
 echo "===="
 echo "Starting job ${SLURM_JOB_ID} at $(date) for user ${USER}."

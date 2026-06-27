@@ -9,7 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.cmb import load_cmb_chains
+from diffcmb import load_cmb_chains
 
 LCDM_PARAMS = [67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066]
 OUT_DIR = "results/analysis"
@@ -73,7 +73,7 @@ def main():
 
     # Load fiducial Cl
     try:
-        from src.cmb.power import call_CAMB_map
+        from diffcmb.power import call_CAMB_map
         cl_lcdm = call_CAMB_map(LCDM_PARAMS, lmax)
         have_lcdm = True
         ells = np.arange(2, lmax)

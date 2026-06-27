@@ -1,6 +1,6 @@
 import pytest
 
-from src.cmb import power
+from diffcmb import power
 
 
 def test_call_camb_map_requires_camb():

@@ -36,7 +36,7 @@ module load python/3.9.19
 source $(pwd)/.venv/bin/activate
 
 # Add current directory to PYTHONPATH
-export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 
 echo "Starting job ${SLURM_ARRAY_TASK_ID} on $(hostname)"
 echo "Working directory: $(pwd)"

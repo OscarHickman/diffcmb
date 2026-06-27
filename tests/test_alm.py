@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.cmb.alm import noisemapfunc
+from diffcmb.alm import noisemapfunc
 
 
 def test_noisemapfunc_shapes_and_stats():

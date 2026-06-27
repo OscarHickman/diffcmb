@@ -8,15 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run all tests
 make test
 # or
-PYTHONPATH=src pytest
+PYTHONPATH=diffcmb pytest
 
 # Run a single test file
-PYTHONPATH=src pytest tests/test_alm.py
+PYTHONPATH=diffcmb pytest tests/test_alm.py
 
 # Lint (ruff via pre-commit)
 make precommit
 # or directly:
-ruff check src/ tests/ --fix
+ruff check diffcmb/ tests/ --fix
 
 # Set up virtualenv with all dependencies
 make setup
@@ -25,18 +25,18 @@ make setup
 make build-rust
 
 # Run the minimal entry point
-PYTHONPATH=src python Main.py
+PYTHONPATH=diffcmb python Main.py
 ```
 
 ## Architecture
 
-The package lives in `src/cmb/` and is structured as a pipeline from raw cosmological parameters to MCMC samples:
+The package lives in `diffcmb/diffcmb/` and is structured as a pipeline from raw cosmological parameters to MCMC samples:
 
 ```
 CAMB params → power.py → alm_utils.py → model.py → samplers.py
 ```
 
-The `src/rust_sph/` directory contains an optional Rust extension that parallelises spherical harmonic matrix construction using Rayon, providing significant speedups for large lmax.
+The `diffcmb/rust_sph/` directory contains an optional Rust extension that parallelises spherical harmonic matrix construction using Rayon, providing significant speedups for large lmax.
 
 ### Module responsibilities
 

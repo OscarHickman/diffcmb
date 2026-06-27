@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "cmb-sampling-ml"
+name = "diffcmb"
 version = "0.1.0"
 description = "Cosmology from the CMB with Advanced Sampling Techniques (MSci project)"
 authors = ["Oscar Hickman <oscar.hickman17@alumni.imperial.ac.uk>"]

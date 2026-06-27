@@ -24,7 +24,7 @@ def _has_healpy():
 
 def test_splittosingularalm_roundtrip():
     """Real and imaginary alm vectors survive a split→combine round-trip."""
-    from src.cmb.alm_utils import singulartosplitalm, splittosingularalm
+    from diffcmb.alm_utils import singulartosplitalm, splittosingularalm
 
     rng = np.random.default_rng(0)
     lmax = 6
@@ -52,7 +52,7 @@ def test_splittosingularalm_roundtrip():
 
 def test_splittosingularalm_monopole_dipole_zero():
     """L=0 and L=1 entries are always zeroed out."""
-    from src.cmb.alm_utils import splittosingularalm
+    from diffcmb.alm_utils import splittosingularalm
 
     rng = np.random.default_rng(1)
     lmax = 5
@@ -69,7 +69,7 @@ def test_splittosingularalm_monopole_dipole_zero():
 
 def test_splittosingularalm_m01_imaginary_zero():
     """For L≥2, m=0 and m=1 entries must have zero imaginary part."""
-    from src.cmb.alm_utils import splittosingularalm
+    from diffcmb.alm_utils import splittosingularalm
 
     rng = np.random.default_rng(2)
     lmax = 6
@@ -89,7 +89,7 @@ def test_splittosingularalm_tf_matches_numpy():
     """TF scatter_nd implementation must match the numpy reference exactly."""
     import tensorflow as tf
 
-    from src.cmb.alm_utils import splittosingularalm, splittosingularalm_tf
+    from diffcmb.alm_utils import splittosingularalm, splittosingularalm_tf
 
     rng = np.random.default_rng(3)
     lmax = 8
@@ -114,7 +114,7 @@ def test_splittosingularalm_tf_matches_numpy():
 @pytest.mark.skipif(not _has_healpy(), reason="healpy not available")
 def test_ordering_indices_roundtrip():
     """almmotho(almhotmo(x)) == x and vice versa."""
-    from src.cmb.alm_utils import almhotmo, almmotho
+    from diffcmb.alm_utils import almhotmo, almmotho
 
     rng = np.random.default_rng(4)
     lmax = 10
@@ -134,7 +134,7 @@ def test_almtomap_tf_matches_healpy():
     import scipy
     import tensorflow as tf
 
-    from src.cmb.alm_utils import (
+    from diffcmb.alm_utils import (
         almtomap_tf,
         hpalminit,
         splittosingularalm_tf,
@@ -175,7 +175,7 @@ def test_almtomap_tf_matches_healpy():
     weights = tf.convert_to_tensor(w, dtype=np.complex128)
 
     # Assemble alm in author ordering via the same path as psi_tf
-    from src.cmb.alm_utils import almhotmo
+    from diffcmb.alm_utils import almhotmo
     mo_alm = almhotmo(hp_alm, lmax)  # healpy → author ordering
     r_parts = [complex(mo_alm[l*(l+1)//2+m]).real
                for l in range(lmax) for m in range(l+1) if l >= 2]
