@@ -56,6 +56,10 @@ def main():
                         help="RNG seed for synthetic data generation (fixed so all chains share the same dataset)")
     parser.add_argument("--double_precision", action="store_true",
                         help="Use double precision (complex128/float64) for matrix operations to prevent gradient noise")
+    parser.add_argument("--alm_sampler", type=str, choices=["hmc", "cg"], default="hmc",
+                        help="alm | C_l sampler: 'hmc' (default) or 'cg' (exact Gaussian via PCG)")
+    parser.add_argument("--n_pcg_iter", type=int, default=50,
+                        help="Maximum PCG iterations per CG step (ignored for HMC)")
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -71,6 +75,7 @@ def main():
     print(f"LMAX: {args.lmax}, NSIDE: {args.nside}, Noise: {args.noise_sig}")
     print(f"Samples: {args.n_samples}, Burn-in: {args.n_burnin}, Step Size: {args.step_size}")
     print(f"Precision: {'double' if args.double_precision else 'single'}")
+    print(f"alm sampler: {args.alm_sampler}" + (f" (n_pcg_iter={args.n_pcg_iter})" if args.alm_sampler == 'cg' else ""))
 
     # Fix the data-generation RNG so all chains sample the same posterior.
     if args.data_mode == "synthetic":
@@ -131,6 +136,8 @@ def main():
             initial_params=initial_state,
             checkpoint_path=checkpoint_path,
             checkpoint_every=100,
+            alm_sampler=args.alm_sampler,
+            n_pcg_iter=args.n_pcg_iter,
         )
         accept_rate = float(accepts_np.mean())
         print(f"Adapted step size: {final_step:.6g}")
