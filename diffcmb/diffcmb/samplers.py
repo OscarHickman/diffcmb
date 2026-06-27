@@ -13,6 +13,13 @@ try:
 except Exception:
     tfp = None
 
+try:
+    from .alm_utils import splittosingularalm_tf
+    from .model import matvec_on_device
+except Exception:
+    splittosingularalm_tf = None
+    matvec_on_device = None
+
 
 class WrapperResults:
     """A memory-efficient wrapper that mimics TFP kernel_results.
@@ -165,6 +172,149 @@ def run_chain_hmc(
     return samples, WrapperResults(*trace_results)
 
 
+def _build_inv_cl_diag(lmax, cl_full, n_real, n_imag):
+    """Per-alm 1/C_l diagonal matching the real+imag alm parameter layout."""
+    inv_cl = np.empty(n_real + n_imag, dtype=np.float64)
+    idx = 0
+    for L in range(2, lmax):
+        cl = max(float(cl_full[L]), 1e-30)
+        for _ in range(L + 1):
+            inv_cl[idx] = 1.0 / cl
+            idx += 1
+    for L in range(2, lmax):
+        cl = max(float(cl_full[L]), 1e-30)
+        for m in range(L + 1):
+            if m >= 2:
+                inv_cl[idx] = 1.0 / cl
+                idx += 1
+    return inv_cl
+
+
+def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
+    """Exact Gaussian draw from p(alm | C_l, d) via preconditioned CG (Wandelt+2004).
+
+    Solves A x = b_sample where:
+        A        = diag(1/C_l per alm)  +  J^T N^{-1} J
+        b_sample = J^T N^{-1} d  +  C_l^{-1/2} ω₁  +  J^T N^{-1/2} ω₂
+
+    The matvec A p is obtained via ∇_alm ψ(p) − ∇_alm ψ(0) using TF autodiff.
+    Diagonal preconditioner P = 1/C_l + Ninv_eff  (≈ mass_sqrt²) nearly diagonalises
+    A for high-S/N CMB; convergence expected in O(10–50) PCG iterations.
+
+    No accept/reject — the solution is an exact sample from the conditional.
+
+    Returns
+    -------
+    alm_np : 1-D float64 array, length n_real + n_imag
+    residual_norms : list of ||r|| per PCG iteration
+    """
+    if tf is None:
+        raise ImportError("tensorflow is required for sample_alm_cg")
+    if splittosingularalm_tf is None or matvec_on_device is None:
+        raise ImportError("alm_utils.splittosingularalm_tf and model.matvec_on_device are required")
+
+    lmax = model.lmax
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_alm = n_real + n_imag
+
+    lncl_full = np.zeros(lmax)
+    lncl_full[2:] = lncl_np
+    cl_full = np.exp(lncl_full)
+    inv_cl_diag = _build_inv_cl_diag(lmax, cl_full, n_real, n_imag)
+    mass_sq = model.build_posterior_mass_sqrt(cl_full) ** 2
+
+    # Compiled ∇_alm ψ(lncl, alm) — traced once per model, reused every Gibbs step
+    if not hasattr(model, "_cg_grad_fn"):
+        @tf.function(jit_compile=False)
+        def _grad_fn(lncl_tf, alm_tf):
+            with tf.GradientTape() as tape:
+                tape.watch(alm_tf)
+                full_params = tf.concat([lncl_tf, alm_tf], axis=0)
+                val = model._psi_tf_raw(full_params)
+            return tape.gradient(val, alm_tf)
+        model._cg_grad_fn = _grad_fn
+
+    lncl_tf_c = tf.constant(lncl_np, dtype=tf.float64)
+
+    def alm_grad(alm_np):
+        return model._cg_grad_fn(lncl_tf_c, tf.constant(alm_np, dtype=tf.float64)).numpy()
+
+    # Compiled J^T v via autodiff of ∑_i (Ya)_i v_i — traced once per model
+    if not hasattr(model, "_cg_jt_v_fn"):
+        _part_sizes = [int(sph_p.shape[0]) for sph_p in model.sph_parts]
+        _n_real_cap = n_real
+        _lmax_cap = lmax
+
+        @tf.function(jit_compile=False)
+        def _jt_v_fn(v_concat, alm_zero):
+            v_parts = tf.split(v_concat, _part_sizes)
+            with tf.GradientTape() as tape:
+                tape.watch(alm_zero)
+                _rp = alm_zero[:_n_real_cap]
+                _ip = alm_zero[_n_real_cap:]
+                _a = splittosingularalm_tf(_rp, _ip, _lmax_cap)
+                _a_c = model.alm_weights * tf.cast(_a, model.dtype)
+                inner = tf.zeros((), dtype=tf.float64)
+                for i, sph_p in enumerate(model.sph_parts):
+                    _Ya = 2.0 * tf.math.real(matvec_on_device(sph_p, _a_c))
+                    inner = inner + tf.reduce_sum(tf.cast(_Ya, tf.float64) * v_parts[i])
+            return tape.gradient(inner, alm_zero)
+
+        model._cg_jt_v_fn = _jt_v_fn
+
+    # Noise terms for exact sampling
+    # Term 1: C_l^{-1/2} ω₁  (prior-space white noise)
+    omega1 = rng.standard_normal(n_alm)
+    noise_prior = np.sqrt(inv_cl_diag) * omega1
+
+    # Term 2: J^T N^{-1/2} ω₂  (pixel-space noise projected through adjoint)
+    Ninv_np = np.concatenate([model.Ninv_parts[i].numpy() for i in range(len(model.sph_parts))])
+    omega2 = rng.standard_normal(len(Ninv_np))
+    v_pix = np.sqrt(np.maximum(Ninv_np, 0.0)) * omega2
+    noise_pix = model._cg_jt_v_fn(
+        tf.constant(v_pix, dtype=tf.float64),
+        tf.zeros(n_alm, dtype=tf.float64),
+    ).numpy()
+
+    noise_target = noise_prior + noise_pix
+
+    # PCG: find x such that  ∇_alm ψ(x) = noise_target
+    # Residual r = ∇_alm ψ(x) − noise_target = A x − b_sample
+    zeros = np.zeros(n_alm, dtype=np.float64)
+    minus_b_data = alm_grad(zeros)          # = ∇_alm ψ(0) = −b_data
+
+    x = zeros.copy()
+    r = minus_b_data - noise_target         # = −b_sample  at x=0
+    z = r / mass_sq
+    p = -z.copy()
+    rz = float(np.dot(r, z))
+    residual_norms = [float(np.linalg.norm(r))]
+
+    for _it in range(n_pcg_iter):
+        if residual_norms[-1] < tol:
+            break
+        # A p = ∇_alm ψ(p) − ∇_alm ψ(0)
+        Ap = alm_grad(p) - minus_b_data
+        pAp = float(np.dot(p, Ap))
+        if abs(pAp) < 1e-300:
+            break
+        alpha = rz / pAp
+        x = x + alpha * p
+        r = r + alpha * Ap
+        z = r / mass_sq
+        rz_new = float(np.dot(r, z))
+        residual_norms.append(float(np.linalg.norm(r)))
+        beta = rz_new / rz
+        p = -z + beta * p
+        rz = rz_new
+
+    if residual_norms[-1] > tol:
+        print(f"    PCG: |r|={residual_norms[-1]:.3e} after {len(residual_norms)-1} iters (tol={tol:.0e})")
+
+    return x, residual_norms
+
+
 def run_gibbs_chain(
     model,
     n_samples=1000,
@@ -176,13 +326,18 @@ def run_gibbs_chain(
     initial_params=None,
     checkpoint_path=None,
     checkpoint_every=100,
+    alm_sampler='hmc',
+    n_pcg_iter=50,
 ):
-    """Gibbs sampler alternating exact C_l | alm (inverse-Gamma) + HMC alm | C_l steps.
+    """Gibbs sampler alternating exact C_l | alm (inverse-Gamma) + alm | C_l steps.
 
     Step 1 – C_l | alm: exact inverse-Gamma sample (O(lmax), no MCMC error).
-    Step 2 – alm | C_l: one HMC accept/reject with posterior-based diagonal mass
-        M[l] = sqrt(1/C_l + Ninv_eff), which nearly diagonalises the posterior
-        for high-S/N CMB problems and gives condition number ≈ 1 in whitened space.
+    Step 2 – alm | C_l: controlled by `alm_sampler`:
+        'hmc'  – one HMC accept/reject with diagonal mass M = sqrt(1/C_l + Ninv_eff).
+                 Requires burn-in and step-size tuning; IAT grows with multipole.
+        'cg'   – exact Gaussian draw via preconditioned CG (Wandelt+2004).
+                 No accept/reject; IAT = 1 at all multipoles by construction.
+                 n_burnin is still respected but step-size arguments are ignored.
 
     Returns (samples, logp, accepts, final_step_size) where samples shape is
     (n_samples, n_params) with the same x0 layout as the rest of the codebase.
@@ -190,8 +345,12 @@ def run_gibbs_chain(
     If checkpoint_path is provided, saves state every checkpoint_every collected samples
     and resumes from that file if it already exists (skipping burnin on resume).
     """
-    if tfp is None or tf is None:
+    if alm_sampler not in ('hmc', 'cg'):
+        raise ValueError(f"alm_sampler must be 'hmc' or 'cg', got {alm_sampler!r}")
+    if alm_sampler == 'hmc' and (tf is None or tfp is None):
         raise ImportError("tensorflow and tensorflow_probability are required")
+    if alm_sampler == 'cg' and tf is None:
+        raise ImportError("tensorflow is required for CG sampler")
 
     rng = np.random.default_rng(seed)
     lmax = model.lmax
@@ -244,74 +403,89 @@ def run_gibbs_chain(
     cl_full = np.zeros(lmax)
     cl_full[2:] = np.exp(current_lncl)
 
-    mass_sqrt_var = tf.Variable(tf.constant(mass_sqrt_np, dtype=tf.float64))
-    lncl_var = tf.Variable(
-        tf.constant(np.concatenate([np.zeros(2), current_lncl]), dtype=tf.float64)
-    )
-    # Whitened state: u = alm * mass_sqrt
-    state_var = tf.Variable(tf.constant(current_alm_np * mass_sqrt_np, dtype=tf.float64))
-    step_size_var = tf.Variable(step_float, dtype=tf.float64)
+    # --- Sampler-specific setup ---
+    if alm_sampler == 'hmc':
+        mass_sqrt_var = tf.Variable(tf.constant(mass_sqrt_np, dtype=tf.float64))
+        lncl_var = tf.Variable(
+            tf.constant(np.concatenate([np.zeros(2), current_lncl]), dtype=tf.float64)
+        )
+        state_var = tf.Variable(tf.constant(current_alm_np * mass_sqrt_np, dtype=tf.float64))
+        step_size_var = tf.Variable(step_float, dtype=tf.float64)
 
-    def log_prob_whitened(u):
-        alm = u / mass_sqrt_var
-        full_params = tf.concat([lncl_var[2:], alm], axis=0)
-        return -model.psi_tf(full_params)
+        def log_prob_whitened(u):
+            alm = u / mass_sqrt_var
+            full_params = tf.concat([lncl_var[2:], alm], axis=0)
+            return -model.psi_tf(full_params)
 
-    hmc_kernel = tfp.mcmc.HamiltonianMonteCarlo(
-        target_log_prob_fn=log_prob_whitened,
-        step_size=step_size_var,
-        num_leapfrog_steps=n_lfs,
-    )
-    pkr = hmc_kernel.bootstrap_results(state_var)
+        hmc_kernel = tfp.mcmc.HamiltonianMonteCarlo(
+            target_log_prob_fn=log_prob_whitened,
+            step_size=step_size_var,
+            num_leapfrog_steps=n_lfs,
+        )
+        pkr = hmc_kernel.bootstrap_results(state_var)
 
-    @tf.function
-    def hmc_one_step(state, pkr):
-        return hmc_kernel.one_step(state, pkr)
+        @tf.function
+        def hmc_one_step(state, pkr):
+            return hmc_kernel.one_step(state, pkr)
+
+    else:  # 'cg'
+        if model.sph1 is None:
+            model._ensure_tf_tensors()
 
     recent = []
     resume_tag = "resuming, " if resuming else ""
+    sampler_tag = f"alm_sampler={alm_sampler}" + (f", n_pcg_iter={n_pcg_iter}" if alm_sampler == 'cg' else f", n_lfs={n_lfs}")
     print(
         f"Starting Gibbs chain ({resume_tag}{burnin_remaining} burn-in + {n_samples_remaining} samples, "
-        f"step_size={step_float:.3g}, n_lfs={n_lfs})"
+        f"step_size={step_float:.3g}, {sampler_tag})"
     )
 
     for i in range(burnin_remaining + n_samples_remaining):
         is_burnin = i < burnin_remaining
 
-        # --- Step 1: exact C_l | alm ---
-        alm_np = state_var.numpy() / mass_sqrt_np
+        # --- Step 1: exact C_l | alm (always inverse-Gamma) ---
+        if alm_sampler == 'hmc':
+            alm_np = state_var.numpy() / mass_sqrt_np
+        else:
+            alm_np = current_alm_np
+
         new_lncl = model.sample_cl_given_alm(alm_np, rng)
         cl_full[2:] = np.exp(new_lncl)
         new_mass_sqrt = model.build_posterior_mass_sqrt(cl_full)
-
-        # Re-whiten state for updated mass matrix (alm unchanged, u rescaled)
-        state_var.assign(alm_np * new_mass_sqrt)
         mass_sqrt_np = new_mass_sqrt
-        mass_sqrt_var.assign(tf.constant(new_mass_sqrt, dtype=tf.float64))
-        lncl_var.assign(
-            tf.constant(np.concatenate([np.zeros(2), new_lncl]), dtype=tf.float64)
-        )
         current_lncl = new_lncl
 
-        # Refresh kernel results so accept/reject uses the updated log-prob
-        pkr = hmc_kernel.bootstrap_results(state_var)
+        # --- Step 2: alm | C_l ---
+        if alm_sampler == 'hmc':
+            state_var.assign(alm_np * new_mass_sqrt)
+            mass_sqrt_var.assign(tf.constant(new_mass_sqrt, dtype=tf.float64))
+            lncl_var.assign(
+                tf.constant(np.concatenate([np.zeros(2), new_lncl]), dtype=tf.float64)
+            )
+            pkr = hmc_kernel.bootstrap_results(state_var)
 
-        # --- Step 2: HMC alm | C_l ---
-        new_state, new_pkr = hmc_one_step(state_var, pkr)
-        state_var.assign(new_state)
-        pkr = new_pkr
+            new_state, new_pkr = hmc_one_step(state_var, pkr)
+            state_var.assign(new_state)
+            pkr = new_pkr
 
-        accepted = bool(new_pkr.is_accepted.numpy())
-        logp_val = float(-new_pkr.accepted_results.target_log_prob.numpy())
+            accepted = bool(new_pkr.is_accepted.numpy())
+            logp_val = float(-new_pkr.accepted_results.target_log_prob.numpy())
+
+            if is_burnin:
+                gamma = 1.0 / ((i + 1) ** 0.6)
+                log_step = np.log(step_float) + gamma * (float(accepted) - target_accept)
+                step_float = float(np.clip(np.exp(log_step), 1e-7, 2.0))
+                step_size_var.assign(step_float)
+
+        else:  # 'cg'
+            current_alm_np, _ = sample_alm_cg(model, new_lncl, rng, n_pcg_iter)
+            accepted = True
+            full_p = tf.constant(
+                np.concatenate([new_lncl, current_alm_np]), dtype=tf.float64
+            )
+            logp_val = float(-model._psi_tf_raw(full_p))
+
         recent.append(accepted)
-
-        # Robbins-Monro step-size adaptation during burn-in (prevents control loop lag/collapse)
-        if is_burnin:
-            gamma = 1.0 / ((i + 1) ** 0.6)
-            log_step = np.log(step_float) + gamma * (float(accepted) - target_accept)
-            step_float = float(np.exp(log_step))
-            step_float = np.clip(step_float, 1e-7, 2.0)
-            step_size_var.assign(step_float)
 
         if i % 200 == 0:
             rate_str = f"{np.mean(recent[-100:]):.2f}" if len(recent) >= 100 else "n/a"
@@ -319,7 +493,7 @@ def run_gibbs_chain(
             print(f"  iter {i:5d} ({phase}): step={step_float:.3e}  accept={rate_str}  total_samples={len(samples_out)}")
 
         if not is_burnin:
-            alm_sample = state_var.numpy() / mass_sqrt_np
+            alm_sample = state_var.numpy() / mass_sqrt_np if alm_sampler == 'hmc' else current_alm_np.copy()
             samples_out.append(np.concatenate([current_lncl, alm_sample]))
             logp_out.append(logp_val)
             accepts_out.append(accepted)
@@ -330,7 +504,7 @@ def run_gibbs_chain(
                     samples=np.array(samples_out, dtype=np.float64),
                     logp=np.array(logp_out, dtype=np.float64),
                     accepts=np.array(accepts_out, dtype=bool),
-                    alm_state=(state_var.numpy() / mass_sqrt_np).astype(np.float64),
+                    alm_state=alm_sample.astype(np.float64),
                     lncl_state=current_lncl.astype(np.float64),
                     mass_sqrt=mass_sqrt_np.astype(np.float64),
                     step_size=np.float64(step_float),

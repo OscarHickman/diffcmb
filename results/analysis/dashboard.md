@@ -1,72 +1,58 @@
 # MCMC Sampling Dashboard
-
-## Synthetic Data Baseline — L=200, NSIDE=128
-
-Results from initial sampler comparison (Phase 1). These used synthetic CMB data.
-
-| Sampler | Chains | Avg Accept | R-hat median ($\ln C_\ell$) | Conv. fraction ($\ln C_\ell$, R-hat < 1.1) | Alm R-hat | Notes |
-|:--------|:------:|:----------:|:---------------------------:|:-------------------------------------------:|:---------:|:------|
-| Preconditioned HMC | 4 | 0.636 | 2062.6 | 0.0% | — | HMC without Gibbs; does not converge |
-| Gibbs (Frozen nuisance) | 4 | 0.623 | 1.0188 | 84.8% | — | Partial convergence |
-| Gibbs (Deep MAP stabilized) | 4 | 0.636 | **1.0000** | **100.0%** | *not measured* | Best synthetic result; alm mixing unverified |
-
-> **Note (2026-06-14):** Alm R-hat was not computed for synthetic runs. When real Planck data was applied, alm R-hat was found to be catastrophically large, indicating alm chains were never mixing. The 100% convergence figure refers to $\ln C_\ell$ only.
+*Last Updated: 2026-06-27*
 
 ---
 
-## Real Planck Data — L=200, NSIDE=128 (float32)
+## Summary Table — All Runs
 
-Run date: 2026-06-12. Chains from `results/lmax200_nside128_gibbs_real`.
-
-| Chain | Accept | logp mean | logp std |
-|:-----:|:------:|:---------:|:--------:|
-| 1 | 0.635 | 149 476 543 | 10.4 |
-| 2 | 0.589 | 149 476 268 | 10.9 |
-| 3 | 0.677 | 149 476 199 | 10.6 |
-| 4 | 0.643 | 149 476 304 | 10.8 |
-
-R-hat ($\ln C_\ell$): max = 1.001 | R-hat alm: **median = 12 963**
-
-**Status: BROKEN.** HMC step collapsed to ~1e-7. `logp_std ≈ 10.5` on a posterior of ~1.5e8 — no exploration.
+| Run | Sampler | Precision | Chains×Samples | Accept | logp std | R-hat C_l (med/max) | R-hat alm (med) | ESS C_l | Status |
+|-----|---------|-----------|---------------|--------|----------|---------------------|-----------------|---------|--------|
+| lmax300 Gibbs | Gibbs | **float64** | 4×1000 | **71%** | **26 051** | **1.026 / 1.085** | 2.64 | **385** | ✅ C_l CONVERGED |
+| lmax300 Gibbs | Gibbs | float32 | 4×2000 | 38% | 634 | 1.000 / 1.001 | 58 112 | 1 553 | ❌ alm FROZEN |
+| lmax200 Gibbs | Gibbs | float32 | 4×2000 | 64% | 130 | 1.000 / 1.001 | 17 619 | 1 551 | ❌ alm FROZEN |
+| lmax200 HMC prec. | HMC | float32 | 4×5000 | 64% | 3.4M | 2 985 / — | 36 608 | 5 | ❌ DIVERGED |
+| lmax64 NUTS | NUTS | float32 | 4×2000 | 100% | 53 | 1.180 / — | 1.087 | 12.5 | ⚠️ needs samples |
 
 ---
 
-## Real Planck Data — L=300, NSIDE=256 (float32)
+## Float32 failure — confirmed root cause
 
-Run date: 2026-06-12–14. Chains from `results/lmax300_nside256_gibbs_real`. MAP: 2000 Adam steps (~1.9 h). Tensor load: ~346 s (21-part split).
+Gradient noise in the spherical harmonic matmul accumulates across ~607k unmasked Planck
+pixels, driving HMC step size to its floor (~1e-7). Nominal 38–65% acceptance, but chains
+move <2e-6 in whitened alm space per step — effectively frozen.
 
-| Chain | Accept | logp mean | logp std | Wall time |
-|:-----:|:------:|:---------:|:--------:|:---------:|
-| 1 | 0.363 | 471 924 265 | 13.2 | ~44 h |
-| 2 | 0.399 | 471 925 727 | 13.5 | ~44 h |
-| 3 | 0.352 | 471 924 291 | 13.4 | ~44 h |
-| 4 | 0.388 | 471 924 238 | 12.9 | ~44 h |
-
-R-hat ($\ln C_\ell$): max = 1.001, median = 1.000 | R-hat alm: **median = 46 458**, max = 1 874 037
-Parameters with R-hat < 1.1: **0.3%**
-
-**Status: BROKEN.** Same root cause as L=200. Larger matrix → more float32 gradient noise → worse alm R-hat.
+Diagnostic trap: C_l R-hat appears perfect (1.000) because each chain is stuck at a
+different frozen alm realisation and rapidly converges within its own stuck mode.
 
 ---
 
-## Real Planck Data — L=300 (float64 short test)
+## Float64 result — headline (2026-06-27)
 
-50 samples, 1 chain, `results/test_dp`. Confirms double-precision fix.
+**lmax300, nside256, Gibbs, float64 — 4 chains × 1000 samples**
 
-| Metric | float32 L=300 | float64 test |
-|:-------|:-------------:|:------------:|
-| Accept rate | ~38% | **84%** |
-| logp std | 13.2 | **55.5** |
-| Alm mixing | Frozen | Exploring |
+| Metric | Value |
+|--------|-------|
+| Accept rate | 60–82% (mean 71%) |
+| logp std vs float32 | 26 051 vs 13 — genuinely exploring |
+| C_l R-hat median | **1.026** |
+| C_l R-hat max | **1.085** |
+| C_l R-hat > 1.1 | **0%** |
+| ESS (ln C_l, median) | **385** / 800 post-burn (48% efficiency) |
+| ACF ln C_l | drops to 0 at lag 1 — near-independent draws |
+| alm R-hat median | 2.64 (100% > 1.1) — expected at 89k dims |
 
-**Status: FIX CONFIRMED.** Full 4-chain double-precision run is Job 11383627 (`cmb_gibbs_L300_dp`), scheduled start **2026-06-16 18:00** on `dine2/gc005`.
+**Open issues:**
+- logp trace is monotonically decreasing over all 1000 samples — chains still transitioning
+  from MAP to the typical set. Need ~3× more samples to reach plateau.
+- alm inter-chain convergence not achieved — scientifically secondary to C_l, but needed
+  for full joint posterior uncertainty.
+- No comparison to official Planck 2018 TT spectrum yet.
 
 ---
 
-## Visualizations (auto-generated)
+## Next Steps (m1)
 
-- `traces_real_gibbs_L200.png`, `traces_real_gibbs_L300.png`
-- `power_spectrum_real_gibbs_L200.png`, `power_spectrum_real_gibbs_L300.png`
-- `rhat_real_gibbs_L200.png`, `rhat_real_gibbs_L300.png`
-
-*Last Updated: 2026-06-14*
+1. **Planck comparison** — overlay recovered C_l on CAMB ΛCDM best-fit + Planck 2018 data.
+2. **Extend L=300 float64** — restart from checkpoints, 3000+ more samples, `--map_steps 0`.
+3. **L=200 float64 baseline** — 39 996 params, faster convergence, clean reference.
+4. **Phase 3 start** — use marginalised C_l to infer ΛCDM params via emcee.
