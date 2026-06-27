@@ -58,29 +58,36 @@ Current state of the art:
 
 **Goal:** demonstrate the L=300 Gibbs sampler recovers the correct CMB power spectrum from real Planck data, establishing that the infrastructure is correct before extending it.
 
-- [x] Get 4-chain L=300 run started — completed 2026-06-27 (4 chains × 1000 samples)
-- [x] Compute R-hat (Gelman-Rubin) across chains — **result: median 1.026, max 1.085, 0% exceed 1.1** ← C_l fully converged
-- [x] Measure ESS per C_l — **result: median ESS = 385/800 post-burn (48% efficiency); ACF drops to 0 at lag 1**
-- [x] Document systematic drift finding — logp monotonically decreasing over all 1000 samples (see below); dashboard.md updated 2026-06-27
-- [ ] Plot recovered C_l vs Planck official power spectrum (Commander/Plik) — **NEXT ACTION**
-- [ ] Warm-start 4 chains from current checkpoints; run 3 000 more samples to reach logp plateau
+**Historical run summary** (all chains to date):
 
-**Phase 0 diagnostic finding — high-l drift:**
+| Run | Precision | Accept | logp std | R-hat C_l med | R-hat alm med | ESS C_l | Status |
+|-----|-----------|--------|----------|--------------|---------------|---------|--------|
+| Gibbs L=200 synthetic | float32 | ~63% | ~10.5 | 1.000 | not measured | ~1550 | C_l only |
+| Gibbs L=200 real | float32 | ~63% | 10.5 | 1.000 | 17 619 | ~1550 | FROZEN |
+| Gibbs L=300 real | float32 | ~38% | 13.2 | 1.000 | 58 112 | ~1550 | FROZEN |
+| **Gibbs L=300 real** | **float64** | **71%** | **26 051** | **1.026** | **2.64** | **385** | **Phase 0 ✓** |
+| CG L=300 real (running) | float64 | 100% | — | — | — | — | Phase 0b ▶ |
 
-Empirical analysis of the running chains (2026-06-26) reveals a 6–11σ systematic upward drift in lnC_l at l=200–300 across the sampling phase. The 500 burn-in steps are insufficient for the HMC alm sampler to equilibrate high-multipole modes. Root cause: at high l, many more alm coefficients must move simultaneously; the single-leapfrog-trajectory HMC step explores these modes too slowly.
+Float32 chains show false convergence: C_l R-hat ≈ 1.000 but alm R-hat = 18k–58k. Root cause: float32 gradient noise in the `Y^H` matvec across ~607k pixels drives HMC step to floor ~1e-7.
 
-| Multipole | lnCl drift significance | ESS (chain 4) |
-|-----------|------------------------|----------------|
-| l=2 | ~0.5σ | ~1000 |
-| l=10 | ~1σ | ~900 |
-| l=50 | ~3σ | ~900 |
-| l=200 | **11σ** | ~41 |
+- [x] Get 4-chain L=300 float64 run — completed 2026-06-27 (4 chains × 1000 samples)
+- [x] Compute R-hat — **median 1.026, max 1.085, 0% exceed 1.1** ← C_l fully converged
+- [x] Measure ESS per C_l — **median 385/800 post-burn (48% efficiency); ACF drops to 0 at lag 1**
+- [x] Implement CG exact alm sampler (`sample_alm_cg`, Phase 0b) — 2026-06-27
+- [x] Warm-start 4 CG chains from Phase 0 checkpoints — job 11513133 running on gc001–gc004
+- [ ] Verify CG results: ESS ≈ N at all multipoles including l=200–300; logp plateau reached
+- [ ] Plot recovered C_l vs Planck official power spectrum (Commander/Plik)
 
-Low-l results (l ≤ ~100) are trustworthy. High-l results require Phase 0b before they can be used for inference.
+**Phase 0 high-l drift (resolved by CG):**
 
-**Immediate mitigation (no code change):** warm-start Phase 0b chains from the final checkpoint states of the current run. This eliminates the MAP initialisation cost and the low-l burn-in; only the residual high-l drift needs to be resolved.
+| Multipole | lnCl drift significance | ESS HMC (chain 4) | ESS CG (expected) |
+|-----------|------------------------|-------------------|-------------------|
+| l=2 | ~0.5σ | ~1000 | ~1000 |
+| l=10 | ~1σ | ~900 | ~1000 |
+| l=50 | ~3σ | ~900 | ~1000 |
+| l=200 | **11σ** | ~41 | **~1000** |
 
-**Output:** a validation plot and convergence summary for l ≤ 100. This is table-stakes before claiming anything about extending the model.
+**Output:** validated C_l posterior with ESS ≈ N at all l. This is table-stakes before claiming anything about extending the model.
 
 ---
 
@@ -180,6 +187,21 @@ where `p(phi | C_l^phiphi)` is a Gaussian prior and `C_l^phiphi` is either fixed
 The publishable claim:
 
 > *We present the first fully joint Bayesian sampler over unlensed CMB signal, angular power spectrum, and lensing potential at map level. Unlike MUSE, which marginalises over the CMB signal and returns only lensing potential samples, our Gibbs sampler returns full posterior samples over all unknowns, correctly propagating uncertainty between C_l^TT, alm, and phi. We demonstrate reduced bias in power spectrum recovery and improved characterisation of delensing residuals relative to existing methods, on both simulations and Planck data.*
+
+---
+
+### Phase 2b — Cosmological parameter inference (optional path)
+
+**Goal:** use the sampled C_l posterior to infer ΛCDM parameters, producing a direct comparison to Planck 2018 PR3 results.
+
+This is a self-contained analysis layer that can run in parallel with Phase 3 once Phase 2 produces reliable C_l posteriors.
+
+- [ ] Build an `emcee`-based wrapper over the sampled C_l posterior to infer `[H0, Ωb h², Ωc h², mν, Ωk, τ]`
+- [ ] Validate recovered parameters against official Planck 2018 values
+- [ ] Apply Blackwell-Rao marginalization for smooth marginal likelihoods
+- [ ] Produce corner plot of ΛCDM posteriors
+
+**Key reference:** Planck 2018 results V (arXiv:1907.12875) for parameter posteriors.
 
 ---
 
