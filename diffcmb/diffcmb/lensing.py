@@ -1,23 +1,25 @@
 """Differentiable CMB lensing operator (Phase 1).
 
 Implements the remapping  T_lensed(n) = T_unlensed(n + ∇φ(n))  as a
-TF function differentiable with respect to both the CMB signal alm and the
+TF operation differentiable with respect to both the CMB signal alm and the
 lensing potential phi_alm.
 
-Architecture
-------------
-* ``deflection_field``        — phi_alm (healpy ordering) → (dθ, dφ) in radians
-* ``precompute_lensing``      — dθ, dφ → HEALPix neighbor indices + bilinear weights (numpy)
-* ``apply_lensing_tf``        — T_map_tf × (neighbors, weights) → T_lensed_tf  (TF, differentiable)
-* ``lens_map_tf``             — full pipeline alm + phi_alm → T_lensed (TF, differentiable w.r.t. alm)
-* ``lens_map_phi_grad_tf``    — same, with custom gradient also w.r.t. phi_alm deflection
+Public API
+----------
+* ``deflection_field``        — phi_alm (healpy ordering) → (dθ, dφ) [rad]
+* ``precompute_lensing``      — dθ, dφ → HEALPix neighbor indices + bilinear weights
+* ``apply_lensing_tf``        — T_map × (neighbors, weights) → T_lensed  [diff. w.r.t. T_map]
+* ``lens_map_tf``             — alm + phi_alm_np → T_lensed              [diff. w.r.t. alm]
+* ``lens_map_phi_diff_tf``    — T_map + phi_alm_packed → T_lensed        [diff. w.r.t. both]
+* ``psi_lensed``              — lensed log-posterior matching _psi_tf_raw interface
 
 Gradient strategy
 -----------------
-* dL/d alm  : TF autodiff through the existing Y-matrix matvec (no new infrastructure).
-* dL/d phi_alm : propagated via the Jacobian of the bilinear weights w.r.t. the deflection
-  field, computed analytically through ``apply_lensing_tf``'s custom backward pass.
-  In Phase 1 this is validated numerically at lmax=50.
+* dL/d alm     : TF autodiff through the Y-matrix matvec (no new infrastructure).
+* dL/d phi_alm : custom_gradient implementing the adjoint chain:
+    upstream → dL/d(bilinear weights) [FD of hp.get_interp_weights]
+             → dL/d(deflection field) [scatter to full sky]
+             → dL/d(phi_alm)         [spin-1 SHT adjoint via hp.map2alm_spin]
 
 Reference: Lewis & Challinor 2006 (Phys. Rep. 429, 1); Carron & Lewis 2017 (arXiv:1701.01712).
 """
@@ -36,47 +38,154 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Packed alm format helpers  (mirrors the CMB alm encoding in the model)
+#
+# Encoding: for L=2..lmax-1, m=0..L
+#   real_parts[...] : Re(a_{L,m})  for all (L,m) with L≥2
+#   imag_parts[...] : Im(a_{L,m})  for m≥2 only  (m=0,1 imaginary is forced to 0)
+#
+# This matches splittosingularalm / splittosingularalm_tf exactly.
+# ---------------------------------------------------------------------------
+
+def _alm_packed_to_hp(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
+    """Packed real+imag → healpy complex alm (length lmax*(lmax+1)//2)."""
+    n_real = lmax * (lmax + 1) // 2 - 3
+    real_p = phi_packed[:n_real]
+    imag_p = phi_packed[n_real:]
+    len_alm = lmax * (lmax + 1) // 2
+    alm_hp = np.zeros(len_alm, dtype=np.complex128)
+    r_idx = 0
+    i_idx = 0
+    for L in range(2, lmax):
+        for m in range(L + 1):
+            ho_idx = L * (L + 1) // 2 + m
+            if m <= 1:
+                alm_hp[ho_idx] = real_p[r_idx]
+                r_idx += 1
+            else:
+                alm_hp[ho_idx] = real_p[r_idx] + 1j * imag_p[i_idx]
+                r_idx += 1
+                i_idx += 1
+    return alm_hp
+
+
+def _alm_hp_to_packed(alm_hp: np.ndarray, lmax: int) -> np.ndarray:
+    """Healpy complex alm → packed real+imag float64 vector."""
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    real_p = np.zeros(n_real, dtype=np.float64)
+    imag_p = np.zeros(n_imag, dtype=np.float64)
+    r_idx = 0
+    i_idx = 0
+    for L in range(2, lmax):
+        for m in range(L + 1):
+            ho_idx = L * (L + 1) // 2 + m
+            if m <= 1:
+                real_p[r_idx] = alm_hp[ho_idx].real
+                r_idx += 1
+            else:
+                real_p[r_idx] = alm_hp[ho_idx].real
+                imag_p[i_idx] = alm_hp[ho_idx].imag
+                r_idx += 1
+                i_idx += 1
+    return np.concatenate([real_p, imag_p])
+
+
+# ---------------------------------------------------------------------------
 # Step 1 — phi_alm → deflection field
 # ---------------------------------------------------------------------------
 
 def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
     """Convert lensing potential alm to deflection angles at every HEALPix pixel.
 
-    The deflection d = ∇φ.  In spherical harmonic space:
-        d_lm (spin-1 E-mode) = -sqrt(l(l+1)) φ_lm,   B-mode = 0.
+    The deflection d = ∇φ.  In harmonic space the gradient of a scalar is
+    a spin-1 E-mode field with alm = −√(l(l+1)) φ_lm.
 
     Parameters
     ----------
-    phi_alm_hp : complex array, healpy-ordering alm coefficients of φ
+    phi_alm_hp : complex array, healpy-ordering alm of the lensing potential φ
     nside       : HEALPix resolution
     lmax        : maximum multipole
 
     Returns
     -------
-    d_theta : (NPIX,) float64  — deflection in colatitude direction [rad]
-    d_phi   : (NPIX,) float64  — deflection in longitude direction [rad]
+    d_theta : (NPIX,) float64  — colatitude deflection [rad]
+    d_phi   : (NPIX,) float64  — longitude deflection [rad]
     """
     if hp is None:
         raise ImportError("healpy is required for deflection_field")
 
     ells = np.arange(lmax + 1, dtype=float)
-    # Gradient weight: sqrt(l(l+1)), set l=0,1 to 0 (no gradient)
     grad_weight = np.sqrt(ells * (ells + 1))
     grad_weight[:2] = 0.0
 
-    # E-mode gradient alm; B-mode = 0
     glm = hp.almxfl(phi_alm_hp.astype(complex), -grad_weight)
     blm = np.zeros_like(glm)
 
-    # Spin-1 SHT: returns (Q, U) where Q ~ dθ, U ~ sinθ * dφ
+    # Spin-1 SHT: (Q, U) = alm2map_spin([E-alm, B-alm])
+    # Q corresponds to the colatitude component, U sinθ × longitude component.
     d_theta, d_phi_sinTheta = hp.alm2map_spin([glm, blm], nside, 1, lmax, verbose=False)
 
-    # Convert U → dφ: divide by sinθ (clip to avoid pole singularity)
     theta_pix, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     sin_theta = np.clip(np.sin(theta_pix), 1e-10, None)
     d_phi = d_phi_sinTheta / sin_theta
 
     return d_theta.astype(np.float64), d_phi.astype(np.float64)
+
+
+def _deflection_field_packed(phi_packed: np.ndarray, nside: int, lmax: int):
+    """deflection_field but from a packed phi_alm vector."""
+    return deflection_field(_alm_packed_to_hp(phi_packed, lmax), nside, lmax)
+
+
+# ---------------------------------------------------------------------------
+# Adjoint of the deflection: (g_θ, g_φ) on full sky → g_phi_alm (packed)
+# ---------------------------------------------------------------------------
+
+def _deflection_adjoint(
+    g_theta_full: np.ndarray,
+    g_phi_full: np.ndarray,
+    nside: int,
+    lmax: int,
+) -> np.ndarray:
+    """Backward pass through deflection_field.
+
+    Forward:  phi_alm → glm = −√(l(l+1))·phi_lm  → (d_θ, sinθ·d_φ) via alm2map_spin
+    Adjoint:  (g_θ, g_φ) → g_glm via map2alm_spin → g_phi_alm = −√(l(l+1))·g_glm
+
+    Parameters
+    ----------
+    g_theta_full : (NPIX,) upstream gradient w.r.t. d_theta
+    g_phi_full   : (NPIX,) upstream gradient w.r.t. d_phi
+    nside, lmax  : HEALPix parameters
+
+    Returns
+    -------
+    packed gradient w.r.t. phi_alm, shape (n_real + n_imag,)
+    """
+    if hp is None:
+        raise ImportError("healpy is required for _deflection_adjoint")
+
+    # Convert from (g_theta, g_phi) to (Q-map, U-map) for map2alm_spin.
+    # Forward was: Q=d_theta, U=sinθ·d_phi → d_phi = U/sinθ
+    # So the adjoint of (U/sinθ) w.r.t. sinθ·d_phi is: g_U = g_phi / sinθ × sinθ = g_phi
+    # meaning: we need to pass (g_theta, g_phi × sinθ) to map2alm_spin adjoint.
+    theta_pix, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
+    sin_theta = np.clip(np.sin(theta_pix), 1e-10, None)
+
+    g_Q = g_theta_full.astype(np.float64)
+    g_U = (g_phi_full * sin_theta).astype(np.float64)
+
+    # Spin-1 SHT adjoint (map2alm_spin)
+    g_glm, _ = hp.map2alm_spin([g_Q, g_U], 1, lmax=lmax)
+
+    # Adjoint of glm = −√(l(l+1)) · phi_lm
+    ells = np.arange(lmax + 1, dtype=float)
+    grad_weight = np.sqrt(ells * (ells + 1))
+    grad_weight[:2] = 0.0
+    g_phi_alm_hp = hp.almxfl(g_glm, -grad_weight)
+
+    return _alm_hp_to_packed(g_phi_alm_hp, lmax)
 
 
 # ---------------------------------------------------------------------------
@@ -100,8 +209,8 @@ def precompute_lensing(
 
     Returns
     -------
-    neighbors : int32 array (4, n_pix)  — HEALPix pixel indices of the 4 interpolation neighbours
-    weights   : float64 array (4, n_pix) — bilinear interpolation weights (sum to 1)
+    neighbors : int32 array (4, n_pix)   — HEALPix neighbor pixel indices
+    weights   : float64 array (4, n_pix) — bilinear weights (sum to 1 per pixel)
     d_theta   : float64 array (n_pix,)   — deflection in θ [rad]
     d_phi     : float64 array (n_pix,)   — deflection in φ [rad]
     """
@@ -111,23 +220,80 @@ def precompute_lensing(
     d_theta_full, d_phi_full = deflection_field(phi_alm_hp, nside, lmax)
 
     theta0, phi0 = hp.pix2ang(nside, pixel_indices)
-    theta_lensed = theta0 + d_theta_full[pixel_indices]
+    theta_lensed = np.clip(theta0 + d_theta_full[pixel_indices], 1e-12, np.pi - 1e-12)
     phi_lensed = phi0 + d_phi_full[pixel_indices]
-
-    # Clamp colatitude to valid range [0, π]
-    theta_lensed = np.clip(theta_lensed, 1e-12, np.pi - 1e-12)
 
     neighbors, weights = hp.get_interp_weights(nside, theta_lensed, phi_lensed)
     return (
-        neighbors.astype(np.int32),  # (4, n_pix)
-        weights.astype(np.float64),  # (4, n_pix)
+        neighbors.astype(np.int32),
+        weights.astype(np.float64),
         d_theta_full[pixel_indices].astype(np.float64),
         d_phi_full[pixel_indices].astype(np.float64),
     )
 
 
 # ---------------------------------------------------------------------------
-# Step 3 — differentiable lensing application in TF
+# Bilinear weight derivatives via finite differences of hp.get_interp_weights
+# ---------------------------------------------------------------------------
+
+def _bilinear_weight_grads(
+    phi_packed: np.ndarray,
+    nside: int,
+    lmax: int,
+    pixel_indices: np.ndarray,
+    eps: float = 1e-6,
+):
+    """Compute dw_k/d_θ' and dw_k/d_φ' via finite differences.
+
+    The bilinear weights from hp.get_interp_weights are continuous functions of the
+    lensed position (θ', φ').  For eps << pixel_size (~0.016 rad at NSIDE=64) the
+    4 neighbor pixels are stable so centered FD is exact up to O(eps²).
+
+    Returns
+    -------
+    dw_dtheta : (4, n_pix) float64
+    dw_dphi   : (4, n_pix) float64
+    neighbors : (4, n_pix) int32  — center-phi neighbor indices
+    weights   : (4, n_pix) float64 — center-phi bilinear weights
+    theta_lensed : (n_pix,) float64 — lensed colatitudes
+    phi_lensed   : (n_pix,) float64 — lensed longitudes
+    """
+    if hp is None:
+        raise ImportError("healpy is required for _bilinear_weight_grads")
+
+    phi_alm_hp = _alm_packed_to_hp(phi_packed, lmax)
+    d_theta_full, d_phi_full = deflection_field(phi_alm_hp, nside, lmax)
+
+    theta0, phi0 = hp.pix2ang(nside, pixel_indices)
+    theta_lensed = np.clip(theta0 + d_theta_full[pixel_indices], 1e-12, np.pi - 1e-12)
+    phi_lensed = phi0 + d_phi_full[pixel_indices]
+
+    neighbors, weights = hp.get_interp_weights(nside, theta_lensed, phi_lensed)
+
+    # dw/d_theta: FD in theta', holding phi' fixed
+    th_p = np.clip(theta_lensed + eps, 1e-12, np.pi - 1e-12)
+    th_m = np.clip(theta_lensed - eps, 1e-12, np.pi - 1e-12)
+    _, w_tp = hp.get_interp_weights(nside, th_p, phi_lensed)
+    _, w_tm = hp.get_interp_weights(nside, th_m, phi_lensed)
+    dw_dtheta = (w_tp - w_tm) / (2.0 * eps)
+
+    # dw/d_phi: FD in phi', holding theta' fixed
+    _, w_pp = hp.get_interp_weights(nside, theta_lensed, phi_lensed + eps)
+    _, w_pm = hp.get_interp_weights(nside, theta_lensed, phi_lensed - eps)
+    dw_dphi = (w_pp - w_pm) / (2.0 * eps)
+
+    return (
+        dw_dtheta.astype(np.float64),
+        dw_dphi.astype(np.float64),
+        neighbors.astype(np.int32),
+        weights.astype(np.float64),
+        theta_lensed,
+        phi_lensed,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 3 — differentiable lensing application (alm gradient only)
 # ---------------------------------------------------------------------------
 
 def apply_lensing_tf(
@@ -135,21 +301,19 @@ def apply_lensing_tf(
     neighbors_tf: "tf.Tensor",
     weights_tf: "tf.Tensor",
 ):
-    """Apply bilinear lensing interpolation in TF.
+    """Bilinear lensing interpolation, differentiable w.r.t. T_map_full.
 
-    T_lensed[i] = sum_k weights[k,i] * T_map_full[neighbors[k,i]]
-
-    Differentiable w.r.t. T_map_full via a custom scatter gradient.
+    T_lensed[i] = Σ_k weights[k,i] * T_map_full[neighbors[k,i]]
 
     Parameters
     ----------
-    T_map_full  : float64 tensor, shape (NPIX,) — unlensed map on full sphere
-    neighbors_tf: int32 tensor, shape (4, n_pix)
-    weights_tf  : float64 tensor, shape (4, n_pix)
+    T_map_full   : float64 tensor (NPIX,) — unlensed map on full sphere
+    neighbors_tf : int32 tensor (4, n_pix)
+    weights_tf   : float64 tensor (4, n_pix)
 
     Returns
     -------
-    T_lensed : float64 tensor, shape (n_pix,)
+    T_lensed : float64 tensor (n_pix,)
     """
     if tf is None:
         raise ImportError("tensorflow is required for apply_lensing_tf")
@@ -159,13 +323,11 @@ def apply_lensing_tf(
 
     @tf.custom_gradient
     def _lens(T_in):
-        # Forward: weighted gather from 4 neighbours
         T_lensed = tf.zeros(n_pix, dtype=tf.float64)
         for k in range(4):
             T_lensed = T_lensed + weights_tf[k] * tf.gather(T_in, neighbors_tf[k])
 
         def grad(upstream):
-            # Backward: scatter upstream gradient back to source pixels
             g = tf.zeros(npix_full, dtype=tf.float64)
             for k in range(4):
                 g = g + tf.math.unsorted_segment_sum(
@@ -181,24 +343,111 @@ def apply_lensing_tf(
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — full differentiable pipeline (alm gradient)
+# Step 4 — lensing differentiable w.r.t. phi_alm (custom_gradient)
 # ---------------------------------------------------------------------------
 
-def lens_map_tf(model, alm_tf, phi_alm_np: np.ndarray):
-    """Full lensing pipeline: alm + phi_alm → T_lensed (unmasked pixels).
+def lens_map_phi_diff_tf(
+    T_map_full_tf: "tf.Tensor",
+    phi_packed_tf: "tf.Tensor",
+    nside: int,
+    lmax: int,
+    pixel_indices: np.ndarray,
+):
+    """Bilinear lensing differentiable w.r.t. both T_map_full and phi_alm.
 
-    Differentiable w.r.t. alm (CMB signal) via existing Y-matrix adjoint.
-    phi_alm is treated as an external parameter (no phi gradient in this version).
+    The phi_alm gradient uses a custom backward pass:
+        upstream → dL/d(bilinear weights)  [via FD of hp.get_interp_weights]
+                 → dL/d(deflection field)   [scatter back to full sky]
+                 → dL/d(phi_alm)            [spin-1 SHT adjoint]
 
     Parameters
     ----------
-    model       : CosmologyAdvancedSampling instance
-    alm_tf      : float64 tensor, shape (n_alm,) — real+imag alm parameter vector
-    phi_alm_np  : complex float64 array (healpy ordering) — lensing potential alm
+    T_map_full_tf : float64 tensor (NPIX,) — unlensed map on full sphere
+    phi_packed_tf : float64 tensor (n_phi,) — lensing potential in packed real+imag format
+    nside, lmax   : HEALPix parameters
+    pixel_indices : (n_unmasked,) int array
 
     Returns
     -------
-    T_lensed_tf : float64 tensor, shape (n_unmasked,)
+    T_lensed : float64 tensor (n_unmasked,)
+    """
+    if tf is None:
+        raise ImportError("tensorflow is required for lens_map_phi_diff_tf")
+    if hp is None:
+        raise ImportError("healpy is required for lens_map_phi_diff_tf")
+
+    # Precompute bilinear geometry from current phi (numpy)
+    phi_np = phi_packed_tf.numpy()
+    dw_dtheta, dw_dphi, neighbors, weights, _, _ = _bilinear_weight_grads(
+        phi_np, nside, lmax, pixel_indices
+    )
+    neighbors_c = tf.constant(neighbors, dtype=tf.int32)
+    weights_c = tf.constant(weights, dtype=tf.float64)
+    npix_full = 12 * nside * nside
+    n_unmasked = len(pixel_indices)
+
+    @tf.custom_gradient
+    def _lens(T_map, phi_p):
+        # Forward: bilinear gather
+        T_lensed = tf.zeros(n_unmasked, dtype=tf.float64)
+        for k in range(4):
+            T_lensed = T_lensed + weights_c[k] * tf.gather(T_map, neighbors_c[k])
+
+        def backward(upstream):
+            g = upstream.numpy()           # (n_unmasked,)
+            T_np = T_map.numpy()           # current T_map values
+
+            # --- gradient w.r.t. T_map (scatter adjoint) ---
+            g_T = np.zeros(npix_full, dtype=np.float64)
+            for k in range(4):
+                np.add.at(g_T, neighbors[k], weights[k] * g)
+
+            # --- gradient w.r.t. phi_packed ---
+            # T values at the 4 neighbor pixels
+            T_at_nbrs = T_np[neighbors]    # (4, n_unmasked)
+
+            # dL/d(theta_lensed) and dL/d(phi_lensed) at each output pixel
+            dL_dth = g * np.sum(T_at_nbrs * dw_dtheta, axis=0)  # (n_unmasked,)
+            dL_dph = g * np.sum(T_at_nbrs * dw_dphi,   axis=0)  # (n_unmasked,)
+
+            # Scatter to full sky
+            dL_dth_full = np.zeros(npix_full, dtype=np.float64)
+            dL_dph_full = np.zeros(npix_full, dtype=np.float64)
+            dL_dth_full[pixel_indices] = dL_dth
+            dL_dph_full[pixel_indices] = dL_dph
+
+            # Propagate through deflection adjoint → packed phi gradient
+            g_phi = _deflection_adjoint(dL_dth_full, dL_dph_full, nside, lmax)
+
+            return (
+                tf.constant(g_T, dtype=tf.float64),
+                tf.constant(g_phi, dtype=tf.float64),
+            )
+
+        return T_lensed, backward
+
+    return _lens(T_map_full_tf, phi_packed_tf)
+
+
+# ---------------------------------------------------------------------------
+# Step 5 — full alm-differentiable pipeline (phi treated as external numpy)
+# ---------------------------------------------------------------------------
+
+def lens_map_tf(model, alm_tf: "tf.Tensor", phi_alm_np: np.ndarray):
+    """alm + phi_alm_np → T_lensed, differentiable w.r.t. alm.
+
+    phi_alm is treated as a fixed external parameter (no phi gradient).
+    Use lens_map_phi_diff_tf for full joint differentiability.
+
+    Parameters
+    ----------
+    model       : CosmologyAdvancedSampling (must have _ensure_tf_tensors called)
+    alm_tf      : float64 tensor (n_real + n_imag,) — packed CMB alm
+    phi_alm_np  : complex float64 array (healpy ordering) — lensing potential
+
+    Returns
+    -------
+    T_lensed : float64 tensor (n_unmasked,)
     """
     if tf is None:
         raise ImportError("tensorflow is required for lens_map_tf")
@@ -212,72 +461,101 @@ def lens_map_tf(model, alm_tf, phi_alm_np: np.ndarray):
     nside = model.NSIDE
     n_real = lmax * (lmax + 1) // 2 - 3
 
-    # --- Build unlensed map on full sphere ---
+    # alm → unlensed map on unmasked pixels via Y matrix
     _real_p = alm_tf[:n_real]
     _imag_p = alm_tf[n_real:]
     _a = splittosingularalm_tf(_real_p, _imag_p, lmax)
     _a_c = model.alm_weights * tf.cast(_a, model.dtype)
 
-    # Accumulate full-sphere map (sph_parts cover unmasked pixels only;
-    # for lensing we need the full sphere so T can be evaluated at lensed positions)
-    # Here we use model.sph_parts which covers unmasked pixels → T_map on unmasked pixels.
-    # For a proper lensing operator the unlensed map should be on the full sphere.
-    # Phase 1 approximation: lens only within the unmasked region (valid for small deflections).
-    T_unlensed_parts = []
+    T_parts = []
     for sph_p in model.sph_parts:
         _Ya = 2.0 * tf.math.real(matvec_on_device(sph_p, _a_c))
-        T_unlensed_parts.append(tf.cast(_Ya, tf.float64))
-    T_unlensed_unmasked = tf.concat(T_unlensed_parts, axis=0)  # (n_unmasked,)
+        T_parts.append(tf.cast(_Ya, tf.float64))
+    T_unlensed_unmasked = tf.concat(T_parts, axis=0)  # (n_unmasked,)
 
-    # Build a full-sphere map (zeros outside mask) for interpolation
+    # Scatter unmasked pixels onto full sphere for bilinear interpolation
     npix_full = 12 * nside * nside
     unmasked_idx_tf = tf.constant(model.unmasked_idx, dtype=tf.int32)
     T_full = tf.math.unsorted_segment_sum(
         T_unlensed_unmasked, unmasked_idx_tf, num_segments=npix_full
     )
 
-    # Precompute bilinear lensing geometry (numpy, outside TF graph)
     neighbors, weights, _, _ = precompute_lensing(
         phi_alm_np, nside, lmax, model.unmasked_idx
     )
     neighbors_tf = tf.constant(neighbors, dtype=tf.int32)
     weights_tf = tf.constant(weights, dtype=tf.float64)
 
-    # Apply lensing (differentiable w.r.t. T_full → T_unlensed_unmasked → alm)
-    T_lensed = apply_lensing_tf(T_full, neighbors_tf, weights_tf)
-    return T_lensed
+    return apply_lensing_tf(T_full, neighbors_tf, weights_tf)
 
 
 # ---------------------------------------------------------------------------
-# Step 5 — psi_lensed: log-posterior with lensed likelihood
+# Step 6 — lensed log-posterior (drop-in for model._psi_tf_raw)
 # ---------------------------------------------------------------------------
 
-def psi_lensed_tf(model, alm_tf, phi_alm_np: np.ndarray, lncl_tf):
-    """Log-posterior with lensed CMB likelihood.
+def psi_lensed(
+    model,
+    params_tf: "tf.Tensor",
+    phi_packed_tf: "tf.Tensor",
+):
+    """Lensed log-posterior: 0.5‖d − T_lensed(alm, φ)‖²_N + prior(alm, C_l).
 
-    Replaces the unlensed likelihood term in model._psi_tf_raw with:
-        psi_lik = 0.5 * ||d - T_lensed||^2_N
-    The alm Gaussian prior and C_l entropy terms are computed by delegating
-    to model._psi_tf_raw with a zero data vector, then subtracting the
-    unlensed likelihood contribution and adding the lensed one.
+    Matches the _psi_tf_raw interface: a single params_tf vector
+    [lncl (lmax-2) | real_alm | imag_alm] plus the lensing potential.
+
+    Differentiable w.r.t. both params_tf (alm and C_l) and phi_packed_tf.
 
     Parameters
     ----------
-    model      : CosmologyAdvancedSampling instance (must have called _ensure_tf_tensors)
-    alm_tf     : float64 tensor, shape (n_alm,)
-    phi_alm_np : complex float64 array — lensing potential alm
-    lncl_tf    : float64 tensor, shape (lmax-2,) — log power spectrum
+    model         : CosmologyAdvancedSampling (must have _ensure_tf_tensors called)
+    params_tf     : float64 tensor [lncl, real_alm, imag_alm] — same layout as _psi_tf_raw
+    phi_packed_tf : float64 tensor (n_real+n_imag,) — lensing potential packed alm
 
     Returns
     -------
     psi : scalar float64 tensor
     """
     if tf is None:
-        raise ImportError("tensorflow is required for psi_lensed_tf")
+        raise ImportError("tensorflow is required for psi_lensed")
 
-    T_lensed = lens_map_tf(model, alm_tf, phi_alm_np)
+    from .alm_utils import splittosingularalm_tf
+    from .model import matvec_on_device
 
-    # Lensed likelihood term: 0.5 * sum_i N^{-1}_i (d_i - T_lensed_i)^2
+    lmax = model.lmax
+    nside = model.NSIDE
+    n_lncl = lmax - 2
+    n_real = lmax * (lmax + 1) // 2 - 3
+
+    # Parse params_tf (same slicing as _psi_tf_raw)
+    lncl_raw = tf.cast(params_tf[:n_lncl], tf.float64)
+    real_alm = tf.cast(params_tf[n_lncl : n_lncl + n_real], tf.float64)
+    imag_alm = tf.cast(params_tf[n_lncl + n_real :], tf.float64)
+
+    lncl_start = tf.zeros(2, tf.float64)
+    lncl_full = tf.concat([lncl_start, lncl_raw], axis=0)  # length lmax
+
+    # alm → full-sphere unlensed map
+    _a = splittosingularalm_tf(real_alm, imag_alm, lmax)
+    _a_c = model.alm_weights * tf.cast(_a, model.dtype)
+
+    T_parts = []
+    for sph_p in model.sph_parts:
+        _Ya = 2.0 * tf.math.real(matvec_on_device(sph_p, _a_c))
+        T_parts.append(tf.cast(_Ya, tf.float64))
+    T_unlensed_unmasked = tf.concat(T_parts, axis=0)
+
+    npix_full = 12 * nside * nside
+    unmasked_idx_tf = tf.constant(model.unmasked_idx, dtype=tf.int32)
+    T_full = tf.math.unsorted_segment_sum(
+        T_unlensed_unmasked, unmasked_idx_tf, num_segments=npix_full
+    )
+
+    # Lensed map — differentiable w.r.t. both T_full (→ alm) and phi_packed_tf
+    T_lensed = lens_map_phi_diff_tf(
+        T_full, phi_packed_tf, nside, lmax, model.unmasked_idx
+    )
+
+    # Lensed likelihood
     psi_lik = tf.constant(0.0, dtype=tf.float64)
     start = 0
     for i, (map_p, ninv_p) in enumerate(zip(
@@ -290,29 +568,17 @@ def psi_lensed_tf(model, alm_tf, phi_alm_np: np.ndarray, lncl_tf):
         )
         start += n
 
-    # Reuse _psi_tf_raw for the prior + C_l entropy terms by calling with
-    # the full parameter vector [lncl | alm] and extracting those terms.
-    # _psi_tf_raw = psi_lik_unlensed + psi_prior_alm + psi_cl
-    # We compute unlensed likelihood separately and subtract it out.
-    psi_full_unlensed = model._psi_tf_raw(lncl_tf, alm_tf)
+    # alm Gaussian prior  0.5 Σ_lm |a_lm|² / C_l
+    _abs_a2 = tf.cast(tf.math.abs(_a), tf.float32) ** 2
+    _as = tf.math.unsorted_segment_sum(
+        _abs_a2 * model.l_weights, model.l_indices, num_segments=lmax
+    )
+    psi_prior_alm = 0.5 * tf.reduce_sum(
+        tf.cast(_as, tf.float64) / (tf.math.exp(lncl_full) + 1e-30)
+    )
 
-    # Unlensed likelihood term (to be replaced)
-    psi_lik_unlensed = tf.constant(0.0, dtype=tf.float64)
-    for i, (map_p, ninv_p) in enumerate(zip(
-        model.prior_map_parts, model.Ninv_parts, strict=False
-    )):
-        from .alm_utils import splittosingularalm_tf
-        from .model import matvec_on_device
+    # C_l entropy  Σ_l (l + 0.5) ln C_l
+    _l = tf.range(lmax, dtype=tf.float64)
+    psi_cl = tf.reduce_sum((_l + 0.5) * lncl_full)
 
-        lmax = model.lmax
-        n_real = lmax * (lmax + 1) // 2 - 3
-        _real_p = alm_tf[:n_real]
-        _imag_p = alm_tf[n_real:]
-        _a = splittosingularalm_tf(_real_p, _imag_p, lmax)
-        _a_c = model.alm_weights * tf.cast(_a, model.dtype)
-        _Ya = 2.0 * tf.math.real(matvec_on_device(model.sph_parts[i], _a_c))
-        psi_lik_unlensed = psi_lik_unlensed + 0.5 * tf.reduce_sum(
-            (map_p - tf.cast(_Ya, tf.float64)) ** 2 * ninv_p
-        )
-
-    return psi_full_unlensed - psi_lik_unlensed + psi_lik
+    return psi_lik + psi_prior_alm + psi_cl
