@@ -170,14 +170,13 @@ def _deflection_adjoint(
         raise ImportError("healpy is required for _deflection_adjoint")
 
     # Convert from (g_theta, g_phi) to (Q-map, U-map) for map2alm_spin.
-    # Forward was: Q=d_theta, U=sinθ·d_phi → d_phi = U/sinθ
-    # So the adjoint of (U/sinθ) w.r.t. sinθ·d_phi is: g_U = g_phi / sinθ × sinθ = g_phi
-    # meaning: we need to pass (g_theta, g_phi × sinθ) to map2alm_spin adjoint.
+    # Forward: Q = d_theta, U = sinθ·d_phi  →  d_phi = U/sinθ
+    # Adjoint of d_phi = U/sinθ: g_U = g_phi / sinθ  (chain rule, ∂d_phi/∂U = 1/sinθ)
     theta_pix, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     sin_theta = np.clip(np.sin(theta_pix), 1e-10, None)
 
     g_Q = g_theta_full.astype(np.float64)
-    g_U = (g_phi_full * sin_theta).astype(np.float64)
+    g_U = (g_phi_full / sin_theta).astype(np.float64)
 
     # Spin-1 SHT adjoint (map2alm_spin).
     # Use lmax-1 so the output alm has size lmax*(lmax+1)//2, matching _alm_hp_to_packed.
@@ -563,8 +562,8 @@ def psi_lensed(
     # Lensed likelihood
     psi_lik = tf.constant(0.0, dtype=tf.float64)
     start = 0
-    for i, (map_p, ninv_p) in enumerate(zip(
-        model.prior_map_parts, model.Ninv_parts, strict=False
+    for i, (map_p, ninv_p) in enumerate(zip(  # noqa: B905
+        model.prior_map_parts, model.Ninv_parts
     )):
         n = int(model.sph_parts[i].shape[0])
         T_lensed_part = T_lensed[start : start + n]
