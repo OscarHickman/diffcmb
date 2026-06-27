@@ -115,7 +115,10 @@ def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
     if hp is None:
         raise ImportError("healpy is required for deflection_field")
 
-    ells = np.arange(lmax + 1, dtype=float)
+    # Infer lmax from the array so this works for both hp.Alm.getsize(lmax) and
+    # lmax*(lmax+1)//2 (our packed-format size, which equals hp.Alm.getsize(lmax-1)).
+    lmax_hp = hp.Alm.getlmax(phi_alm_hp.size)
+    ells = np.arange(lmax_hp + 1, dtype=float)
     grad_weight = np.sqrt(ells * (ells + 1))
     grad_weight[:2] = 0.0
 
@@ -124,7 +127,7 @@ def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
 
     # Spin-1 SHT: (Q, U) = alm2map_spin([E-alm, B-alm])
     # Q corresponds to the colatitude component, U sinθ × longitude component.
-    d_theta, d_phi_sinTheta = hp.alm2map_spin([glm, blm], nside, 1, lmax - 1)
+    d_theta, d_phi_sinTheta = hp.alm2map_spin([glm, blm], nside, 1, lmax_hp)
 
     theta_pix, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     sin_theta = np.clip(np.sin(theta_pix), 1e-10, None)
@@ -176,11 +179,13 @@ def _deflection_adjoint(
     g_Q = g_theta_full.astype(np.float64)
     g_U = (g_phi_full * sin_theta).astype(np.float64)
 
-    # Spin-1 SHT adjoint (map2alm_spin)
-    g_glm, _ = hp.map2alm_spin([g_Q, g_U], 1, lmax=lmax - 1)
+    # Spin-1 SHT adjoint (map2alm_spin).
+    # Use lmax-1 so the output alm has size lmax*(lmax+1)//2, matching _alm_hp_to_packed.
+    lmax_hp = lmax - 1
+    g_glm, _ = hp.map2alm_spin([g_Q, g_U], 1, lmax=lmax_hp)
 
     # Adjoint of glm = −√(l(l+1)) · phi_lm
-    ells = np.arange(lmax + 1, dtype=float)
+    ells = np.arange(lmax_hp + 1, dtype=float)
     grad_weight = np.sqrt(ells * (ells + 1))
     grad_weight[:2] = 0.0
     g_phi_alm_hp = hp.almxfl(g_glm, -grad_weight)
