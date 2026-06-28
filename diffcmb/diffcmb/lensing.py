@@ -184,8 +184,10 @@ def _deflection_adjoint(
     # alm2map_spin in the area-weighted inner product.  For the plain pixel-sum inner
     # product used by the loss, we need an extra Npix/(4π) factor.
     lmax_hp = lmax - 1
-    npix = hp.nside2npix(nside)
     g_glm, _ = hp.map2alm_spin([g_Q, g_U], 1, lmax=lmax_hp)
+    # map2alm_spin includes the 4π/Npix quadrature weight; invert it to get
+    # the bare transpose that matches the pixel-sum inner product in the loss.
+    npix = hp.nside2npix(nside)
     g_glm = g_glm * (npix / (4.0 * np.pi))
 
     # Adjoint of glm = −√(l(l+1)) · phi_lm
@@ -387,7 +389,7 @@ def lens_map_phi_diff_tf(
 
     # Precompute bilinear geometry from current phi (numpy)
     phi_np = phi_packed_tf.numpy()
-    dw_dtheta, dw_dphi, neighbors, weights, _, _ = _bilinear_weight_grads(
+    _, _, neighbors, weights, theta_lensed, phi_lensed = _bilinear_weight_grads(
         phi_np, nside, lmax, pixel_indices
     )
     neighbors_c = tf.constant(neighbors, dtype=tf.int32)
@@ -412,12 +414,27 @@ def lens_map_phi_diff_tf(
                 np.add.at(g_T, neighbors[k], weights[k] * g)
 
             # --- gradient w.r.t. phi_packed ---
-            # T values at the 4 neighbor pixels
-            T_at_nbrs = T_np[neighbors]    # (4, n_unmasked)
+            # dL/d(theta_lensed) and dL/d(phi_lensed) at each output pixel.
+            # Use scalar bilinear FD: evaluate T(θ'±ε,φ') as a single number per
+            # pixel so that any neighbor-reordering in hp.get_interp_weights cancels.
+            # eps_angle is large enough to see smooth weight variation but small
+            # compared to the HEALPix pixel size (~0.064 rad at NSIDE=4).
+            eps_angle = 1e-4
+            th_p = np.clip(theta_lensed + eps_angle, 1e-12, np.pi - 1e-12)
+            th_m = np.clip(theta_lensed - eps_angle, 1e-12, np.pi - 1e-12)
+            nbrs_tp, wts_tp = hp.get_interp_weights(nside, th_p, phi_lensed)
+            nbrs_tm, wts_tm = hp.get_interp_weights(nside, th_m, phi_lensed)
+            T_tp = np.sum(T_np[nbrs_tp] * wts_tp, axis=0)
+            T_tm = np.sum(T_np[nbrs_tm] * wts_tm, axis=0)
+            dL_dth = g * (T_tp - T_tm) / (2.0 * eps_angle)
 
-            # dL/d(theta_lensed) and dL/d(phi_lensed) at each output pixel
-            dL_dth = g * np.sum(T_at_nbrs * dw_dtheta, axis=0)  # (n_unmasked,)
-            dL_dph = g * np.sum(T_at_nbrs * dw_dphi,   axis=0)  # (n_unmasked,)
+            ph_p = phi_lensed + eps_angle
+            ph_m = phi_lensed - eps_angle
+            nbrs_pp, wts_pp = hp.get_interp_weights(nside, theta_lensed, ph_p)
+            nbrs_pm, wts_pm = hp.get_interp_weights(nside, theta_lensed, ph_m)
+            T_pp = np.sum(T_np[nbrs_pp] * wts_pp, axis=0)
+            T_pm = np.sum(T_np[nbrs_pm] * wts_pm, axis=0)
+            dL_dph = g * (T_pp - T_pm) / (2.0 * eps_angle)
 
             # Scatter to full sky
             dL_dth_full = np.zeros(npix_full, dtype=np.float64)
