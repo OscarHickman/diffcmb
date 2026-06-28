@@ -189,6 +189,10 @@ def _deflection_adjoint(
     # the bare transpose that matches the pixel-sum inner product in the loss.
     npix = hp.nside2npix(nside)
     g_glm = g_glm * (npix / (4.0 * np.pi))
+    # alm2map_spin sums m and −m, giving a factor-of-2 for m>0 modes.
+    # map2alm_spin does not compensate for this, so double the m>0 entries.
+    # In healpy ordering, m=0 modes occupy indices 0..lmax_hp; m>0 start after.
+    g_glm[lmax_hp + 1:] *= 2.0
 
     # Adjoint of glm = −√(l(l+1)) · phi_lm
     ells = np.arange(lmax_hp + 1, dtype=float)
@@ -417,9 +421,11 @@ def lens_map_phi_diff_tf(
             # dL/d(theta_lensed) and dL/d(phi_lensed) at each output pixel.
             # Use scalar bilinear FD: evaluate T(θ'±ε,φ') as a single number per
             # pixel so that any neighbor-reordering in hp.get_interp_weights cancels.
-            # eps_angle is large enough to see smooth weight variation but small
-            # compared to the HEALPix pixel size (~0.064 rad at NSIDE=4).
-            eps_angle = 1e-4
+            # eps_angle must be small enough to stay within the current HEALPix
+            # cell (~0.064 rad at NSIDE=16) to avoid crossing cell boundaries
+            # where the bilinear derivative is discontinuous.  1e-7 is far
+            # below that threshold while maintaining float64 precision.
+            eps_angle = 1e-7
             th_p = np.clip(theta_lensed + eps_angle, 1e-12, np.pi - 1e-12)
             th_m = np.clip(theta_lensed - eps_angle, 1e-12, np.pi - 1e-12)
             nbrs_tp, wts_tp = hp.get_interp_weights(nside, th_p, phi_lensed)
