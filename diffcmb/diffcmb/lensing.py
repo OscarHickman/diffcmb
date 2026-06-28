@@ -180,8 +180,13 @@ def _deflection_adjoint(
 
     # Spin-1 SHT adjoint (map2alm_spin).
     # Use lmax-1 so the output alm has size lmax*(lmax+1)//2, matching _alm_hp_to_packed.
+    # map2alm_spin includes the 4π/Npix quadrature weight, so it is the adjoint of
+    # alm2map_spin in the area-weighted inner product.  For the plain pixel-sum inner
+    # product used by the loss, we need an extra Npix/(4π) factor.
     lmax_hp = lmax - 1
+    npix = hp.nside2npix(nside)
     g_glm, _ = hp.map2alm_spin([g_Q, g_U], 1, lmax=lmax_hp)
+    g_glm = g_glm * (npix / (4.0 * np.pi))
 
     # Adjoint of glm = −√(l(l+1)) · phi_lm
     ells = np.arange(lmax_hp + 1, dtype=float)
