@@ -74,7 +74,8 @@ Float32 chains show false convergence: C_l R-hat ≈ 1.000 but alm R-hat = 18k�
 - [x] Compute R-hat — **median 1.026, max 1.085, 0% exceed 1.1** ← C_l fully converged
 - [x] Measure ESS per C_l — **median 385/800 post-burn (48% efficiency); ACF drops to 0 at lag 1**
 - [x] Implement CG exact alm sampler (`sample_alm_cg`, Phase 0b) — 2026-06-27
-- [x] Warm-start 4 CG chains from Phase 0 checkpoints — job 11513133 running on gc001–gc004
+- [x] Warm-start 4 CG chains from Phase 0 checkpoints — job 11513133 submitted on gc001–gc004
+- [x] Tag MSci project baseline in git — `v0.0-msci` at commit `2f7441c` (unlensed Gibbs + CG, pre-lensing)
 - [ ] Verify CG results: ESS ≈ N at all multipoles including l=200–300; logp plateau reached
 - [ ] Plot recovered C_l vs Planck official power spectrum (Commander/Plik)
 
@@ -115,13 +116,13 @@ The system is solved via PCG using the diagonal preconditioner `P = C_l^{-1} + (
 
 **This is what Commander does.** The critical difference is that Commander is Fortran with conjugate priors throughout; once you add lensing in Phase 2, the posterior is no longer Gaussian and the CG approach breaks — requiring HMC to return. The CG sampler here serves as a validated baseline and optimal preconditioner for Phase 2.
 
-- [ ] Implement `sample_alm_cg(model, current_lncl, rng, n_pcg_iter=50)` in `samplers.py`
-  - Form b_noise using Y and Y^T matvecs (existing `almtomap_tf` and adjoint)
-  - Solve A x = b_noise with PCG; preconditioner = diagonal of A
-  - Return x as the new alm state (no accept/reject)
-- [ ] Add convergence check: track PCG residual norm; warn if > 1e-6 after n_pcg_iter iterations
-- [ ] Swap into `run_gibbs_chain` as an optional `alm_sampler='cg'` argument (keep HMC path for Phase 2 reuse)
-- [ ] Warm-start 4 chains from Phase 0 checkpoints; run 1000 samples with CG sampler
+- [x] Implement `sample_alm_cg(model, current_lncl, rng, n_pcg_iter=50)` in `samplers.py`
+  - Forms b_noise using Y and Y^T matvecs via TF autodiff (`_cg_jt_v_fn`)
+  - Solves A x = b_noise with PCG; diagonal preconditioner = `build_posterior_mass_sqrt²`
+  - Returns x as the new alm state (no accept/reject)
+- [x] Add convergence check: track PCG residual norm; warn if > 1e-6 after n_pcg_iter iterations
+- [x] Swap into `run_gibbs_chain` as an optional `alm_sampler='cg'` argument (HMC path preserved for Phase 2)
+- [x] Warm-start 4 chains from Phase 0 checkpoints; run 1000 samples with CG sampler (job 11513133)
 - [ ] Verify: ESS ≈ N at all multipoles including l=200–300
 - [ ] Benchmark: compare wallclock time per sample vs HMC at lmax=300 (expect 2–5x faster)
 - [ ] Compare recovered C_l to Phase 0 results; confirm agreement at l ≤ 100
@@ -143,11 +144,11 @@ The lensed map is computed by:
 
 Steps 1 and 2 must be differentiable with respect to both `alm` (for the existing alm block) and `phi_alm` (for the new phi block in Phase 2).
 
-- [ ] Survey existing differentiable lensing implementations: `lenspyx` (Carron), `lensit`, JAX-based pixell; decide whether to wrap or reimplement
-- [ ] Implement `lens_map_tf(alm, phi_alm) -> lensed_map` as a TF operation
-- [ ] Validate gradient `dL/d_alm` against finite differences at lmax=50
-- [ ] Validate gradient `dL/d_phi_alm` against finite differences at lmax=50
-- [ ] Replace the current unlensed likelihood term in `psi_tf` with the lensed version: `||d - lens(alm, phi)||^2 / 2 sigma^2`
+- [x] Survey existing differentiable lensing implementations: `lenspyx` (Carron), `lensit`, JAX-based pixell — chose custom TF reimplementation for full autodiff control and TF stack compatibility
+- [x] Implement `lens_map_tf(alm, phi_alm) -> lensed_map` as a TF operation — `diffcmb/lensing.py`; also `lens_map_phi_diff_tf` for joint differentiability w.r.t. both alm and phi
+- [x] Validate gradient `dL/d_alm` against finite differences at lmax=50 — `test_apply_lensing_dT_grad_vs_fd`, `test_psi_lensed_alm_grad_vs_fd` pass
+- [x] Validate gradient `dL/d_phi_alm` against finite differences at lmax=50 — `test_phi_grad_deflection_adjoint_vs_fd`, `test_psi_lensed_phi_grad_vs_fd` pass; required fixing factor-of-2 for m>0 in adjoint, Npix/(4π) normalisation, and scalar bilinear FD (eps=1e-7)
+- [x] Replace the current unlensed likelihood term in `psi_tf` with the lensed version — `psi_lensed` in `diffcmb/lensing.py` is a drop-in replacement for `_psi_tf_raw`
 - [ ] Benchmark forward + backward pass time at lmax=300, NSIDE=256
 
 **Key reference:** Carron & Lewis 2017 (arXiv:1701.01712); lenspyx library.
