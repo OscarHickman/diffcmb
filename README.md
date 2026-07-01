@@ -6,6 +6,18 @@ Accurate CMB power spectrum sampling using TensorFlow Probability and advanced M
 
 healpy is Linux/macOS only. Windows users should use Google Colab or a VM.
 
+## From MSci Dissertation to Now
+
+This repo started as the codebase behind `docs/MSci_Report.pdf` ("Cosmology from the CMB with advanced sampling techniques", Imperial College London). That project sampled `{C_ℓ, a_ℓm}` **jointly in a single NUTS chain** (no Gibbs structure), at `N_side=128`, `2 ≤ ℓ < 60`, on a Google Colab CPU notebook with 25.5GB RAM — the report notes (§3.1) that full Planck resolution (`N_side=2048`, `ℓ_max=2500`) would need 1.8PB of RAM for the dense spherical-harmonic matrix, so it never ran on real full-resolution Planck data. Its stated future work (§5) was: run on a bigger machine, then infer ΛCDM parameters via MCMC from the recovered power spectrum.
+
+The codebase has since moved well past that scope, not just scaled it up:
+
+- **Different, more scalable algorithm.** Joint NUTS over `(C_ℓ, a_ℓm)` was replaced with a proper Gibbs sampler (Wandelt/Jewell/Larson, the same family of algorithm Commander uses): exact inverse-Gamma draws for `C_ℓ | a_ℓm`, plus either HMC or an exact conjugate-gradient Gaussian draw for `a_ℓm | C_ℓ` (IAT = 1 by construction — see `samplers.py`, ROADMAP Phase 0b).
+- **Real Planck data at far higher resolution** — `ℓ_max=300`, `N_side=256` — via a custom multi-GPU/CPU matvec split (`model.py`), something the original 25.5GB Colab constraint made impossible.
+- **A convergence failure mode the original diagnostics couldn't see.** float32 chains showed R-hat ≈ 1.0 for `C_ℓ` while `a_ℓm` R-hat hit 17,000–58,000 — false convergence invisible to the coarser R-hat/effective-sample-size checks used in the dissertation. Root-caused to float32 gradient noise; fixed by moving to float64 + the exact CG sampler.
+- **A new research direction with no precedent in the dissertation at all**: a differentiable CMB lensing operator (`lensing.py`, Phase 1, validated against finite differences) and prep for a three-block Gibbs sampler jointly inferring the unlensed CMB signal, its power spectrum, *and* the lensing potential `φ` (Phase 2) — a genuinely novel contribution beyond what Commander-style conjugate Gibbs sampling can do once the model stops being purely Gaussian. See `ROADMAP.md` for the full research case.
+- The dissertation's own proposed next step (ΛCDM parameter inference from the recovered `C_ℓ`) still hasn't been done — it's Phase 2b on the roadmap. Effort instead went into fixing a scalability/correctness problem the original approach didn't know it had, and opening the lensing extension instead.
+
 ## Project Structure
 
 ```
