@@ -122,8 +122,9 @@ The system is solved via PCG using the diagonal preconditioner `P = C_l^{-1} + (
   - Returns x as the new alm state (no accept/reject)
 - [x] Add convergence check: track PCG residual norm; warn if > 1e-6 after n_pcg_iter iterations
 - [x] Swap into `run_gibbs_chain` as an optional `alm_sampler='cg'` argument (HMC path preserved for Phase 2)
-- [x] Warm-start 4 chains from Phase 0 checkpoints; run 1000 samples with CG sampler (job 11513133)
-- [ ] Verify: ESS ≈ N at all multipoles including l=200–300
+- [x] Warm-start 4 chains from Phase 0 checkpoints; run 1000 samples with CG sampler (job 11513133) — **timed out after 3 days, PCG residual stuck flat at ~5.3e4, never converging**
+- [x] Root-caused and fixed: `matvec_on_device`'s `tf.custom_gradient` (`model.py`) left each `sph_part`'s gradient contribution on its own device before returning. When `sph_parts` are split across >1 GPU (production layout: 41 parts across 2 GPUs + CPU), TF's autodiff silently corrupts the cross-device accumulation of the shared `alm` gradient — the CG operator `A p := ∇ψ(p) − ∇ψ(0)` was measurably non-linear (‖A(2p)‖/‖A(p)‖ ≈ 59000 instead of 2.0) and non-symmetric (100% symmetry error) as a result, which is why PCG could never converge. Reproduced minimally with real Planck data at small lmax manually re-split across 2 GPUs; confirmed single-GPU and CPU-only paths were always correct. Fix: move `grad_x` to a common device (`/CPU:0`) before returning from `grad()`, so TF sums same-device tensors instead of doing (broken) cross-GPU accumulation. Regression check: `scripts/verify_cg_matvec.py`.
+- [ ] Re-run production CG chains (job 11513133 superseded) with the fix and verify: ESS ≈ N at all multipoles including l=200–300
 - [ ] Benchmark: compare wallclock time per sample vs HMC at lmax=300 (expect 2–5x faster)
 - [ ] Compare recovered C_l to Phase 0 results; confirm agreement at l ≤ 100
 

@@ -58,7 +58,17 @@ def matvec_on_device(sph, a):
                     grad_x = tf.math.conj(tf.linalg.matvec(sph, dy_c, transpose_a=True))
             else:
                 grad_x = tf.math.conj(tf.linalg.matvec(sph, dy_c, transpose_a=True))
-            return tf.cast(grad_x, vector.dtype)
+            # When sph_parts live on different GPUs, TF's autodiff must sum
+            # per-part contributions to the shared alm gradient. Leaving
+            # grad_x on its part's device (dev) makes that cross-device
+            # accumulation silently wrong; moving it to a single common
+            # device first makes the accumulation an ordinary same-device
+            # sum. Verified against a linearity/symmetry check of A p :=
+            # grad(psi)(p) - grad(psi)(0), which only holds with this fix
+            # when parts are split across >1 GPU.
+            with tf.device('/CPU:0'):
+                grad_x = tf.identity(tf.cast(grad_x, vector.dtype))
+            return grad_x
 
 
         return val, grad

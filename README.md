@@ -1,4 +1,4 @@
-# Cosmology-from-the-CMB-with-advanced-sampling-techniques
+# diffcmb
 
 [![Python Tests](https://github.com/OscarHickman/diffcmb/actions/workflows/test.yml/badge.svg)](https://github.com/OscarHickman/diffcmb/actions/workflows/test.yml)
 
@@ -16,12 +16,20 @@ diffcmb/diffcmb/
 │   ├── alm_utils.py            # All alm/map transforms (two index orderings)
 │   ├── tf_helpers.py           # TF weight tensor for psi3 term
 │   ├── model.py                # CosmologyAdvancedSampling class + psi_tf
-│   ├── samplers.py             # HMC and NUTS wrappers
+│   ├── samplers.py             # HMC, NUTS, Gibbs, and CG (exact) alm|C_l samplers
+│   ├── lensing.py              # Differentiable lensing operator (Phase 1)
 │   └── load_results.py         # Chain loading utilities
 └── rust_sph/                   # Rust extension (optional, recommended)
     ├── spherical_harmonics.rs  # Holmes-Featherstone ALF recurrence (Rayon parallel)
     ├── Cargo.toml
     └── pyproject.toml
+
+scripts/                        # HPC entry points and diagnostics (see ROADMAP.md)
+├── run_sampler.py               # CLI driver for HMC/NUTS/Gibbs chains
+├── submit_*.slurm                # COSMA SLURM submission scripts
+├── analyze_chains.py             # R-hat / ESS / logp diagnostics
+├── debug_cg.py, debug_cg.slurm   # Full PCG convergence diagnostics (linearity/symmetry/PD checks)
+└── verify_cg_matvec.py, .slurm   # Cheap regression check for the CG matvec's cross-GPU gradient correctness
 
 examples/
 ├── basic_usage.ipynb           # Getting started: HMC + NUTS walkthrough
