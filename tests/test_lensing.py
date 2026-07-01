@@ -347,3 +347,80 @@ def test_psi_lensed_phi_grad_vs_fd():
         g_auto[:8], g_fd[:8], rtol=0.02, atol=1e-5,
         err_msg="dL/dphi_alm autodiff vs FD mismatch in psi_lensed"
     )
+
+
+# ---------------------------------------------------------------------------
+# 7 — log_prob_phi_block (Phase 2, Block 3 target) — value + gradient checks
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(not HAS_TF or not HAS_HEALPY, reason="TF or healpy not installed")
+def test_log_prob_phi_block_zero_prior_matches_neg_psi_lensed():
+    """With an infinite phi prior variance (cl_phiphi -> inf), the phi prior
+    term vanishes and log_prob_phi_block reduces to -psi_lensed."""
+    from diffcmb.lensing import log_prob_phi_block, psi_lensed
+    model = _make_model()
+    lmax = model.lmax
+    n_lncl = lmax - 2
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+
+    rng = np.random.default_rng(7)
+    params_np = np.zeros(n_lncl + n_real + n_imag)
+    params_np[:n_lncl] = 5.0
+    params_tf = tf.constant(params_np, dtype=tf.float64)
+    phi_tf = tf.constant(_rand_phi_packed(lmax, rng, amplitude=1e-4), dtype=tf.float64)
+
+    cl_phiphi_huge = np.full(lmax, 1e30)
+    log_prob = log_prob_phi_block(model, params_tf, phi_tf, cl_phiphi_huge).numpy()
+    neg_psi = -psi_lensed(model, params_tf, phi_tf).numpy()
+
+    np.testing.assert_allclose(
+        log_prob, neg_psi, rtol=1e-6,
+        err_msg="log_prob_phi_block with cl_phiphi->inf should match -psi_lensed"
+    )
+
+
+@pytest.mark.skipif(not HAS_TF or not HAS_HEALPY, reason="TF or healpy not installed")
+def test_log_prob_phi_block_grad_vs_fd():
+    """dlog_prob/dphi_alm from TF autodiff agrees with finite differences.
+
+    This is the gradient Block 3's HMC step will need every leapfrog
+    iteration, so it must be correct before Phase 2 wiring begins.
+    """
+    from diffcmb.lensing import log_prob_phi_block
+    model = _make_model()
+    lmax = model.lmax
+    n_lncl = lmax - 2
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_phi = n_real + n_imag
+
+    rng = np.random.default_rng(13)
+    params_np = np.zeros(n_lncl + n_real + n_imag)
+    params_np[:n_lncl] = 5.0
+    params_np[n_lncl:] = rng.standard_normal(n_real + n_imag) * 0.1
+    params_tf = tf.constant(params_np, dtype=tf.float64)
+
+    phi_np = _rand_phi_packed(lmax, rng, amplitude=1e-4)
+    phi_var = tf.Variable(phi_np, dtype=tf.float64)
+    cl_phiphi = np.full(lmax, 1e-8)   # tight but finite prior
+
+    with tf.GradientTape() as tape:
+        val = log_prob_phi_block(model, params_tf, phi_var, cl_phiphi)
+    g_auto = tape.gradient(val, phi_var).numpy()
+
+    eps = 1e-6
+    g_fd = np.zeros(n_phi)
+    for i in range(min(8, n_phi)):
+        ph_p = phi_np.copy()
+        ph_p[i] += eps
+        ph_m = phi_np.copy()
+        ph_m[i] -= eps
+        lp = log_prob_phi_block(model, params_tf, tf.constant(ph_p, tf.float64), cl_phiphi).numpy()
+        lm = log_prob_phi_block(model, params_tf, tf.constant(ph_m, tf.float64), cl_phiphi).numpy()
+        g_fd[i] = (lp - lm) / (2 * eps)
+
+    np.testing.assert_allclose(
+        g_auto[:8], g_fd[:8], rtol=0.02, atol=1e-5,
+        err_msg="dlog_prob/dphi_alm autodiff vs FD mismatch in log_prob_phi_block"
+    )

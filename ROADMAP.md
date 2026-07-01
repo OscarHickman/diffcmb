@@ -77,7 +77,7 @@ Float32 chains show false convergence: C_l R-hat ≈ 1.000 but alm R-hat = 18k�
 - [x] Warm-start 4 CG chains from Phase 0 checkpoints — job 11513133 submitted on gc001–gc004
 - [x] Tag MSci project baseline in git — `v0.0-msci` at commit `2f7441c` (unlensed Gibbs + CG, pre-lensing)
 - [ ] Verify CG results: ESS ≈ N at all multipoles including l=200–300; logp plateau reached
-- [ ] Plot recovered C_l vs Planck official power spectrum (Commander/Plik)
+- [x] Plot recovered C_l vs Planck official power spectrum (Commander/Plik) — `results/analysis/planck_comparison.png` (2026-06-27, HMC chains). Confirms known high-l excess (5-10x CAMB/Planck above l~100): this is the HMC mixing failure Phase 0b's CG sampler targets, not a new issue. Re-plot against CG chains once job 11552530 completes.
 
 **Phase 0 high-l drift (resolved by CG):**
 
@@ -151,7 +151,7 @@ Steps 1 and 2 must be differentiable with respect to both `alm` (for the existin
 - [x] Validate gradient `dL/d_alm` against finite differences at lmax=50 — `test_apply_lensing_dT_grad_vs_fd`, `test_psi_lensed_alm_grad_vs_fd` pass
 - [x] Validate gradient `dL/d_phi_alm` against finite differences at lmax=50 — `test_phi_grad_deflection_adjoint_vs_fd`, `test_psi_lensed_phi_grad_vs_fd` pass; required fixing factor-of-2 for m>0 in adjoint, Npix/(4π) normalisation, and scalar bilinear FD (eps=1e-7)
 - [x] Replace the current unlensed likelihood term in `psi_tf` with the lensed version — `psi_lensed` in `diffcmb/lensing.py` is a drop-in replacement for `_psi_tf_raw`
-- [ ] Benchmark forward + backward pass time at lmax=300, NSIDE=256
+- [x] Benchmark forward + backward pass time at lmax=300, NSIDE=256 — `scripts/benchmark_lensing.py` (job 11552544, 2026-07-01, 2x A30 GPU node, synthetic data): forward=4.55s, forward+backward=9.38s (backward/forward=2.06x). **Bottleneck: only 2 of 53 sph matrix parts fit in GPU memory (22GB/A30); the other 51 fall back to CPU**, matching the production CG job's 41/53 CPU split. Implied Phase 2 HMC rate ≈0.11 leapfrog steps/sec — a 20-step trajectory would take ~3 min. Phase 2 will need more/bigger GPUs or a smarter part layout before Block 3 HMC is practical at this lmax.
 
 **Key reference:** Carron & Lewis 2017 (arXiv:1701.01712); lenspyx library.
 

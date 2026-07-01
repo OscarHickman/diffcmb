@@ -614,3 +614,62 @@ def psi_lensed(
     psi_cl = tf.reduce_sum((_l + 0.5) * lncl_full)
 
     return psi_lik + psi_prior_alm + psi_cl
+
+
+# ---------------------------------------------------------------------------
+# Phase 2, Block 3 — phi | alm, C_l, d  (lensing potential conditional)
+# ---------------------------------------------------------------------------
+
+def log_prob_phi_block(
+    model,
+    params_tf: "tf.Tensor",
+    phi_packed_tf: "tf.Tensor",
+    cl_phiphi_full: np.ndarray,
+):
+    """log p(phi | alm, C_l, d) up to a constant — target for the Block 3 HMC step.
+
+    alm and C_l enter through params_tf and are held fixed (no gradient taken
+    w.r.t. them here — that is Block 2's job). Only phi_packed_tf is the HMC
+    state; the returned scalar is differentiable w.r.t. it.
+
+    log p(phi | ...) = -psi_lensed(alm, C_l, phi) - phi_prior(phi | C_l^phiphi)
+
+    where the phi prior is the same Gaussian-per-l form used for the alm prior
+    in psi_lensed, but keyed off cl_phiphi_full instead of the CMB C_l.
+
+    Parameters
+    ----------
+    model          : CosmologyAdvancedSampling (must have _ensure_tf_tensors called)
+    params_tf      : float64 tensor [lncl, real_alm, imag_alm] — held fixed
+    phi_packed_tf  : float64 tensor (n_real+n_imag,) — HMC state
+    cl_phiphi_full : float64 array (lmax,) — lensing potential power spectrum,
+                     either a fixed LCDM prediction or (later) a jointly
+                     sampled Block 4 state. cl_phiphi_full[l] for l < 2 is
+                     ignored (monopole/dipole excluded, same as CMB C_l).
+
+    Returns
+    -------
+    log_prob : scalar float64 tensor, differentiable w.r.t. phi_packed_tf
+    """
+    if tf is None:
+        raise ImportError("tensorflow is required for log_prob_phi_block")
+
+    lmax = model.lmax
+    cl_phiphi_tf = tf.constant(cl_phiphi_full, dtype=tf.float64)
+
+    neg_log_lik = psi_lensed(model, params_tf, phi_packed_tf)
+
+    _real_p = phi_packed_tf[: lmax * (lmax + 1) // 2 - 3]
+    _imag_p = phi_packed_tf[lmax * (lmax + 1) // 2 - 3 :]
+    from .alm_utils import splittosingularalm_tf
+    _phi_a = splittosingularalm_tf(_real_p, _imag_p, lmax)
+
+    _abs_phi2 = tf.cast(tf.math.abs(_phi_a), tf.float32) ** 2
+    _phi_s = tf.math.unsorted_segment_sum(
+        _abs_phi2 * model.l_weights, model.l_indices, num_segments=lmax
+    )
+    phi_prior_neg_log = 0.5 * tf.reduce_sum(
+        tf.cast(_phi_s, tf.float64) / (cl_phiphi_tf + 1e-30)
+    )
+
+    return -(neg_log_lik + phi_prior_neg_log)

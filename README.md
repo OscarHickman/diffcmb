@@ -29,7 +29,8 @@ scripts/                        # HPC entry points and diagnostics (see ROADMAP.
 ├── submit_*.slurm                # COSMA SLURM submission scripts
 ├── analyze_chains.py             # R-hat / ESS / logp diagnostics
 ├── debug_cg.py, debug_cg.slurm   # Full PCG convergence diagnostics (linearity/symmetry/PD checks)
-└── verify_cg_matvec.py, .slurm   # Cheap regression check for the CG matvec's cross-GPU gradient correctness
+├── verify_cg_matvec.py, .slurm   # Cheap regression check for the CG matvec's cross-GPU gradient correctness (standalone; see tests/test_cg_matvec.py for the pytest version)
+└── benchmark_lensing.py, .slurm  # Forward/backward pass timing for the lensed likelihood (Phase 1)
 
 examples/
 ├── basic_usage.ipynb           # Getting started: HMC + NUTS walkthrough
@@ -38,8 +39,12 @@ examples/
 
 tests/
 ├── test_alm.py
+├── test_alm_utils.py
+├── test_cg_matvec.py            # CG matvec linearity/symmetry regression (cross-GPU gradient bug)
+├── test_lensing.py              # Phase 1 lensing operator gradient validation
 ├── test_model.py
-└── test_power.py
+├── test_power.py
+└── test_samplers.py
 
 archive/
 └── CMB_with_advanced_sampling_techniques.ipynb  # Original reference notebook
