@@ -315,6 +315,36 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
     return x, residual_norms
 
 
+def build_phi_prior_mass_sqrt(lmax, cl_phiphi_full):
+    """Diagonal sqrt(prior precision) for HMC preconditioning of the phi block.
+
+    Same real/imag alm layout as `model.build_posterior_mass_sqrt`, but keyed
+    off `cl_phiphi_full` instead of the CMB C_l. Only the Gaussian prior
+    curvature 1/C_l^phiphi is used — the lensing likelihood's curvature w.r.t.
+    phi has no cheap diagonal estimate yet, so this is an approximate
+    (prior-only) preconditioner.
+    """
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    mass_sqrt = np.empty(n_real + n_imag, dtype=np.float64)
+    idx = 0
+    for L in range(2, lmax):
+        cl = max(float(cl_phiphi_full[L]) if L < len(cl_phiphi_full) else 1e-30, 1e-30)
+        scale = np.sqrt(1.0 / cl)
+        for _ in range(L + 1):
+            mass_sqrt[idx] = scale
+            idx += 1
+    for L in range(2, lmax):
+        cl = max(float(cl_phiphi_full[L]) if L < len(cl_phiphi_full) else 1e-30, 1e-30)
+        scale = np.sqrt(1.0 / cl)
+        for m in range(L + 1):
+            if m >= 2:
+                mass_sqrt[idx] = scale
+                idx += 1
+    assert idx == n_real + n_imag
+    return mass_sqrt
+
+
 def run_gibbs_chain(
     model,
     n_samples=1000,
@@ -328,6 +358,11 @@ def run_gibbs_chain(
     checkpoint_every=100,
     alm_sampler='hmc',
     n_pcg_iter=50,
+    cl_phiphi_full=None,
+    phi_initial=None,
+    phi_hmc_step_size=0.05,
+    phi_n_lfs=20,
+    phi_target_accept=0.65,
 ):
     """Gibbs sampler alternating exact C_l | alm (inverse-Gamma) + alm | C_l steps.
 
@@ -344,6 +379,15 @@ def run_gibbs_chain(
 
     If checkpoint_path is provided, saves state every checkpoint_every collected samples
     and resumes from that file if it already exists (skipping burnin on resume).
+
+    Phase 2, Block 3 (opt-in): if `cl_phiphi_full` is provided, a third Gibbs
+    step samples `phi | alm, C_l, d` via HMC against `log_prob_phi_block`
+    (lensing.py), using the lensed likelihood in place of the unlensed one for
+    Block 2 as well. This changes the return value to a 5-tuple
+    (samples, phi_samples, logp, accepts, final_step_size); phi_samples has
+    shape (n_samples, n_real_alm + n_imag_alm), same packed layout as alm.
+    Requires `alm_sampler='hmc'` (the CG path assumes an unlensed Gaussian
+    conditional, which no longer holds once phi is in the model).
     """
     if alm_sampler not in ('hmc', 'cg'):
         raise ValueError(f"alm_sampler must be 'hmc' or 'cg', got {alm_sampler!r}")
@@ -351,10 +395,16 @@ def run_gibbs_chain(
         raise ImportError("tensorflow and tensorflow_probability are required")
     if alm_sampler == 'cg' and tf is None:
         raise ImportError("tensorflow is required for CG sampler")
+    sample_phi = cl_phiphi_full is not None
+    if sample_phi and alm_sampler != 'hmc':
+        raise ValueError("cl_phiphi_full (Block 3) requires alm_sampler='hmc'")
 
     rng = np.random.default_rng(seed)
     lmax = model.lmax
     n_lncl = lmax - 2
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_phi = n_real + n_imag
 
     # --- Resume from checkpoint or initialise fresh ---
     samples_out = []
@@ -362,6 +412,10 @@ def run_gibbs_chain(
     accepts_out = []
     step_float = hmc_step_size
     resuming = False
+
+    phi_samples_out = []
+    phi_accepts_out = []
+    phi_step_float = phi_hmc_step_size
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         ckpt = np.load(checkpoint_path, allow_pickle=True)
@@ -373,6 +427,11 @@ def run_gibbs_chain(
         mass_sqrt_np = ckpt["mass_sqrt"].copy()
         step_float = float(ckpt["step_size"])
         resuming = True
+        if sample_phi:
+            phi_samples_out = list(ckpt["phi_samples"])
+            phi_accepts_out = list(ckpt["phi_accepts"].tolist())
+            phi_current_np = ckpt["phi_state"].copy()
+            phi_step_float = float(ckpt["phi_step_size"])
         print(f"Resumed from checkpoint: {len(samples_out)}/{n_samples} samples collected")
     else:
         if initial_params is not None:
@@ -386,6 +445,12 @@ def run_gibbs_chain(
         cl_full = np.zeros(lmax)
         cl_full[2:] = np.exp(current_lncl)
         mass_sqrt_np = model.build_posterior_mass_sqrt(cl_full)
+        if sample_phi:
+            phi_current_np = (
+                np.array(phi_initial, dtype=np.float64).ravel()
+                if phi_initial is not None
+                else np.zeros(n_phi, dtype=np.float64)
+            )
 
     n_collected = len(samples_out)
     n_samples_remaining = n_samples - n_collected
@@ -393,6 +458,14 @@ def run_gibbs_chain(
 
     if n_samples_remaining <= 0:
         print("All samples already collected from checkpoint.")
+        if sample_phi:
+            return (
+                np.array(samples_out, dtype=np.float64),
+                np.array(phi_samples_out, dtype=np.float64),
+                np.array(logp_out, dtype=np.float64),
+                np.array(accepts_out, dtype=bool),
+                step_float,
+            )
         return (
             np.array(samples_out, dtype=np.float64),
             np.array(logp_out, dtype=np.float64),
@@ -412,9 +485,23 @@ def run_gibbs_chain(
         state_var = tf.Variable(tf.constant(current_alm_np * mass_sqrt_np, dtype=tf.float64))
         step_size_var = tf.Variable(step_float, dtype=tf.float64)
 
+        if sample_phi:
+            from .lensing import log_prob_phi_block, psi_lensed
+
+            model._ensure_tf_tensors()
+            phi_mass_sqrt_np = build_phi_prior_mass_sqrt(lmax, cl_phiphi_full)
+            phi_mass_sqrt_var = tf.Variable(tf.constant(phi_mass_sqrt_np, dtype=tf.float64))
+            phi_state_var = tf.Variable(
+                tf.constant(phi_current_np * phi_mass_sqrt_np, dtype=tf.float64)
+            )
+            phi_step_size_var = tf.Variable(phi_step_float, dtype=tf.float64)
+
         def log_prob_whitened(u):
             alm = u / mass_sqrt_var
             full_params = tf.concat([lncl_var[2:], alm], axis=0)
+            if sample_phi:
+                phi_packed = phi_state_var / phi_mass_sqrt_var
+                return -psi_lensed(model, full_params, phi_packed)
             return -model.psi_tf(full_params)
 
         hmc_kernel = tfp.mcmc.HamiltonianMonteCarlo(
@@ -424,9 +511,30 @@ def run_gibbs_chain(
         )
         pkr = hmc_kernel.bootstrap_results(state_var)
 
-        @tf.function
-        def hmc_one_step(state, pkr):
-            return hmc_kernel.one_step(state, pkr)
+        if sample_phi:
+            # lens_map_phi_diff_tf calls .numpy()/healpy inline each step (it
+            # recomputes bilinear geometry from the current phi), so it cannot
+            # be traced inside a tf.function graph — run this step eagerly.
+            def hmc_one_step(state, pkr):
+                return hmc_kernel.one_step(state, pkr)
+
+            def phi_log_prob_whitened(u):
+                phi_packed = u / phi_mass_sqrt_var
+                full_params = tf.concat([lncl_var[2:], state_var / mass_sqrt_var], axis=0)
+                return log_prob_phi_block(model, full_params, phi_packed, cl_phiphi_full)
+
+            phi_hmc_kernel = tfp.mcmc.HamiltonianMonteCarlo(
+                target_log_prob_fn=phi_log_prob_whitened,
+                step_size=phi_step_size_var,
+                num_leapfrog_steps=phi_n_lfs,
+            )
+
+            def phi_hmc_one_step(state, pkr):
+                return phi_hmc_kernel.one_step(state, pkr)
+        else:
+            @tf.function
+            def hmc_one_step(state, pkr):
+                return hmc_kernel.one_step(state, pkr)
 
     else:  # 'cg'
         if model.sph1 is None:
@@ -487,33 +595,67 @@ def run_gibbs_chain(
 
         recent.append(accepted)
 
+        # --- Step 3: phi | alm, C_l, d (opt-in, Phase 2 Block 3) ---
+        if sample_phi:
+            phi_pkr = phi_hmc_kernel.bootstrap_results(phi_state_var)
+            new_phi_state, new_phi_pkr = phi_hmc_one_step(phi_state_var, phi_pkr)
+            phi_state_var.assign(new_phi_state)
+            phi_accepted = bool(new_phi_pkr.is_accepted.numpy())
+
+            if is_burnin:
+                gamma = 1.0 / ((i + 1) ** 0.6)
+                log_step = np.log(phi_step_float) + gamma * (float(phi_accepted) - phi_target_accept)
+                phi_step_float = float(np.clip(np.exp(log_step), 1e-7, 2.0))
+                phi_step_size_var.assign(phi_step_float)
+
         if i % 200 == 0:
             rate_str = f"{np.mean(recent[-100:]):.2f}" if len(recent) >= 100 else "n/a"
             phase = "burn-in" if is_burnin else "sampling"
-            print(f"  iter {i:5d} ({phase}): step={step_float:.3e}  accept={rate_str}  total_samples={len(samples_out)}")
+            phi_tag = f"  phi_step={phi_step_float:.3e}" if sample_phi else ""
+            print(f"  iter {i:5d} ({phase}): step={step_float:.3e}  accept={rate_str}  total_samples={len(samples_out)}{phi_tag}")
 
         if not is_burnin:
             alm_sample = state_var.numpy() / mass_sqrt_np if alm_sampler == 'hmc' else current_alm_np.copy()
             samples_out.append(np.concatenate([current_lncl, alm_sample]))
             logp_out.append(logp_val)
             accepts_out.append(accepted)
+            if sample_phi:
+                phi_sample = phi_state_var.numpy() / phi_mass_sqrt_np
+                phi_samples_out.append(phi_sample)
+                phi_accepts_out.append(phi_accepted)
 
             if checkpoint_path and len(samples_out) % checkpoint_every == 0:
-                np.savez(
-                    checkpoint_path,
-                    samples=np.array(samples_out, dtype=np.float64),
-                    logp=np.array(logp_out, dtype=np.float64),
-                    accepts=np.array(accepts_out, dtype=bool),
-                    alm_state=alm_sample.astype(np.float64),
-                    lncl_state=current_lncl.astype(np.float64),
-                    mass_sqrt=mass_sqrt_np.astype(np.float64),
-                    step_size=np.float64(step_float),
-                )
+                ckpt_kwargs = {
+                    "samples": np.array(samples_out, dtype=np.float64),
+                    "logp": np.array(logp_out, dtype=np.float64),
+                    "accepts": np.array(accepts_out, dtype=bool),
+                    "alm_state": alm_sample.astype(np.float64),
+                    "lncl_state": current_lncl.astype(np.float64),
+                    "mass_sqrt": mass_sqrt_np.astype(np.float64),
+                    "step_size": np.float64(step_float),
+                }
+                if sample_phi:
+                    ckpt_kwargs.update(
+                        phi_samples=np.array(phi_samples_out, dtype=np.float64),
+                        phi_accepts=np.array(phi_accepts_out, dtype=bool),
+                        phi_state=phi_sample.astype(np.float64),
+                        phi_step_size=np.float64(phi_step_float),
+                    )
+                np.savez(checkpoint_path, **ckpt_kwargs)
 
     print(
         f"Gibbs chain done. Final step_size={step_float:.4g}, "
         f"mean accept={float(np.mean(accepts_out)):.3f}"
     )
+    if sample_phi:
+        print(f"  phi block: final step_size={phi_step_float:.4g}, mean accept={float(np.mean(phi_accepts_out)):.3f}")
+        return (
+            np.array(samples_out, dtype=np.float64),
+            np.array(phi_samples_out, dtype=np.float64),
+            np.array(logp_out, dtype=np.float64),
+            np.array(accepts_out, dtype=bool),
+            step_float,
+        )
     return (
         np.array(samples_out, dtype=np.float64),
         np.array(logp_out, dtype=np.float64),

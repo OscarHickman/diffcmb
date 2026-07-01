@@ -177,9 +177,9 @@ where `p(phi | C_l^phiphi)` is a Gaussian prior and `C_l^phiphi` is either fixed
 
 **Note on Block 2 in the lensed setting:** once lensing is added, `p(alm | C_l, phi, d)` is no longer Gaussian (the lensing operator is nonlinear in alm), so HMC returns for Block 2. The CG-based mass matrix from Phase 0b — `P = C_l^{-1} + (1/σ²) diag(Y^T Y)` — remains the correct diagonal preconditioner for the HMC momentum distribution, since it captures the local Gaussian curvature of the unlensed prior. Using it as the HMC mass matrix in Phase 2 should give near-unit condition number for the unlensed part, with the lensing correction contributing a manageable perturbation.
 
-- [ ] Add `phi_alm` as a new parameter block in the sampler state
-- [ ] Implement `log_prob_phi_block(phi_alm, alm, Cl_phi)` using the Phase 1 lensed likelihood
-- [ ] Add HMC step for the phi block in `run_gibbs_chain`
+- [x] Add `phi_alm` as a new parameter block in the sampler state — `run_gibbs_chain(..., cl_phiphi_full=...)`, 2026-07-01
+- [x] Implement `log_prob_phi_block(phi_alm, alm, Cl_phi)` using the Phase 1 lensed likelihood
+- [x] Add HMC step for the phi block in `run_gibbs_chain` — opt-in via `cl_phiphi_full`; Block 2's alm target also switches to the lensed likelihood (`psi_lensed`) when active. `lens_map_phi_diff_tf` calls `.numpy()`/healpy inline each step (recomputes bilinear geometry from current phi), so both HMC steps run eagerly rather than `@tf.function`-traced when this block is on — expect a real slowdown vs the pure-alm HMC path, on top of the Phase 1 GPU-memory bottleneck. Smoke-tested at lmax=10 (`tests/test_samplers.py::test_gibbs_chain_with_phi_block_moves`); not yet run at production lmax=300 or validated statistically against known phi_true.
 - [ ] Optionally add Block 4: `C_l^phiphi | phi` — exact inverse-Gamma, same structure as Block 1
 - [ ] Test on lensed simulations with known phi_true: verify phi recovery and C_l^TT recovery
 - [ ] Compare lensing reconstruction signal-to-noise to the quadratic estimator baseline

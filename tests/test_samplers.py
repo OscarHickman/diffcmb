@@ -229,3 +229,34 @@ def test_gibbs_chain_moves(small_model):
     assert accepts.shape == (5,)
     assert isinstance(final_step, float)
     assert not np.allclose(samples[0], samples[-1])
+
+
+@skip_no_tfp
+def test_gibbs_chain_with_phi_block_moves(small_model):
+    """Phase 2 Block 3: phi | alm, C_l, d runs alongside the existing blocks."""
+    from diffcmb import run_gibbs_chain
+
+    lmax = small_model.lmax
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_phi = n_real + n_imag
+    cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
+
+    samples, phi_samples, logp, accepts, final_step = run_gibbs_chain(
+        small_model,
+        n_samples=5,
+        n_burnin=5,
+        hmc_step_size=0.01,
+        n_lfs=5,
+        cl_phiphi_full=cl_phiphi_full,
+        phi_hmc_step_size=0.01,
+        phi_n_lfs=5,
+        seed=42,
+    )
+    assert samples.shape == (5, len(small_model.x0))
+    assert phi_samples.shape == (5, n_phi)
+    assert logp.shape == (5,)
+    assert accepts.shape == (5,)
+    assert isinstance(final_step, float)
+    assert np.all(np.isfinite(phi_samples))
+    assert not np.allclose(phi_samples[0], phi_samples[-1])
