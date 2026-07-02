@@ -242,24 +242,40 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
 
     # Compiled J^T v via autodiff of ∑_i (Ya)_i v_i — traced once per model
     if not hasattr(model, "_cg_jt_v_fn"):
-        _part_sizes = [int(sph_p.shape[0]) for sph_p in model.sph_parts]
         _n_real_cap = n_real
         _lmax_cap = lmax
 
-        @tf.function(jit_compile=False)
-        def _jt_v_fn(v_concat, alm_zero):
-            v_parts = tf.split(v_concat, _part_sizes)
-            with tf.GradientTape() as tape:
-                tape.watch(alm_zero)
-                _rp = alm_zero[:_n_real_cap]
-                _ip = alm_zero[_n_real_cap:]
-                _a = splittosingularalm_tf(_rp, _ip, _lmax_cap)
-                _a_c = model.alm_weights * tf.cast(_a, model.dtype)
-                inner = tf.zeros((), dtype=tf.float64)
-                for i, sph_p in enumerate(model.sph_parts):
-                    _Ya = 2.0 * tf.math.real(matvec_on_device(sph_p, _a_c))
-                    inner = inner + tf.reduce_sum(tf.cast(_Ya, tf.float64) * v_parts[i])
-            return tape.gradient(inner, alm_zero)
+        if getattr(model, "use_matrixfree_sht", False):
+            from .sht_ducc import masked_synthesis_tf
+
+            @tf.function(jit_compile=False)
+            def _jt_v_fn(v_concat, alm_zero):
+                with tf.GradientTape() as tape:
+                    tape.watch(alm_zero)
+                    _rp = alm_zero[:_n_real_cap]
+                    _ip = alm_zero[_n_real_cap:]
+                    _a = splittosingularalm_tf(_rp, _ip, _lmax_cap)
+                    _a_ho = tf.gather(_a, model._alm_mo_to_ho_idx)
+                    _Ya = masked_synthesis_tf(tf.cast(_a_ho, tf.complex128), model._sht)
+                    inner = tf.reduce_sum(_Ya * v_concat)
+                return tape.gradient(inner, alm_zero)
+        else:
+            _part_sizes = [int(sph_p.shape[0]) for sph_p in model.sph_parts]
+
+            @tf.function(jit_compile=False)
+            def _jt_v_fn(v_concat, alm_zero):
+                v_parts = tf.split(v_concat, _part_sizes)
+                with tf.GradientTape() as tape:
+                    tape.watch(alm_zero)
+                    _rp = alm_zero[:_n_real_cap]
+                    _ip = alm_zero[_n_real_cap:]
+                    _a = splittosingularalm_tf(_rp, _ip, _lmax_cap)
+                    _a_c = model.alm_weights * tf.cast(_a, model.dtype)
+                    inner = tf.zeros((), dtype=tf.float64)
+                    for i, sph_p in enumerate(model.sph_parts):
+                        _Ya = 2.0 * tf.math.real(matvec_on_device(sph_p, _a_c))
+                        inner = inner + tf.reduce_sum(tf.cast(_Ya, tf.float64) * v_parts[i])
+                return tape.gradient(inner, alm_zero)
 
         model._cg_jt_v_fn = _jt_v_fn
 
@@ -269,7 +285,10 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
     noise_prior = np.sqrt(inv_cl_diag) * omega1
 
     # Term 2: J^T N^{-1/2} ω₂  (pixel-space noise projected through adjoint)
-    Ninv_np = np.concatenate([model.Ninv_parts[i].numpy() for i in range(len(model.sph_parts))])
+    if getattr(model, "use_matrixfree_sht", False):
+        Ninv_np = model.Ninv_masked.numpy()
+    else:
+        Ninv_np = np.concatenate([model.Ninv_parts[i].numpy() for i in range(len(model.sph_parts))])
     omega2 = rng.standard_normal(len(Ninv_np))
     v_pix = np.sqrt(np.maximum(Ninv_np, 0.0)) * omega2
     noise_pix = model._cg_jt_v_fn(

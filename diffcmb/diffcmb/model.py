@@ -5,6 +5,7 @@ import numpy as np
 
 from .alm import noisemapfunc
 from .alm_utils import (
+    _ordering_indices,
     almhotmo,
     hpalminit,
     hpalmtocl,
@@ -84,12 +85,19 @@ class CosmologyAdvancedSampling:
     refactors can split responsibilities.
     """
 
-    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered', dtype=None):
+    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered', dtype=None, use_matrixfree_sht=False, sht_nthreads=0):
         if dtype is None:
             dtype = tf.complex64 if tf is not None else None
         self.dtype = dtype
         lcdm_parameters = np.array([67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066])
         self.parameterization = parameterization
+        # Phase 1.5 (ROADMAP.md): matrix-free ducc0 SHT in place of the dense
+        # `sph` matrix. Opt-in only — the dense path stays the default so
+        # existing production runs/checkpoints are unaffected. See
+        # diffcmb/sht_ducc.py and tests/test_sht_ducc.py for validation.
+        self.use_matrixfree_sht = use_matrixfree_sht
+        self.sht_nthreads = sht_nthreads
+        self._sht = None
 
         if data_mode == 'synthetic':
             print("Generating synthetic data...")
@@ -274,7 +282,7 @@ class CosmologyAdvancedSampling:
 
     def _ensure_tf_tensors(self):
         """Create TensorFlow-dependent tensors with matrix splitting to avoid 24GB allocation limit."""
-        if self.sph1 is not None:
+        if self.sph1 is not None or self._sht is not None:
             return
 
         if tf is None:
@@ -287,13 +295,62 @@ class CosmologyAdvancedSampling:
 
         NPIX = int(self.NSIDE**2 * 12)
         len_alm = int(self.lmax * (self.lmax + 1) / 2)
+        np_dtype = np.complex128 if self.dtype == tf.complex128 else np.complex64
+
+        # alm_weights / l_indices / l_weights / imag_indices don't depend on
+        # which SHT backend is used (dense matrix vs matrix-free), so build
+        # them once up front.
+        _w = np.ones(len_alm, dtype=np_dtype)
+        _l_idx = np.empty(len_alm, dtype=np.int32)
+        _count = 0
+        for L in range(self.lmax):
+            for m in range(L + 1):
+                if m == 0:
+                    _w[_count] = complex(0.5, 0)
+                _l_idx[_count] = L
+                _count = _count + 1
+        self.alm_weights = tf.convert_to_tensor(_w, dtype=self.dtype)
+        self.l_indices = tf.convert_to_tensor(_l_idx, dtype=np.int32)
+
+        _lw = np.ones(len_alm, dtype=np.float32)
+        _count = 0
+        for L in range(self.lmax):
+            for m in range(L + 1):
+                if m > 0:
+                    _lw[_count] = 2.0
+                _count = _count + 1
+        self.l_weights = tf.convert_to_tensor(_lw, dtype=np.float32)
+
+        _imag_mask = []
+        for L in range(2, self.lmax):
+            for m in range(2, L + 1):
+                _imag_mask.append(L * (L + 1) // 2 + m)
+        self.imag_indices = tf.convert_to_tensor(_imag_mask, dtype=np.int32)
+
+        if self.use_matrixfree_sht:
+            from .sht_ducc import HealpixSHT
+
+            print(f"Building matrix-free ducc0 SHT for {len_alm} alm, {len(self.unmasked_idx)} unmasked pixels...")
+            self._sht = HealpixSHT(
+                nside=self.NSIDE, lmax=self.lmax, unmasked_idx=self.unmasked_idx,
+                nthreads=self.sht_nthreads,
+            )
+            self.Ninv_masked = tf.convert_to_tensor(self.Ninv[self.unmasked_idx], dtype=tf.float64)
+            self.prior_map_masked = tf.convert_to_tensor(self.prior_map[self.unmasked_idx], dtype=tf.float64)
+            self.multi_device = False
+            # `splittosingularalm_tf` (and this codebase's dense `sph` matrix)
+            # use "author ordering" (row-major by (L, m)); ducc0/healpy use
+            # "healpy ordering" (column-major by m) — see CLAUDE.md. Precompute
+            # the gather index once so _psi_tf_raw / samplers.py can convert.
+            ho_to_mo, _ = _ordering_indices(self.lmax)
+            self._alm_mo_to_ho_idx = tf.convert_to_tensor(ho_to_mo, dtype=tf.int32)
+            return
 
         thetas_full, phis_full = hp.pix2ang(nside=self.NSIDE, ipix=np.arange(NPIX))
         thetas = thetas_full[self.unmasked_idx]
         phis = phis_full[self.unmasked_idx]
         NPIX_CROP = len(thetas)
 
-        np_dtype = np.complex128 if self.dtype == tf.complex128 else np.complex64
         bytes_per_val = 16 if self.dtype == tf.complex128 else 8
 
         # Dynamic splitting to fit in GPU/allocator limits (e.g. 10GB per part)
@@ -351,33 +408,6 @@ class CosmologyAdvancedSampling:
         self.sph1 = self.sph_parts[0]  # Compatibility
         self.sph2 = self.sph_parts[1] if num_parts > 1 else self.sph_parts[0]  # Compatibility
 
-        _w = np.ones(len_alm, dtype=np_dtype)
-        _l_idx = np.empty(len_alm, dtype=np.int32)
-        _count = 0
-        for L in range(self.lmax):
-            for m in range(L + 1):
-                if m == 0:
-                    _w[_count] = complex(0.5, 0)
-                _l_idx[_count] = L
-                _count = _count + 1
-        self.alm_weights = tf.convert_to_tensor(_w, dtype=self.dtype)
-        self.l_indices = tf.convert_to_tensor(_l_idx, dtype=np.int32)
-
-        _lw = np.ones(len_alm, dtype=np.float32)
-        _count = 0
-        for L in range(self.lmax):
-            for m in range(L + 1):
-                if m > 0:
-                    _lw[_count] = 2.0
-                _count = _count + 1
-        self.l_weights = tf.convert_to_tensor(_lw, dtype=np.float32)
-
-        _imag_mask = []
-        for L in range(2, self.lmax):
-            for m in range(2, L + 1):
-                _imag_mask.append(L * (L + 1) // 2 + m)
-        self.imag_indices = tf.convert_to_tensor(_imag_mask, dtype=np.int32)
-
         self.sph = self.sph1 # For backward compatibility in utils
 
     def prior_parameters_tf(self):
@@ -413,13 +443,20 @@ class CosmologyAdvancedSampling:
 
 
         _a = splittosingularalm_tf(_realalm, _imagalm, _lmax)
-        _a_c64 = self.alm_weights * tf.cast(_a, self.dtype)
 
-        # Matrix splitting matvecs (loop over parts)
-        _psi_lik = 0.0
-        for i in range(len(self.sph_parts)):
-            _Ya = 2.0 * tf.math.real(matvec_on_device(self.sph_parts[i], _a_c64))
-            _psi_lik += 0.5 * tf.reduce_sum((self.prior_map_parts[i] - tf.cast(_Ya, tf.float64))**2 * self.Ninv_parts[i])
+        if self.use_matrixfree_sht:
+            from .sht_ducc import masked_synthesis_tf
+
+            _a_ho = tf.gather(_a, self._alm_mo_to_ho_idx)
+            _Ya = masked_synthesis_tf(tf.cast(_a_ho, tf.complex128), self._sht)
+            _psi_lik = 0.5 * tf.reduce_sum((self.prior_map_masked - _Ya) ** 2 * self.Ninv_masked)
+        else:
+            _a_c64 = self.alm_weights * tf.cast(_a, self.dtype)
+            # Matrix splitting matvecs (loop over parts)
+            _psi_lik = 0.0
+            for i in range(len(self.sph_parts)):
+                _Ya = 2.0 * tf.math.real(matvec_on_device(self.sph_parts[i], _a_c64))
+                _psi_lik += 0.5 * tf.reduce_sum((self.prior_map_parts[i] - tf.cast(_Ya, tf.float64))**2 * self.Ninv_parts[i])
 
         _l = tf.range(_lmax, dtype=tf.float64)
         _psi_cl = tf.reduce_sum((_l + 0.5) * _lncl)
