@@ -37,6 +37,13 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
 export CUDA_VISIBLE_DEVICES=0
+# Job-private TMPDIR: autograph writes transpiled sources to
+# $TMPDIR/__autograph_generated_file*.py, which is node-local and not
+# job-scoped by default. A stale entry from an earlier job on a reused
+# node caused a bogus crash during debugging (2026-07-02) — see
+# ROADMAP.md Phase 0b notes.
+export TMPDIR="/tmp/diffcmb_cg_L300_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "$TMPDIR"
 
 echo "=== Phase 0b CG Sampler: L=${LMAX} NSIDE=${NSIDE} Chain ${SLURM_ARRAY_TASK_ID} ==="
 echo "Python: $($PYTHON --version 2>&1)"
