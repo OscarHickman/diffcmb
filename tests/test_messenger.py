@@ -96,6 +96,102 @@ def test_messenger_gibbs_matches_dense_masked_posterior():
     )
 
 
+def _build_nonorthonormal_toy_problem(rng, n_alm=10, n_pix=40, frac_masked=0.3,
+                                       off_diag_scale=0.02, mask_ninv_floor=1e-10):
+    """Like _build_toy_problem, but A^T A is only APPROXIMATELY diagonal —
+    mimicking a real HEALPix SHT (ROADMAP.md Phase 0c Step 3: ~1-2%
+    off-diagonal coupling in A^T A, not just the mask-induced coupling
+    Step 1 already covers).
+    """
+    A = rng.standard_normal((n_pix, n_alm))
+    A, _ = np.linalg.qr(A)
+    A = A[:, :n_alm]
+    # Perturb A slightly off its orthonormal basis so A^T A picks up a small,
+    # non-random off-diagonal structure (not just roundoff).
+    perturbation = off_diag_scale * rng.standard_normal((n_pix, n_alm))
+    A = A + perturbation
+    AtA = A.T @ A
+
+    cl = rng.uniform(0.5, 3.0, size=n_alm)
+    inv_cl_diag = 1.0 / cl
+
+    noise_var = rng.uniform(0.2, 1.0, size=n_pix)
+    n_masked = int(frac_masked * n_pix)
+    masked_idx = rng.choice(n_pix, size=n_masked, replace=False)
+    Ninv = 1.0 / noise_var
+    Ninv[masked_idx] = mask_ninv_floor
+
+    s_true = rng.standard_normal(n_alm) * np.sqrt(cl)
+    d = A @ s_true + rng.standard_normal(n_pix) * np.sqrt(noise_var)
+    d[masked_idx] = 0.0
+
+    return A, AtA, inv_cl_diag, Ninv, d
+
+
+def test_dense_AtA_correction_matches_reference_where_diagonal_approx_is_biased():
+    """The diagonal-norm_const approximation (Step 3's failure mode) should
+    show a detectable bias against the dense masked-sky reference once A^T A
+    has real off-diagonal structure; sample_s_given_t_dense, given the exact
+    A^T A, should not.
+    """
+    rng = np.random.default_rng(3)
+    A, AtA, inv_cl_diag, Ninv, d = _build_nonorthonormal_toy_problem(rng)
+    mu_true, Sigma_true = _dense_posterior(A, inv_cl_diag, Ninv, d)
+
+    off_diag = AtA - np.diag(np.diag(AtA))
+    assert np.abs(off_diag).max() > 1e-3 * np.diag(AtA).mean(), (
+        "toy A^T A off-diagonal too small to exercise the mechanism under test"
+    )
+
+    tau2 = 0.9 * (1.0 / Ninv[Ninv > 1e-6]).min()
+    norm_const = np.diag(AtA)  # the diagonal-only approximation
+
+    n_burnin = 500
+    n_samples = 4000
+    thin = 2
+
+    def _run(AtA_arg):
+        rng_sampler = np.random.default_rng(11)
+        s = None
+        for _ in range(n_burnin):
+            s = run_messenger_gibbs(
+                d, Ninv, inv_cl_diag, tau2,
+                A_action=lambda x: A @ x, At_action=lambda t: A.T @ t,
+                rng=rng_sampler, n_iter=1, s0=s,
+                norm_const=norm_const, AtA=AtA_arg,
+            )
+        samples = np.empty((n_samples, len(inv_cl_diag)))
+        for i in range(n_samples):
+            s = run_messenger_gibbs(
+                d, Ninv, inv_cl_diag, tau2,
+                A_action=lambda x: A @ x, At_action=lambda t: A.T @ t,
+                rng=rng_sampler, n_iter=thin, s0=s,
+                norm_const=norm_const, AtA=AtA_arg,
+            )
+            samples[i] = s
+        return samples
+
+    se_mu = np.sqrt(np.diag(Sigma_true) / n_samples)
+
+    samples_diag = _run(AtA_arg=None)
+    mu_emp_diag = samples_diag.mean(axis=0)
+    z_diag = np.abs(mu_emp_diag - mu_true) / se_mu
+
+    samples_dense = _run(AtA_arg=AtA)
+    mu_emp_dense = samples_dense.mean(axis=0)
+    z_dense = np.abs(mu_emp_dense - mu_true) / se_mu
+
+    assert z_dense.max() < 8, (
+        f"dense A^T A correction should match the true posterior mean to "
+        f"within MC error, got max z={z_dense.max():.2f}"
+    )
+    assert z_diag.max() > z_dense.max(), (
+        "diagonal-only approximation should be measurably more biased than "
+        "the dense correction — otherwise this test isn't exercising the "
+        "off-diagonal A^T A mechanism Step 3 found"
+    )
+
+
 def test_sample_t_given_s_matches_pointwise_normal_moments():
     from diffcmb.messenger import sample_t_given_s
 

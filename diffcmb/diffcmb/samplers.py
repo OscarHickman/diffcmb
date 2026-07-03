@@ -433,7 +433,7 @@ def _calibrate_full_sky_norm_diag(sht_full, lmax, n_real, n_imag, progress_every
 
 def sample_alm_messenger(
     model, lncl_np, rng, n_messenger_iter=100, tau2=None, s0=None,
-    norm_diag_safety_margin=1.02,
+    norm_diag_safety_margin=1.02, AtA=None,
 ):
     """Exact Gaussian draw from p(alm | C_l, d) via the messenger-field Gibbs
     sampler (Elsner & Wandelt 2013), replacing sample_alm_cg's diagonal-
@@ -474,6 +474,12 @@ def sample_alm_messenger(
     is an exactly-orthonormal full-sky SHT (e.g. Gauss-Legendre/Driscoll-Healy
     quadrature via ducc0, rather than HEALPix's approximate quadrature) so
     A^T A is exactly diagonal and no margin is needed at all.
+
+    AtA: optional (n_alm, n_alm) dense A^T A override — see
+    messenger.sample_s_given_t_dense. Bypasses norm_diag_safety_margin
+    entirely (exact update, no majorisation needed). Only tractable while
+    n_alm is small (validation use); not a production-scale option at
+    lmax=300 (O(n_alm^3) per draw).
 
     Returns alm_np : 1-D float64 array, length n_real + n_imag (same layout as
     sample_alm_cg's return value).
@@ -531,7 +537,7 @@ def sample_alm_messenger(
 
     return run_messenger_gibbs(
         d_full, Ninv_full, inv_cl_diag, tau2, A_action, At_action, rng,
-        n_messenger_iter, s0=s0, norm_const=norm_const,
+        n_messenger_iter, s0=s0, norm_const=norm_const, AtA=AtA,
     )
 
 

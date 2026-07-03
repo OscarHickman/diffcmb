@@ -54,6 +54,35 @@ def sample_t_given_s(s_pix, d, Ninv, tau2, rng):
     return mean + noise
 
 
+def sample_s_given_t_dense(At_t, inv_cl_diag, tau2, rng, AtA):
+    """Draw s | t exactly, using the FULL A^T A rather than approximating it
+    as diagonal (see sample_s_given_t_orthonormal's norm_const docstring).
+
+    A real HEALPix SHT is only approximately orthonormal: A^T A has small
+    (~1-2%) off-diagonal terms that the diagonal approximation discards.
+    ROADMAP.md Phase 0c Step 3 found this discarded coupling is enough to
+    either bias the messenger sampler's posterior (loose safety margin) or
+    make the Gibbs chain diverge outright (tight/no margin) under masking.
+    This exact update has neither failure mode, at the cost of an O(n^3)
+    Cholesky solve per draw — only tractable while A^T A is small enough to
+    hold densely (validation/diagnostic use; production at lmax=300 needs a
+    scalable structured/low-rank approximation of AtA instead, see
+    ROADMAP.md Phase 0c Step 5).
+
+    At_t        : 1-D array, A^T @ t
+    inv_cl_diag : 1-D array, 1/C_l per harmonic dof (prior precision)
+    tau2        : scalar, messenger covariance
+    AtA         : (n_alm, n_alm) array, the actual A^T A (not assumed diagonal)
+
+    Returns s : 1-D array, same shape as At_t.
+    """
+    precision = AtA / tau2 + np.diag(inv_cl_diag)
+    L = np.linalg.cholesky(precision)
+    mean = np.linalg.solve(L.T, np.linalg.solve(L, At_t / tau2))
+    noise = np.linalg.solve(L.T, rng.standard_normal(len(At_t)))
+    return mean + noise
+
+
 def sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const=1.0):
     """Draw s | t in harmonic space, assuming A^T A = norm_const * I.
 
@@ -81,7 +110,7 @@ def sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const=1.0):
 
 def run_messenger_gibbs(
     d, Ninv, inv_cl_diag, tau2, A_action, At_action, rng, n_iter, s0=None,
-    norm_const=1.0,
+    norm_const=1.0, AtA=None,
 ):
     """Run the messenger Gibbs sampler for n_iter sweeps, return the final s.
 
@@ -89,7 +118,11 @@ def run_messenger_gibbs(
     At_action(t) -> A^T @ t (full-sky pixel space -> harmonic space)
 
     norm_const  : scalar such that A^T A = norm_const * I; see
-                  sample_s_given_t_orthonormal.
+                  sample_s_given_t_orthonormal. Ignored if AtA is given.
+    AtA         : optional (n_alm, n_alm) full A^T A matrix. If given, the
+                  s|t step uses the exact dense update (sample_s_given_t_dense)
+                  instead of the diagonal approximation — see that function's
+                  docstring for why this matters under masking.
 
     This is the generic driver Step 1 validates against a dense reference;
     Step 2 (ROADMAP.md) substitutes ducc0's full-sky SHT for A_action/
@@ -101,5 +134,8 @@ def run_messenger_gibbs(
         s_pix = A_action(s)
         t = sample_t_given_s(s_pix, d, Ninv, tau2, rng)
         At_t = At_action(t)
-        s = sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const)
+        if AtA is None:
+            s = sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const)
+        else:
+            s = sample_s_given_t_dense(At_t, inv_cl_diag, tau2, rng, AtA)
     return s

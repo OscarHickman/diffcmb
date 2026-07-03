@@ -106,28 +106,40 @@ def main():
     Sigma_true = np.linalg.inv(Lambda)
     mu_true = Sigma_true @ (J.T @ (Ninv_full * d_full))
 
-    print(f"Running messenger sampler: {N_BURNIN} burn-in + {N_SAMPLES}x{THIN} samples...")
-    rng = np.random.default_rng(1)
-    s = None
-    for _ in range(N_BURNIN):
-        s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s)
-
-    samples = np.empty((N_SAMPLES, n_alm))
-    for i in range(N_SAMPLES):
-        for _ in range(THIN):
-            s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s)
-        samples[i] = s
-
-    mu_emp = samples.mean(axis=0)
-    Sigma_emp = np.cov(samples, rowvar=False)
-
     se_mu = np.sqrt(np.diag(Sigma_true) / N_SAMPLES)
+
+    def run_chain(AtA):
+        rng = np.random.default_rng(1)
+        s = None
+        for _ in range(N_BURNIN):
+            s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s, AtA=AtA)
+        samples = np.empty((N_SAMPLES, n_alm))
+        for i in range(N_SAMPLES):
+            for _ in range(THIN):
+                s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s, AtA=AtA)
+            samples[i] = s
+        return samples
+
+    print(f"Running messenger sampler (diagonal A^T A approx): {N_BURNIN} burn-in + {N_SAMPLES}x{THIN} samples...")
+    samples_diag = run_chain(AtA=None)
+    mu_emp = samples_diag.mean(axis=0)
+    Sigma_emp = np.cov(samples_diag, rowvar=False)
     mean_err = np.abs(mu_emp - mu_true) / np.maximum(se_mu, 1e-30)
     rel_cov_err = np.abs(Sigma_emp - Sigma_true) / np.abs(Sigma_true).max()
-
-    print("Results:")
+    print("Results (diagonal approx):")
     print(f"  mean error (in SE units): max={mean_err.max():.2f}, mean={mean_err.mean():.2f}")
     print(f"  cov relative error (vs max entry): max={rel_cov_err.max():.3e}, mean={rel_cov_err.mean():.3e}")
+
+    print(f"\nRunning messenger sampler (exact dense A^T A correction): {N_BURNIN} burn-in + {N_SAMPLES}x{THIN} samples...")
+    samples_dense = run_chain(AtA=JtJ)
+    mu_emp_d = samples_dense.mean(axis=0)
+    Sigma_emp_d = np.cov(samples_dense, rowvar=False)
+    mean_err_d = np.abs(mu_emp_d - mu_true) / np.maximum(se_mu, 1e-30)
+    rel_cov_err_d = np.abs(Sigma_emp_d - Sigma_true) / np.abs(Sigma_true).max()
+    print("Results (exact dense A^T A correction):")
+    print(f"  mean error (in SE units): max={mean_err_d.max():.2f}, mean={mean_err_d.mean():.2f}")
+    print(f"  cov relative error (vs max entry): max={rel_cov_err_d.max():.3e}, mean={rel_cov_err_d.mean():.3e}")
+    print(f"  max |alm| over chain: {np.abs(samples_dense).max():.3e} (diagonal-approx chain: {np.abs(samples_diag).max():.3e})")
 
 
 if __name__ == "__main__":
