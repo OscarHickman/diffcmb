@@ -200,6 +200,21 @@ def test_phi_grad_deflection_adjoint_vs_fd():
     This validates the full chain:
         phi_packed → deflection → bilinear weights → T_lensed
     and its reverse.
+
+    eps note (bug history, Phase 2 ROADMAP.md): a single phi_alm component
+    perturbs the deflection field at every pixel simultaneously, and
+    hp.get_interp_weights' bilinear scheme is only C0 (continuous) not C1
+    (its derivative has genuine kinks at interpolation-cell boundaries).
+    With eps=1e-6 (the original value here), a handful of the ~600 unmasked
+    pixels' lensed positions happened to cross such a boundary within the
+    perturbation, making *this FD reference* — not the analytic gradient —
+    unstable: verified directly that this same FD estimate changes sign
+    and swings by >100% between eps=1e-6 and eps=1e-7 for some components,
+    while agreeing with the analytic gradient to ~1e-5 relative once eps is
+    small enough (<=3e-9) not to cross a boundary. eps=1e-9 is safely in
+    that regime (deflection_field is exactly linear in phi_alm, so no
+    truncation/roundoff tradeoff pushes eps this small — checked stable
+    across 1e-9..3e-10).
     """
     from diffcmb.lensing import lens_map_phi_diff_tf
 
@@ -218,7 +233,7 @@ def test_phi_grad_deflection_adjoint_vs_fd():
     g_auto = tape.gradient(loss, phi_var).numpy()
 
     # Finite differences over a subset of phi_packed components
-    eps = 1e-6
+    eps = 1e-9
     n_phi = len(phi0)
     sampled = np.arange(0, n_phi, max(1, n_phi // 20))
     g_fd = np.zeros(n_phi)
@@ -235,6 +250,45 @@ def test_phi_grad_deflection_adjoint_vs_fd():
         g_auto[sampled], g_fd[sampled], rtol=0.02, atol=1e-6,
         err_msg="dL/dphi_alm autodiff vs FD mismatch"
     )
+
+
+@pytest.mark.skipif(not HAS_TF or not HAS_HEALPY, reason="TF or healpy not installed")
+def test_lens_map_phi_diff_tf_traceable_in_tf_function():
+    """lens_map_phi_diff_tf must survive tf.function tracing (Phase 1.5,
+    ROADMAP.md): both the bilinear-geometry precompute and the FD backward
+    pass now go through tf.py_function rather than a bare .numpy() call
+    (mirroring sht_ducc.py's masked_synthesis_tf), so this op can sit inside
+    samplers.py's @tf.function-decorated grad/matvec wrappers, not just run
+    in pure eager mode. Also checks the forward value and both gradients
+    (w.r.t. T_map and phi) match the eager-mode result exactly."""
+    from diffcmb.lensing import lens_map_phi_diff_tf
+
+    npix = hp.nside2npix(NSIDE)
+    rng = np.random.default_rng(7)
+    phi0 = _rand_phi_packed(LMAX, rng, amplitude=1e-4)
+    T_np = rng.standard_normal(npix) * 50.0
+    pix = np.arange(npix)
+
+    T_tf = tf.constant(T_np, dtype=tf.float64)
+    phi_tf = tf.constant(phi0, dtype=tf.float64)
+
+    def _run(T, phi):
+        with tf.GradientTape() as tape:
+            tape.watch([T, phi])
+            out = lens_map_phi_diff_tf(T, phi, NSIDE, LMAX, pix)
+            loss = tf.reduce_sum(out ** 2)
+        g_T, g_phi = tape.gradient(loss, [T, phi])
+        return out, g_T, g_phi
+
+    out_eager, gT_eager, gphi_eager = _run(T_tf, phi_tf)
+
+    traced = tf.function(_run)
+    out_traced, gT_traced, gphi_traced = traced(T_tf, phi_tf)
+
+    np.testing.assert_allclose(out_traced.numpy(), out_eager.numpy())
+    np.testing.assert_allclose(gT_traced.numpy(), gT_eager.numpy())
+    np.testing.assert_allclose(gphi_traced.numpy(), gphi_eager.numpy())
+    assert np.all(np.isfinite(gphi_traced.numpy()))
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +363,16 @@ def test_psi_lensed_alm_grad_vs_fd():
 
 @pytest.mark.skipif(not HAS_TF or not HAS_HEALPY, reason="TF or healpy not installed")
 def test_psi_lensed_phi_grad_vs_fd():
-    """dL/dphi_alm from TF autodiff on psi_lensed agrees with finite differences."""
+    """dL/dphi_alm from TF autodiff on psi_lensed agrees with finite differences.
+
+    eps note: see test_phi_grad_deflection_adjoint_vs_fd — a coarse FD eps
+    here perturbs every pixel's lensed position simultaneously and can cross
+    a genuine (C0-but-not-C1) HEALPix bilinear-interpolation-cell boundary,
+    making the FD reference itself unstable rather than the analytic
+    gradient being wrong. eps=1e-9 avoids that (checked stable down to 3e-10;
+    deflection_field is exactly linear in phi_alm so there's no
+    truncation/roundoff tradeoff forcing eps larger).
+    """
     from diffcmb.lensing import psi_lensed
     model = _make_model()
     lmax = model.lmax
@@ -332,7 +395,7 @@ def test_psi_lensed_phi_grad_vs_fd():
     g_auto = tape.gradient(val, phi_var).numpy()
 
     # FD on first 8 phi components
-    eps = 1e-6
+    eps = 1e-9
     g_fd = np.zeros(n_phi)
     for i in range(min(8, n_phi)):
         ph_p = phi_np.copy()
