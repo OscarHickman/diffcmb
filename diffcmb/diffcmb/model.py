@@ -535,8 +535,14 @@ class CosmologyAdvancedSampling:
         """Diagonal sqrt(posterior Hessian) for HMC preconditioning of the alm block.
 
         Uses the diagonal approximation of the posterior precision in alm space:
-            H[l,m] ≈ 1/C_l + Ninv_eff
-        where Ninv_eff = f_sky * mean(Ninv_unmasked) * Npix / (4π).
+            H[l,m] ≈ factor * (1/C_l + Ninv_eff)
+        where Ninv_eff = f_sky * mean(Ninv_unmasked) * Npix / (4π), and
+        factor = 1 for m=0 (real dof, variance C_l) or 2 for m>0 (each of
+        Re/Im has variance C_l/2, so precision 2/C_l; same 2x applies to the
+        noise term since d(map)/d(re_lm) carries a factor of 2 for m>0 in
+        the real-map synthesis convention used by _psi_tf_raw). Matches the
+        l_weights/alm_weights factors used in _psi_tf_raw and the S_l sum in
+        compute_sl_np.
 
         For high-S/N CMB problems this nearly diagonalises the posterior,
         giving a condition number close to 1 in the whitened space.
@@ -555,13 +561,14 @@ class CosmologyAdvancedSampling:
         idx = 0
         for L in range(2, lmax):
             cl = max(float(cl_full[L]) if L < len(cl_full) else 1e-30, 1e-30)
-            scale = np.sqrt(1.0 / cl + Ninv_eff)
-            for _ in range(L + 1):
-                mass_sqrt[idx] = scale
+            base = 1.0 / cl + Ninv_eff
+            for m in range(L + 1):
+                factor = 1.0 if m == 0 else 2.0
+                mass_sqrt[idx] = np.sqrt(factor * base)
                 idx += 1
         for L in range(2, lmax):
             cl = max(float(cl_full[L]) if L < len(cl_full) else 1e-30, 1e-30)
-            scale = np.sqrt(1.0 / cl + Ninv_eff)
+            scale = np.sqrt(2.0 * (1.0 / cl + Ninv_eff))
             for m in range(L + 1):
                 if m >= 2:
                     mass_sqrt[idx] = scale

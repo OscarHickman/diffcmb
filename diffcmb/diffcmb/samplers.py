@@ -14,9 +14,19 @@ except Exception:
     tfp = None
 
 try:
-    from .alm_utils import splittosingularalm_tf
+    from .alm_utils import (
+        _alm_scatter_indices,
+        almhotmo,
+        almmotho,
+        splittosingularalm,
+        splittosingularalm_tf,
+    )
     from .model import matvec_on_device
 except Exception:
+    _alm_scatter_indices = None
+    almhotmo = None
+    almmotho = None
+    splittosingularalm = None
     splittosingularalm_tf = None
     matvec_on_device = None
 
@@ -173,24 +183,30 @@ def run_chain_hmc(
 
 
 def _build_inv_cl_diag(lmax, cl_full, n_real, n_imag):
-    """Per-alm 1/C_l diagonal matching the real+imag alm parameter layout."""
+    """Per-alm 1/C_l diagonal matching the real+imag alm parameter layout.
+
+    A complex a_lm (m>0) has Re/Im parts each drawn from N(0, Cl/2), i.e.
+    precision 2/Cl per dof (matches the l_weights=2.0 factor used in
+    _psi_prior_alm and the S_l = ... + 2*(re^2+im^2) sum in compute_sl_np).
+    The m=0 dof is purely real with variance Cl, precision 1/Cl.
+    """
     inv_cl = np.empty(n_real + n_imag, dtype=np.float64)
     idx = 0
     for L in range(2, lmax):
         cl = max(float(cl_full[L]), 1e-30)
-        for _ in range(L + 1):
-            inv_cl[idx] = 1.0 / cl
+        for m in range(L + 1):
+            inv_cl[idx] = (1.0 if m == 0 else 2.0) / cl
             idx += 1
     for L in range(2, lmax):
         cl = max(float(cl_full[L]), 1e-30)
         for m in range(L + 1):
             if m >= 2:
-                inv_cl[idx] = 1.0 / cl
+                inv_cl[idx] = 2.0 / cl
                 idx += 1
     return inv_cl
 
 
-def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
+def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6, verbose_pcg=False):
     """Exact Gaussian draw from p(alm | C_l, d) via preconditioned CG (Wandelt+2004).
 
     Solves A x = b_sample where:
@@ -198,8 +214,12 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
         b_sample = J^T N^{-1} d  +  C_l^{-1/2} ω₁  +  J^T N^{-1/2} ω₂
 
     The matvec A p is obtained via ∇_alm ψ(p) − ∇_alm ψ(0) using TF autodiff.
-    Diagonal preconditioner P = 1/C_l + Ninv_eff  (≈ mass_sqrt²) nearly diagonalises
-    A for high-S/N CMB; convergence expected in O(10–50) PCG iterations.
+    Diagonal preconditioner P = factor * (1/C_l + Ninv_eff), factor=1 (m=0) or
+    2 (m>0)  (≈ mass_sqrt², see build_posterior_mass_sqrt) nearly diagonalises
+    A for high-S/N, near-full-sky CMB; convergence expected in O(10–50) PCG
+    iterations there. For a masked sky (f_sky << 1) the diagonal approximation
+    misses significant off-diagonal mode-coupling from J^T N^{-1} J, and PCG
+    may need many more iterations or a better preconditioner to converge.
 
     No accept/reject — the solution is an exact sample from the conditional.
 
@@ -325,6 +345,11 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
         rz_new = float(np.dot(r, z))
         residual_norms.append(float(np.linalg.norm(r)))
         beta = rz_new / rz
+        if verbose_pcg:
+            print(
+                f"      it={_it:3d}  |r|={residual_norms[-1]:.3e}  alpha={alpha:.3e}  "
+                f"pAp={pAp:.3e}  rz={rz:.3e}  beta={beta:.3e}"
+            )
         p = -z + beta * p
         rz = rz_new
 
@@ -332,6 +357,182 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6):
         print(f"    PCG: |r|={residual_norms[-1]:.3e} after {len(residual_norms)-1} iters (tol={tol:.0e})")
 
     return x, residual_norms
+
+
+def _packed_to_alm_ho(packed, lmax, n_real):
+    """Packed real+imag alm vector (x0/sample_alm_cg layout) -> complex healpy-ordered alm."""
+    real_p, imag_p = packed[:n_real], packed[n_real:]
+    alm_mo = np.array(splittosingularalm(real_p, imag_p, lmax), dtype=np.complex128)
+    return almmotho(alm_mo, lmax)
+
+
+def _alm_ho_to_packed(alm_ho, lmax):
+    """Complex healpy-ordered alm -> packed real+imag vector (x0/sample_alm_cg layout)."""
+    alm_mo = almhotmo(alm_ho, lmax)
+    real_idx, imag_idx, _ = _alm_scatter_indices(lmax)
+    real_p = alm_mo[real_idx.ravel()].real
+    imag_p = alm_mo[imag_idx.ravel()].imag
+    return np.concatenate([real_p, imag_p])
+
+
+def _build_full_sky_norm_diag(lmax, n_real, n_imag, base_norm_const):
+    """Analytic per-alm diagonal of A^T A for the full-sky HEALPix SHT
+    operator, in the continuum-quadrature limit: base_norm_const scaled by
+    the m=0-vs-m>0 factor-of-2 weight also used by _build_inv_cl_diag (each
+    m>0 mode's real part reconstructs a "2*Re(a_lm)*Re(Y_lm)" real-map
+    component with twice the map-space norm of the m=0 mode's single real
+    dof).
+
+    This analytic value is only ~1-2% accurate for a real (quadrature-
+    approximate) HEALPix grid — and the error is systematically biased
+    for the m=0 (zonal) modes specifically, not just noisy — which produces
+    a detectable, non-random bias in the messenger sampler's posterior mean
+    for exactly those modes (found via scripts/debug_messenger_masksky.py's
+    per-mode diagnostic, z-scores 40-80 sigma for m=0 vs <8 sigma elsewhere).
+    _calibrate_full_sky_norm_diag replaces this with the empirically probed
+    diagonal, which _sample_alm_messenger actually uses; this analytic
+    version is kept only as a cheap fallback / cross-check.
+    """
+    w = np.empty(n_real + n_imag, dtype=np.float64)
+    idx = 0
+    for L in range(2, lmax):
+        for m in range(L + 1):
+            w[idx] = 1.0 if m == 0 else 2.0
+            idx += 1
+    for L in range(2, lmax):
+        for m in range(L + 1):
+            if m >= 2:
+                w[idx] = 2.0
+                idx += 1
+    return base_norm_const * w
+
+
+def _calibrate_full_sky_norm_diag(sht_full, lmax, n_real, n_imag, progress_every=None):
+    """Empirical diagonal of A^T A, probed mode-by-mode through the actual
+    full-sky synthesis operator (see _build_full_sky_norm_diag's docstring
+    for why the analytic NPIX/(4pi)*w_lm approximation is not accurate
+    enough, particularly for m=0). Off-diagonal A^T A terms are small
+    (~1% of the diagonal, verified in scripts/debug_messenger_masksky.py) so
+    a diagonal calibration removes the dominant error.
+
+    O(n_alm) full-sky synthesis calls — a one-time cost, cache the result
+    on the model (see sample_alm_messenger).
+    """
+    n_alm = n_real + n_imag
+    norm_diag = np.empty(n_alm, dtype=np.float64)
+    e = np.zeros(n_alm, dtype=np.float64)
+    for i in range(n_alm):
+        e[i - 1 if i > 0 else 0] = 0.0
+        e[i] = 1.0
+        map_i = sht_full.synthesis_full(_packed_to_alm_ho(e, lmax, n_real))
+        norm_diag[i] = float(np.sum(map_i ** 2))
+        if progress_every and i % progress_every == 0:
+            print(f"    calibrating messenger norm_diag: {i}/{n_alm}")
+    return norm_diag
+
+
+def sample_alm_messenger(
+    model, lncl_np, rng, n_messenger_iter=100, tau2=None, s0=None,
+    norm_diag_safety_margin=1.02,
+):
+    """Exact Gaussian draw from p(alm | C_l, d) via the messenger-field Gibbs
+    sampler (Elsner & Wandelt 2013), replacing sample_alm_cg's diagonal-
+    preconditioned PCG, which Phase 0b (ROADMAP.md) showed cannot converge on
+    the real masked sky within any tractable iteration budget.
+
+    Requires model.use_matrixfree_sht=True (uses the ducc0 SHT wrapper,
+    diffcmb.sht_ducc.HealpixSHT, for both the masked forward operator implicit
+    in the data and a lazily-built FULL-SKY instance for the messenger field's
+    generative reparametrisation — see messenger.py's module docstring).
+
+    tau2: messenger covariance; must satisfy tau2 <= min(N_ii) over observed
+    pixels. Defaults to 0.9 * that bound if not given.
+
+    s0: optional packed alm vector (same layout as the return value) to warm-
+    start the messenger chain from, e.g. the previous Gibbs sweep's alm state.
+
+    norm_diag_safety_margin: safety factor (>1) inflating the calibrated
+    A^T A diagonal used in the s|t harmonic-space step. A^T A is only
+    diagonal to ~1-2% accuracy for a real (quadrature-approximate) HEALPix
+    SHT (see _calibrate_full_sky_norm_diag); using the *exact* calibrated
+    diagonal with no margin under-states the true precision by that ~1-2%
+    off-diagonal coupling, which is enough to make the messenger Gibbs
+    sampler's effective single-step transition operator have spectral
+    radius > 1 on a masked sky — not just biased, but genuinely divergent
+    (found via scripts/debug_messenger_masksky.py: |alm| grew geometrically,
+    doubling roughly every ~20 outer Gibbs steps, once real Ninv=0 masking
+    was applied). Inflating the diagonal is a standard majorisation trick
+    (Gershgorin-style): it over-states the precision slightly, guaranteeing
+    contraction at the cost of a little extra shrinkage/bias. There is a
+    real stability-vs-bias trade-off here: at lmax=10/NSIDE=8, margins below
+    ~1.002 still diverge (slowly), while a generous margin (1.1) stabilises
+    but introduces a large bias (mean error grew to >100 posterior SEs in
+    scripts/debug_messenger_masksky.py). 1.02 was chosen empirically as a
+    compromise (stable with headroom, smaller bias than 1.1) but this
+    trade-off is not yet resolved and is not validated at production lmax —
+    see ROADMAP.md Phase 0c Step 5 / "known limitation" note. The clean fix
+    is an exactly-orthonormal full-sky SHT (e.g. Gauss-Legendre/Driscoll-Healy
+    quadrature via ducc0, rather than HEALPix's approximate quadrature) so
+    A^T A is exactly diagonal and no margin is needed at all.
+
+    Returns alm_np : 1-D float64 array, length n_real + n_imag (same layout as
+    sample_alm_cg's return value).
+    """
+    from .messenger import run_messenger_gibbs
+    from .sht_ducc import HealpixSHT
+
+    if not getattr(model, "use_matrixfree_sht", False):
+        raise ValueError("sample_alm_messenger requires model.use_matrixfree_sht=True")
+    if model._sht is None:
+        model._ensure_tf_tensors()
+
+    lmax = model.lmax
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax - 1) // 2
+
+    if getattr(model, "_sht_full", None) is None:
+        model._sht_full = HealpixSHT(
+            nside=model.NSIDE, lmax=lmax, unmasked_idx=None,
+            nthreads=getattr(model, "sht_nthreads", 0),
+        )
+    sht_full = model._sht_full
+
+    lncl_full = np.zeros(lmax)
+    lncl_full[2:] = lncl_np
+    cl_full = np.exp(lncl_full)
+    inv_cl_diag = _build_inv_cl_diag(lmax, cl_full, n_real, n_imag)
+
+    # A^T A is diagonal (to good approximation, see
+    # _build_full_sky_norm_diag's docstring), calibrated empirically once per
+    # model and cached (the analytic NPIX/(4pi)*w_lm guess is ~1-2% off,
+    # systematically for m=0, which is enough to bias the sampler — see
+    # _calibrate_full_sky_norm_diag's docstring).
+    if getattr(model, "_messenger_norm_diag", None) is None:
+        print(f"  Calibrating messenger A^T A diagonal ({n_real + n_imag} modes)...")
+        model._messenger_norm_diag = _calibrate_full_sky_norm_diag(
+            sht_full, lmax, n_real, n_imag,
+            progress_every=5000 if n_real + n_imag > 5000 else None,
+        )
+    norm_const = model._messenger_norm_diag * norm_diag_safety_margin
+
+    Ninv_full = np.asarray(model.Ninv, dtype=np.float64)
+    d_full = np.asarray(model.prior_map, dtype=np.float64)
+
+    if tau2 is None:
+        Ninv_obs = Ninv_full[Ninv_full > 0]
+        tau2 = 0.9 / float(Ninv_obs.max())
+
+    def A_action(s):
+        return sht_full.synthesis_full(_packed_to_alm_ho(s, lmax, n_real))
+
+    def At_action(t):
+        alm_ho = sht_full._w * sht_full.adjoint_synthesis_full(t)
+        return _alm_ho_to_packed(alm_ho, lmax)
+
+    return run_messenger_gibbs(
+        d_full, Ninv_full, inv_cl_diag, tau2, A_action, At_action, rng,
+        n_messenger_iter, s0=s0, norm_const=norm_const,
+    )
 
 
 def build_phi_prior_mass_sqrt(lmax, cl_phiphi_full):
@@ -377,6 +578,7 @@ def run_gibbs_chain(
     checkpoint_every=100,
     alm_sampler='hmc',
     n_pcg_iter=50,
+    n_messenger_iter=100,
     cl_phiphi_full=None,
     phi_initial=None,
     phi_hmc_step_size=0.05,
@@ -392,6 +594,12 @@ def run_gibbs_chain(
         'cg'   – exact Gaussian draw via preconditioned CG (Wandelt+2004).
                  No accept/reject; IAT = 1 at all multipoles by construction.
                  n_burnin is still respected but step-size arguments are ignored.
+        'messenger' – exact-in-the-limit Gaussian draw via the messenger-field
+                 Gibbs sampler (Elsner & Wandelt 2013), warm-started from the
+                 previous alm state each Gibbs step. Unlike 'cg', converges on
+                 a masked sky (ROADMAP.md Phase 0c) — no accept/reject; requires
+                 model.use_matrixfree_sht=True. n_burnin is still respected but
+                 step-size arguments are ignored.
 
     Returns (samples, logp, accepts, final_step_size) where samples shape is
     (n_samples, n_params) with the same x0 layout as the rest of the codebase.
@@ -408,12 +616,12 @@ def run_gibbs_chain(
     Requires `alm_sampler='hmc'` (the CG path assumes an unlensed Gaussian
     conditional, which no longer holds once phi is in the model).
     """
-    if alm_sampler not in ('hmc', 'cg'):
-        raise ValueError(f"alm_sampler must be 'hmc' or 'cg', got {alm_sampler!r}")
+    if alm_sampler not in ('hmc', 'cg', 'messenger'):
+        raise ValueError(f"alm_sampler must be 'hmc', 'cg', or 'messenger', got {alm_sampler!r}")
     if alm_sampler == 'hmc' and (tf is None or tfp is None):
         raise ImportError("tensorflow and tensorflow_probability are required")
-    if alm_sampler == 'cg' and tf is None:
-        raise ImportError("tensorflow is required for CG sampler")
+    if alm_sampler in ('cg', 'messenger') and tf is None:
+        raise ImportError("tensorflow is required for the CG/messenger samplers")
     sample_phi = cl_phiphi_full is not None
     if sample_phi and alm_sampler != 'hmc':
         raise ValueError("cl_phiphi_full (Block 3) requires alm_sampler='hmc'")
@@ -555,13 +763,18 @@ def run_gibbs_chain(
             def hmc_one_step(state, pkr):
                 return hmc_kernel.one_step(state, pkr)
 
-    else:  # 'cg'
-        if model.sph1 is None:
-            model._ensure_tf_tensors()
+    else:  # 'cg' or 'messenger'
+        model._ensure_tf_tensors()  # idempotent, no-op if already built
 
     recent = []
     resume_tag = "resuming, " if resuming else ""
-    sampler_tag = f"alm_sampler={alm_sampler}" + (f", n_pcg_iter={n_pcg_iter}" if alm_sampler == 'cg' else f", n_lfs={n_lfs}")
+    if alm_sampler == 'cg':
+        sampler_extra = f", n_pcg_iter={n_pcg_iter}"
+    elif alm_sampler == 'messenger':
+        sampler_extra = f", n_messenger_iter={n_messenger_iter}"
+    else:
+        sampler_extra = f", n_lfs={n_lfs}"
+    sampler_tag = f"alm_sampler={alm_sampler}{sampler_extra}"
     print(
         f"Starting Gibbs chain ({resume_tag}{burnin_remaining} burn-in + {n_samples_remaining} samples, "
         f"step_size={step_float:.3g}, {sampler_tag})"
@@ -604,8 +817,18 @@ def run_gibbs_chain(
                 step_float = float(np.clip(np.exp(log_step), 1e-7, 2.0))
                 step_size_var.assign(step_float)
 
-        else:  # 'cg'
+        elif alm_sampler == 'cg':
             current_alm_np, _ = sample_alm_cg(model, new_lncl, rng, n_pcg_iter)
+            accepted = True
+            full_p = tf.constant(
+                np.concatenate([new_lncl, current_alm_np]), dtype=tf.float64
+            )
+            logp_val = float(-model._psi_tf_raw(full_p))
+
+        else:  # 'messenger'
+            current_alm_np = sample_alm_messenger(
+                model, new_lncl, rng, n_messenger_iter, s0=current_alm_np,
+            )
             accepted = True
             full_p = tf.constant(
                 np.concatenate([new_lncl, current_alm_np]), dtype=tf.float64

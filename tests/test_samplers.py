@@ -260,3 +260,82 @@ def test_gibbs_chain_with_phi_block_moves(small_model):
     assert isinstance(final_step, float)
     assert np.all(np.isfinite(phi_samples))
     assert not np.allclose(phi_samples[0], phi_samples[-1])
+
+
+@pytest.fixture(scope="module")
+def small_masked_matrixfree_model():
+    """Small masked-sky model on the matrix-free ducc0 SHT path, for
+    alm_sampler='messenger' (ROADMAP.md Phase 0c). Masking is applied by
+    zeroing Ninv/prior_map outside a polar-cap unmasked_idx -- overriding
+    unmasked_idx alone is not enough (see scripts/debug_messenger_masksky.py).
+
+    Uses NSIDE=8 rather than the module-level NSIDE=4: the messenger sampler
+    relies on the full-sky SHT being adequately resolved (roughly NSIDE >
+    lmax/2, the HEALPix Nyquist-ish limit), and NSIDE=4 at LMAX=10 is well
+    under that, which was found to make the messenger chain diverge almost
+    immediately (a different, more severe failure than the ~1-2% quadrature
+    error documented in sample_alm_messenger, which was characterised at
+    NSIDE=8/lmax=10).
+    """
+    try:
+        import ducc0  # noqa: F401
+        import healpy as hp
+    except ImportError:
+        pytest.skip("ducc0/healpy not installed")
+
+    from diffcmb import CosmologyAdvancedSampling
+
+    messenger_nside = 8
+    m = CosmologyAdvancedSampling(
+        _lmax=LMAX, _NSIDE=messenger_nside, _noisesig=1.0, data_mode='synthetic',
+        use_matrixfree_sht=True,
+    )
+    theta, _ = hp.pix2ang(messenger_nside, np.arange(m.NPIX))
+    cutoff = np.arccos(1 - 2 * 0.7)
+    m.unmasked_idx = np.where(theta < cutoff)[0]
+    mask = np.ones(m.NPIX, dtype=bool)
+    mask[m.unmasked_idx] = False
+    m.Ninv = m.Ninv.copy()
+    m.Ninv[mask] = 0.0
+    m.prior_map = m.prior_map.copy()
+    m.prior_map[mask] = 0.0
+    m._ensure_tf_tensors()
+    return m
+
+
+@skip_no_tfp
+def test_gibbs_chain_messenger_moves_and_stays_bounded(small_masked_matrixfree_model):
+    """alm_sampler='messenger' runs on a masked sky without crashing or
+    diverging (ROADMAP.md Phase 0c).
+
+    This is deliberately a boundedness/smoke test, not a statistical-accuracy
+    test: the messenger sampler's harmonic-space step uses a diagonal
+    approximation of A^T A (the full-sky SHT's Gram matrix), which is only
+    ~1-2% accurate for a real (quadrature-approximate) HEALPix SHT. Without a
+    safety margin (samplers.py::sample_alm_messenger's
+    norm_diag_safety_margin) this makes the messenger Markov chain's
+    per-step transition operator have spectral radius > 1 under masking --
+    genuine divergence, found via scripts/debug_messenger_masksky.py. The
+    margin fixes divergence but trades off against posterior bias (still
+    tens of posterior standard errors at lmax=10/NSIDE=8 in that script,
+    not yet resolved) -- so alm_sampler='messenger' is not yet validated for
+    production use; this test only guards against a regression to outright
+    numerical blow-up.
+    """
+    from diffcmb import run_gibbs_chain
+
+    samples, logp, accepts, final_step = run_gibbs_chain(
+        small_masked_matrixfree_model,
+        n_samples=5,
+        n_burnin=5,
+        alm_sampler='messenger',
+        n_messenger_iter=20,
+        seed=42,
+    )
+    assert samples.shape == (5, len(small_masked_matrixfree_model.x0))
+    assert logp.shape == (5,)
+    assert accepts.shape == (5,)
+    assert isinstance(final_step, float)
+    assert np.all(np.isfinite(samples))
+    assert np.abs(samples).max() < 1e3
+    assert not np.allclose(samples[0], samples[-1])
