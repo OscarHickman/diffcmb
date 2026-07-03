@@ -192,6 +192,52 @@ def test_dense_AtA_correction_matches_reference_where_diagonal_approx_is_biased(
     )
 
 
+class _ZeroNoiseRng:
+    """rng stand-in returning zero noise draws, to isolate the conditional
+    MEAN computed by sample_s_given_t_dense / sample_s_given_t_block from the
+    stochastic noise term — the two should agree exactly on the mean when
+    A^T A truly is block-diagonal (not just approximately, as for a real
+    HEALPix SHT), since block_chol's per-block solves reassemble the same
+    linear system as a single dense solve would.
+    """
+
+    def standard_normal(self, size):
+        return np.zeros(size)
+
+
+def test_block_diagonal_correction_matches_dense_when_AtA_is_exactly_block_diagonal():
+    from diffcmb.messenger import (
+        build_block_cholesky,
+        sample_s_given_t_block,
+        sample_s_given_t_dense,
+    )
+
+    rng = np.random.default_rng(5)
+    block_sizes = [7, 4, 9]
+    n_alm = sum(block_sizes)
+    idx_blocks = []
+    start = 0
+    AtA = np.zeros((n_alm, n_alm))
+    for size in block_sizes:
+        idx = np.arange(start, start + size)
+        B = rng.standard_normal((size, size))
+        block = B @ B.T + size * np.eye(size)  # SPD
+        AtA[np.ix_(idx, idx)] = block
+        idx_blocks.append((idx, block))
+        start += size
+
+    inv_cl_diag = rng.uniform(0.5, 2.0, size=n_alm)
+    tau2 = 0.3
+    At_t = rng.standard_normal(n_alm)
+
+    mean_dense = sample_s_given_t_dense(At_t, inv_cl_diag, tau2, _ZeroNoiseRng(), AtA)
+
+    block_chol = build_block_cholesky(idx_blocks, inv_cl_diag, tau2)
+    mean_block = sample_s_given_t_block(At_t, tau2, _ZeroNoiseRng(), block_chol)
+
+    np.testing.assert_allclose(mean_block, mean_dense, rtol=1e-8, atol=1e-10)
+
+
 def test_sample_t_given_s_matches_pointwise_normal_moments():
     from diffcmb.messenger import sample_t_given_s
 

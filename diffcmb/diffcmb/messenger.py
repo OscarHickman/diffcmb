@@ -83,6 +83,59 @@ def sample_s_given_t_dense(At_t, inv_cl_diag, tau2, rng, AtA):
     return mean + noise
 
 
+def build_block_cholesky(AtA_blocks, inv_cl_diag, tau2):
+    """Precompute per-block Cholesky factors for sample_s_given_t_block.
+
+    AtA_blocks : list of (idx, AtA_block) pairs — idx is a 1-D int array of
+                 packed-alm positions belonging to one block (e.g. one m
+                 value, see samplers.py::_calibrate_block_AtA), AtA_block is
+                 the dense (len(idx), len(idx)) sub-matrix of A^T A restricted
+                 to those rows/columns (exact, not approximated).
+
+    Must be rebuilt whenever inv_cl_diag or tau2 change (i.e. once per outer
+    Gibbs sweep, not once per model) — unlike the pure-diagonal norm_const
+    path, this factorisation depends on the current C_l draw.
+    """
+    block_chol = []
+    for idx, AtA_block in AtA_blocks:
+        precision = AtA_block / tau2 + np.diag(inv_cl_diag[idx])
+        L = np.linalg.cholesky(precision)
+        block_chol.append((idx, L))
+    return block_chol
+
+
+def sample_s_given_t_block(At_t, tau2, rng, block_chol):
+    """Draw s | t using a block-diagonal-by-m approximation of A^T A that is
+    EXACT within each block (see build_block_cholesky).
+
+    ROADMAP.md Phase 0c Step 5 found the off-diagonal A^T A a real HEALPix
+    SHT carries is >99% concentrated between same-m pairs (same-parity L,
+    magnitude roughly flat across the whole L range rather than decaying —
+    scripts/analyze_AtA_structure.py), and negligible (<0.3% of total
+    off-diagonal energy) between different m. Treating A^T A as exactly
+    block-diagonal by m (dropping only that <0.3% residual) turns
+    sample_s_given_t_dense's O(n_alm^3) whole-matrix Cholesky into a sum of
+    small per-block solves — O(sum_m block_size(m)^2) instead — while
+    reproducing sample_s_given_t_dense's accuracy far more closely than the
+    plain diagonal approximation (see debug_messenger_masksky.py).
+
+    At_t       : 1-D array, A^T @ t (packed alm layout)
+    tau2       : scalar, messenger covariance
+    block_chol : output of build_block_cholesky
+
+    Returns s : 1-D array, same shape as At_t.
+    """
+    n = len(At_t)
+    s = np.empty(n, dtype=np.float64)
+    for idx, L in block_chol:
+        rhs = At_t[idx] / tau2
+        y = np.linalg.solve(L, rhs)
+        mean = np.linalg.solve(L.T, y)
+        noise = np.linalg.solve(L.T, rng.standard_normal(len(idx)))
+        s[idx] = mean + noise
+    return s
+
+
 def sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const=1.0):
     """Draw s | t in harmonic space, assuming A^T A = norm_const * I.
 
@@ -110,7 +163,7 @@ def sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const=1.0):
 
 def run_messenger_gibbs(
     d, Ninv, inv_cl_diag, tau2, A_action, At_action, rng, n_iter, s0=None,
-    norm_const=1.0, AtA=None,
+    norm_const=1.0, AtA=None, block_chol=None,
 ):
     """Run the messenger Gibbs sampler for n_iter sweeps, return the final s.
 
@@ -118,11 +171,18 @@ def run_messenger_gibbs(
     At_action(t) -> A^T @ t (full-sky pixel space -> harmonic space)
 
     norm_const  : scalar such that A^T A = norm_const * I; see
-                  sample_s_given_t_orthonormal. Ignored if AtA is given.
+                  sample_s_given_t_orthonormal. Ignored if AtA or block_chol
+                  is given.
     AtA         : optional (n_alm, n_alm) full A^T A matrix. If given, the
                   s|t step uses the exact dense update (sample_s_given_t_dense)
                   instead of the diagonal approximation — see that function's
-                  docstring for why this matters under masking.
+                  docstring for why this matters under masking. Ignored if
+                  block_chol is given.
+    block_chol  : optional output of build_block_cholesky. If given, the s|t
+                  step uses the block-diagonal-by-m update
+                  (sample_s_given_t_block) — the scalable middle ground
+                  between norm_const's cheap-but-biased diagonal and AtA's
+                  exact-but-O(n^3) dense solve.
 
     This is the generic driver Step 1 validates against a dense reference;
     Step 2 (ROADMAP.md) substitutes ducc0's full-sky SHT for A_action/
@@ -134,7 +194,9 @@ def run_messenger_gibbs(
         s_pix = A_action(s)
         t = sample_t_given_s(s_pix, d, Ninv, tau2, rng)
         At_t = At_action(t)
-        if AtA is None:
+        if block_chol is not None:
+            s = sample_s_given_t_block(At_t, tau2, rng, block_chol)
+        elif AtA is None:
             s = sample_s_given_t_orthonormal(At_t, inv_cl_diag, tau2, rng, norm_const)
         else:
             s = sample_s_given_t_dense(At_t, inv_cl_diag, tau2, rng, AtA)

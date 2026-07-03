@@ -108,15 +108,23 @@ def main():
 
     se_mu = np.sqrt(np.diag(Sigma_true) / N_SAMPLES)
 
-    def run_chain(AtA):
+    def run_chain(AtA=None, use_block_correction=False, m_group_size=1):
         rng = np.random.default_rng(1)
         s = None
         for _ in range(N_BURNIN):
-            s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s, AtA=AtA)
+            s = sample_alm_messenger(
+                model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s,
+                AtA=AtA, use_block_correction=use_block_correction,
+                m_group_size=m_group_size,
+            )
         samples = np.empty((N_SAMPLES, n_alm))
         for i in range(N_SAMPLES):
             for _ in range(THIN):
-                s = sample_alm_messenger(model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s, AtA=AtA)
+                s = sample_alm_messenger(
+                    model, lncl_np, rng, n_messenger_iter=N_MESSENGER_ITER, s0=s,
+                    AtA=AtA, use_block_correction=use_block_correction,
+                    m_group_size=m_group_size,
+                )
             samples[i] = s
         return samples
 
@@ -140,6 +148,18 @@ def main():
     print(f"  mean error (in SE units): max={mean_err_d.max():.2f}, mean={mean_err_d.mean():.2f}")
     print(f"  cov relative error (vs max entry): max={rel_cov_err_d.max():.3e}, mean={rel_cov_err_d.mean():.3e}")
     print(f"  max |alm| over chain: {np.abs(samples_dense).max():.3e} (diagonal-approx chain: {np.abs(samples_diag).max():.3e})")
+
+    for m_group_size in (1, 3, 5):
+        print(f"\nRunning messenger sampler (block-diagonal correction, m_group_size={m_group_size}): {N_BURNIN} burn-in + {N_SAMPLES}x{THIN} samples...")
+        samples_block = run_chain(use_block_correction=True, m_group_size=m_group_size)
+        mu_emp_b = samples_block.mean(axis=0)
+        Sigma_emp_b = np.cov(samples_block, rowvar=False)
+        mean_err_b = np.abs(mu_emp_b - mu_true) / np.maximum(se_mu, 1e-30)
+        rel_cov_err_b = np.abs(Sigma_emp_b - Sigma_true) / np.abs(Sigma_true).max()
+        print(f"Results (block correction, m_group_size={m_group_size}):")
+        print(f"  mean error (in SE units): max={mean_err_b.max():.2f}, mean={mean_err_b.mean():.2f}")
+        print(f"  cov relative error (vs max entry): max={rel_cov_err_b.max():.3e}, mean={rel_cov_err_b.mean():.3e}")
+        print(f"  max |alm| over chain: {np.abs(samples_block).max():.3e}")
 
 
 if __name__ == "__main__":

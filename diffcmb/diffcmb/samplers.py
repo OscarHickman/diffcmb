@@ -431,9 +431,82 @@ def _calibrate_full_sky_norm_diag(sht_full, lmax, n_real, n_imag, progress_every
     return norm_diag
 
 
+def _alm_index_lm(lmax, n_real, n_imag):
+    """L and m for each packed-index position, matching _build_inv_cl_diag's
+    layout: real parts (L=2..lmax-1, m=0..L) then imag parts (m=2..L)."""
+    L_arr = np.empty(n_real + n_imag, dtype=np.int64)
+    m_arr = np.empty(n_real + n_imag, dtype=np.int64)
+    idx = 0
+    for L in range(2, lmax):
+        for m in range(L + 1):
+            L_arr[idx] = L
+            m_arr[idx] = m
+            idx += 1
+    for L in range(2, lmax):
+        for m in range(2, L + 1):
+            L_arr[idx] = L
+            m_arr[idx] = m
+            idx += 1
+    return L_arr, m_arr
+
+
+def _calibrate_block_AtA(sht_full, lmax, n_real, n_imag, progress_every=None, m_group_size=1):
+    """Empirical block-diagonal-by-m A^T A, exact within each block (see
+    messenger.sample_s_given_t_block's docstring for why same-m dominates
+    >99% of the total off-diagonal energy — scripts/analyze_AtA_structure.py
+    — making this a much closer approximation than the pure diagonal
+    calibration while staying far cheaper than the full dense A^T A).
+
+    m_group_size: number of consecutive m values combined into one block
+    (default 1 = one block per m, exact for the dominant same-m coupling
+    only). The residual cross-m coupling this discards is small in
+    aggregate (~0.3% of total off-diagonal energy) but decays with |dm|
+    rather than vanishing exactly (scripts/analyze_AtA_structure.py), so
+    widening the block to a small window of neighbouring m's captures
+    more of it at a modest extra cost — a size/accuracy knob, not a
+    correctness one (m_group_size=1 already reproduces the exact same-m
+    coupling within its own blocks).
+
+    O(n_alm) full-sky synthesis calls (one map per basis vector, same cost
+    as _calibrate_full_sky_norm_diag) plus O(n_alm * max_block_size) memory
+    to hold one block's maps at a time — NOT O(n_alm * Npix) total, since
+    maps are only held one block at a time and discarded. Still a real
+    per-model, per-(lmax,NSIDE) one-time cost; unlike the diagonal
+    calibration, the block Cholesky itself (build_block_cholesky) must be
+    redone whenever inv_cl_diag/tau2 change (see that function's docstring),
+    i.e. once per outer Gibbs sweep — the AtA_blocks returned here are
+    reusable across those since they don't depend on C_l or tau2.
+
+    Returns a list of (idx, AtA_block) pairs, idx sorted by increasing m then
+    L, suitable for messenger.build_block_cholesky.
+    """
+    L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
+    n_alm = n_real + n_imag
+    blocks = []
+    unique_m = np.unique(m_arr)
+    n_done = 0
+    for g in range(0, len(unique_m), m_group_size):
+        m_group = unique_m[g:g + m_group_size]
+        idx = np.where(np.isin(m_arr, m_group))[0]
+        map_list = []
+        e = np.zeros(n_alm, dtype=np.float64)
+        for i in idx:
+            e[:] = 0.0
+            e[i] = 1.0
+            map_list.append(sht_full.synthesis_full(_packed_to_alm_ho(e, lmax, n_real)))
+        M = np.stack(map_list, axis=0)  # (block_size, npix)
+        AtA_block = M @ M.T
+        blocks.append((idx, AtA_block))
+        n_done += len(idx)
+        if progress_every and n_done % progress_every < len(idx):
+            print(f"    calibrating messenger block A^T A: {n_done}/{n_alm} alm probed")
+    return blocks
+
+
 def sample_alm_messenger(
     model, lncl_np, rng, n_messenger_iter=100, tau2=None, s0=None,
-    norm_diag_safety_margin=1.02, AtA=None,
+    norm_diag_safety_margin=1.02, AtA=None, use_block_correction=False,
+    m_group_size=1,
 ):
     """Exact Gaussian draw from p(alm | C_l, d) via the messenger-field Gibbs
     sampler (Elsner & Wandelt 2013), replacing sample_alm_cg's diagonal-
@@ -479,12 +552,20 @@ def sample_alm_messenger(
     messenger.sample_s_given_t_dense. Bypasses norm_diag_safety_margin
     entirely (exact update, no majorisation needed). Only tractable while
     n_alm is small (validation use); not a production-scale option at
-    lmax=300 (O(n_alm^3) per draw).
+    lmax=300 (O(n_alm^3) per draw). Ignored if use_block_correction=True.
+
+    use_block_correction: use the block-diagonal-by-m A^T A correction
+    (_calibrate_block_AtA / messenger.sample_s_given_t_block) instead of the
+    plain diagonal approximation — captures >99% of the off-diagonal energy
+    a real HEALPix SHT carries (scripts/analyze_AtA_structure.py) at
+    O(n_alm * max_block_size) rather than AtA's O(n_alm^3); the scalable
+    candidate fix for ROADMAP.md Phase 0c Step 5. Recalibrated (Cholesky
+    factors rebuilt) every call since it depends on the current C_l draw.
 
     Returns alm_np : 1-D float64 array, length n_real + n_imag (same layout as
     sample_alm_cg's return value).
     """
-    from .messenger import run_messenger_gibbs
+    from .messenger import build_block_cholesky, run_messenger_gibbs
     from .sht_ducc import HealpixSHT
 
     if not getattr(model, "use_matrixfree_sht", False):
@@ -535,9 +616,25 @@ def sample_alm_messenger(
         alm_ho = sht_full._w * sht_full.adjoint_synthesis_full(t)
         return _alm_ho_to_packed(alm_ho, lmax)
 
+    block_chol = None
+    if use_block_correction:
+        if getattr(model, "_messenger_AtA_blocks_cache", None) is None:
+            model._messenger_AtA_blocks_cache = {}
+        if m_group_size not in model._messenger_AtA_blocks_cache:
+            print(f"  Calibrating messenger block A^T A ({n_real + n_imag} modes, m_group_size={m_group_size})...")
+            model._messenger_AtA_blocks_cache[m_group_size] = _calibrate_block_AtA(
+                sht_full, lmax, n_real, n_imag,
+                progress_every=5000 if n_real + n_imag > 5000 else None,
+                m_group_size=m_group_size,
+            )
+        block_chol = build_block_cholesky(
+            model._messenger_AtA_blocks_cache[m_group_size], inv_cl_diag, tau2,
+        )
+
     return run_messenger_gibbs(
         d_full, Ninv_full, inv_cl_diag, tau2, A_action, At_action, rng,
         n_messenger_iter, s0=s0, norm_const=norm_const, AtA=AtA,
+        block_chol=block_chol,
     )
 
 
