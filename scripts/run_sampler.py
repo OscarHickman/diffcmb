@@ -56,10 +56,24 @@ def main():
                         help="RNG seed for synthetic data generation (fixed so all chains share the same dataset)")
     parser.add_argument("--double_precision", action="store_true",
                         help="Use double precision (complex128/float64) for matrix operations to prevent gradient noise")
-    parser.add_argument("--alm_sampler", type=str, choices=["hmc", "cg"], default="hmc",
-                        help="alm | C_l sampler: 'hmc' (default) or 'cg' (exact Gaussian via PCG)")
+    parser.add_argument("--alm_sampler", type=str, choices=["hmc", "cg", "messenger"], default="hmc",
+                        help="alm | C_l sampler: 'hmc' (default), 'cg' (exact Gaussian via PCG), "
+                             "or 'messenger' (exact-in-the-limit Gaussian via messenger fields, "
+                             "ROADMAP.md Phase 0c -- converges on a masked sky where 'cg' does not)")
     parser.add_argument("--n_pcg_iter", type=int, default=50,
-                        help="Maximum PCG iterations per CG step (ignored for HMC)")
+                        help="Maximum PCG iterations per CG step (ignored for HMC/messenger)")
+    parser.add_argument("--n_messenger_iter", type=int, default=100,
+                        help="Messenger-field inner Gibbs iterations per alm|C_l draw (messenger only)")
+    parser.add_argument("--messenger_use_block_correction", action="store_true",
+                        help="Use the block-diagonal-by-m A^T A correction (Phase 0c Step 5/6) "
+                             "instead of the plain diagonal approximation, which is biased on a "
+                             "masked sky (messenger only)")
+    parser.add_argument("--messenger_m_group_size", type=int, default=1,
+                        help="Number of consecutive m values per block for the block correction "
+                             "(messenger only, ignored unless --messenger_use_block_correction)")
+    parser.add_argument("--use_matrixfree_sht", action="store_true",
+                        help="Use the matrix-free ducc0 SHT instead of the dense sph matrix "
+                             "(required for --alm_sampler messenger; also usable with cg/hmc)")
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -75,11 +89,25 @@ def main():
     print(f"LMAX: {args.lmax}, NSIDE: {args.nside}, Noise: {args.noise_sig}")
     print(f"Samples: {args.n_samples}, Burn-in: {args.n_burnin}, Step Size: {args.step_size}")
     print(f"Precision: {'double' if args.double_precision else 'single'}")
-    print(f"alm sampler: {args.alm_sampler}" + (f" (n_pcg_iter={args.n_pcg_iter})" if args.alm_sampler == 'cg' else ""))
+    if args.alm_sampler == 'cg':
+        alm_sampler_desc = f" (n_pcg_iter={args.n_pcg_iter})"
+    elif args.alm_sampler == 'messenger':
+        alm_sampler_desc = (
+            f" (n_messenger_iter={args.n_messenger_iter}, "
+            f"use_block_correction={args.messenger_use_block_correction}, "
+            f"m_group_size={args.messenger_m_group_size})"
+        )
+    else:
+        alm_sampler_desc = ""
+    print(f"alm sampler: {args.alm_sampler}{alm_sampler_desc}")
 
     # Fix the data-generation RNG so all chains sample the same posterior.
     if args.data_mode == "synthetic":
         np.random.seed(args.data_seed)
+
+    if args.alm_sampler == 'messenger' and not args.use_matrixfree_sht:
+        print("--alm_sampler messenger requires --use_matrixfree_sht; enabling it.")
+        args.use_matrixfree_sht = True
 
     print("Constructing model...")
     t0 = time.time()
@@ -91,7 +119,8 @@ def main():
         data_mode=args.data_mode,
         data_dir=args.data_dir,
         parameterization=args.parameterization,
-        dtype=dtype
+        dtype=dtype,
+        use_matrixfree_sht=args.use_matrixfree_sht,
     )
     print(f"Model init took {time.time()-t0:.1f}s")
 
@@ -138,6 +167,9 @@ def main():
             checkpoint_every=100,
             alm_sampler=args.alm_sampler,
             n_pcg_iter=args.n_pcg_iter,
+            n_messenger_iter=args.n_messenger_iter,
+            messenger_use_block_correction=args.messenger_use_block_correction,
+            messenger_m_group_size=args.messenger_m_group_size,
         )
         accept_rate = float(accepts_np.mean())
         print(f"Adapted step size: {final_step:.6g}")

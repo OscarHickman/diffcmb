@@ -682,6 +682,8 @@ def run_gibbs_chain(
     alm_sampler='hmc',
     n_pcg_iter=50,
     n_messenger_iter=100,
+    messenger_use_block_correction=False,
+    messenger_m_group_size=1,
     cl_phiphi_full=None,
     phi_initial=None,
     phi_hmc_step_size=0.05,
@@ -702,7 +704,11 @@ def run_gibbs_chain(
                  previous alm state each Gibbs step. Unlike 'cg', converges on
                  a masked sky (ROADMAP.md Phase 0c) — no accept/reject; requires
                  model.use_matrixfree_sht=True. n_burnin is still respected but
-                 step-size arguments are ignored.
+                 step-size arguments are ignored. messenger_use_block_correction
+                 and messenger_m_group_size select the block-diagonal-by-m A^T A
+                 correction validated in Phase 0c Step 5/6 (see
+                 sample_alm_messenger) instead of the plain diagonal
+                 approximation, which is biased on a masked sky.
 
     Returns (samples, logp, accepts, final_step_size) where samples shape is
     (n_samples, n_params) with the same x0 layout as the rest of the codebase.
@@ -931,6 +937,8 @@ def run_gibbs_chain(
         else:  # 'messenger'
             current_alm_np = sample_alm_messenger(
                 model, new_lncl, rng, n_messenger_iter, s0=current_alm_np,
+                use_block_correction=messenger_use_block_correction,
+                m_group_size=messenger_m_group_size,
             )
             accepted = True
             full_p = tf.constant(

@@ -1,6 +1,6 @@
 # Research Roadmap: Differentiable Bayesian CMB Analysis
 
-*Last substantive revision: 2026-07-04 (Phase 0c Step 5 stability-vs-bias trade-off resolved at validation scale via a block-diagonal-by-m A^T A correction, matching the exact-dense fix's accuracy with no divergence; Step 6 production-scale (lmax=300) validation/benchmark is now the remaining gate — see Phase 0c Step 5/6).*
+*Last substantive revision: 2026-07-04 (Phase 0c Step 6 started: run_gibbs_chain/run_sampler.py now actually wire use_block_correction/m_group_size through to the messenger sampler -- previously silently ignored; isolated-cost lmax=300 benchmark done, full end-to-end per-sweep timing benchmark running -- see Phase 0c Step 6).*
 
 ## The Honest Critique First
 
@@ -180,7 +180,11 @@ where `s` is the full-sky signal (harmonic coefficients) and `S = diag(C_l)` is 
   - **Structure characterisation (2026-07-04, `scripts/analyze_AtA_structure.py`, lmax=16/NSIDE=16 full-sky probe):** off-diagonal `AᵀA` is *not* diffuse/dense-random. 99.7% of the total off-diagonal energy is between same-`m` pairs (differing `L` by an even number only — odd `ΔL` terms are zero to floating-point precision, a parity selection rule); the residual ~0.3% is cross-`m`, decaying roughly an order of magnitude per `Δm=2`. Critically, *within* a fixed `m`, the coupling magnitude does **not** decay with `ΔL` (roughly flat ~1.5e-5×mean(diag) across the whole `L` range tested) — ruling out a banded-in-`L` correction, but consistent with each `(m, parity)` block being close to low-rank (SVD: rank 2 captures 50% of total off-diagonal energy, rank 20 captures 90%). This picked candidate (a) (structured/low-rank correction) over (b) (Gauss-Legendre grid switch, which would have required resampling the real Planck data/mask onto a non-HEALPix grid — a methodological change to the actual likelihood, not just an implementation detail) — no need to touch the data's pixelization at all.
   - **Scalable fix, built and validated (2026-07-04):** `messenger.sample_s_given_t_block`/`build_block_cholesky` (exact per-block conjugate-Gaussian update, block-diagonal by `m`) plus `samplers._calibrate_block_AtA(..., m_group_size=k)`, which groups `k` consecutive `m` values into one block (probed empirically, same `O(n_alm)` synthesis-call cost as the existing diagonal calibration) — capturing the dominant same-`m` coupling exactly within each block, with `m_group_size` trading a bit more cost for capturing more of the residual cross-`m` term. Wired into `sample_alm_messenger(..., use_block_correction=True, m_group_size=...)`. Unit test (`test_block_diagonal_correction_matches_dense_when_AtA_is_exactly_block_diagonal`) confirms the block solve exactly reproduces a dense solve when `AᵀA` truly is block-diagonal. At `debug_messenger_masksky.py`'s validation scale, a sweep over `m_group_size` shows monotonic improvement converging to (and slightly beating) the exact dense correction's accuracy: diagonal approx 93.11/23.83 SE (max/mean) → `m_group_size=1`: 34.13/6.88 → `m_group_size=3`: 26.97/6.26 → **`m_group_size=5`: 4.93/1.60 SE, matching the exact dense correction's 5.26/1.73 SE** — with no divergence throughout (`max|alm|` ~13.8 across all variants, same order as the bounded diagonal chain). This resolves the divergence-vs-bias trade-off at a fraction of the exact update's cost: block Cholesky factorisation is `O(Σ_blocks size³)` rather than `O(n_alm³)` (e.g. `m_group_size=5` blocks are `~5×2×lmax` wide near `m=0` and shrink with `m`, vs one `n_alm×n_alm` factorisation).
   - **Not yet done:** benchmarking `use_block_correction=True` at production lmax=300 (block-Cholesky cost per outer Gibbs sweep — it must be rebuilt every sweep since it depends on the current `C_l` draw, unlike the one-time diagonal calibration — vs the 6.7s/PCG-iteration CG baseline), tuning `m_group_size`/`n_messenger_iter`/any `τ²`-annealing schedule at that scale, and confirming the `m_group_size=5` sweet spot found at lmax=16 still holds at lmax=300 (larger blocks may behave differently as `lmax/m_group_size` grows). This is now squarely Step 6's job.
-- [ ] **Step 6 — production validation chain** at lmax=300, real Planck data: benchmark `use_block_correction=True` cost/`m_group_size` per the note above, then verify ESS ≈ N, C_l agreement with the Phase 0 HMC posterior, and no flat-residual-equivalent pathology.
+- [~] **Step 6 — production validation chain** at lmax=300, real Planck data ▶ (started 2026-07-04). Benchmark `use_block_correction=True` cost/`m_group_size` per the note above, then verify ESS ≈ N, C_l agreement with the Phase 0 HMC posterior, and no flat-residual-equivalent pathology.
+  - **Wiring (2026-07-04):** `run_gibbs_chain`/`run_sampler.py` did not actually expose `use_block_correction`/`m_group_size` — `alm_sampler='messenger'` silently fell back to the plain diagonal approximation Step 5 showed is biased on a masked sky (and `run_sampler.py` had no `'messenger'` choice at all, nor a `--use_matrixfree_sht` flag it requires). Added `messenger_use_block_correction`/`messenger_m_group_size` params threading through `run_gibbs_chain` into `sample_alm_messenger`, and `--alm_sampler messenger`, `--n_messenger_iter`, `--messenger_use_block_correction`, `--messenger_m_group_size`, `--use_matrixfree_sht` CLI flags on `run_sampler.py` (auto-enables `use_matrixfree_sht` when `alm_sampler='messenger'`). `tests/test_samplers.py`/`tests/test_messenger.py` (15 tests) pass unchanged.
+  - **Isolated-cost benchmark (`scripts/benchmark_messenger_block_lmax300.py`, job 11562977, lmax=300/NSIDE=256, real Planck data, n_alm=89698):** one-time `_calibrate_block_AtA` calibration (independent of `m_group_size`, cached per model) ≈ 25.2 min, extrapolated from 200 timed probes at 16.9 ms/probe. Per-outer-sweep `build_block_cholesky` rebuild cost (isolated, synthetic-but-correctly-sized blocks) vs `m_group_size`: `1`→0.48s, `3`→1.48s, `5`→2.73s, `10`→5.92s, `20`→12.5s (block sizes up to 596/1776/2930/5710/11018 respectively) — `m_group_size≤10` all cheaper than the 6.7s/PCG-iteration CG reference point on this cost component alone.
+  - **Caveat found while writing this up:** the isolated benchmark above only timed the Cholesky *rebuild*, not the full `sample_alm_messenger` call — which also pays `n_messenger_iter` (100 by default) forward/adjoint full-sky SHTs per outer sweep (~17ms each from the same probe timing, i.e. ~3.4s/sweep on its own) plus a per-block triangular solve every inner iteration (not just at rebuild time), so the true per-sweep cost is higher than 2.73s at `m_group_size=5`. `scripts/benchmark_messenger_fullcall_lmax300.py` (job 11562981, started 2026-07-04) times the actual end-to-end call for `m_group_size ∈ {1,3,5}` to get the real number before picking a production setting.
+  - **Not yet done:** reading back job 11562981's results and picking `m_group_size`; then a real production Gibbs chain (`run_sampler.py --alm_sampler messenger --messenger_use_block_correction --messenger_m_group_size <chosen>`) at lmax=300 to verify ESS ≈ N, C_l agreement with Phase 0 HMC, no pathology.
 
 **Key reference:** Elsner & Wandelt 2013 (arXiv:1210.4931), "A novel approach to Gaussian constrained sampling with messenger fields."
 
@@ -242,7 +246,29 @@ Block 2:  alm      | C_l, phi, d  — HMC with lensed likelihood (Phase 1); CG m
 Block 3:  phi      | alm, C_l, d  — HMC targeting log p(d | alm, phi) + log p(phi | C_l^phiphi)
 ```
 
-**Note on Block 2 in the lensed setting:** `p(alm | C_l, phi, d)` is no longer Gaussian, so HMC returns. The Phase 0b preconditioner `P = C_l^{-1} + (1/σ²) diag(Y^T Y)` remains the correct HMC mass matrix — it captures the Gaussian curvature of the unlensed problem, with lensing a manageable perturbation.
+**Note on Block 2 in the lensed setting — CORRECTED 2026-07-04 (the original claim here was
+mathematically wrong):** this note used to say "`p(alm | C_l, phi, d)` is no longer Gaussian,
+so HMC returns." That is not true. For **fixed** `phi`, lensing is a *linear* operator on the
+unlensed field — the query points and hence the bilinear interpolation weights are fixed, so
+`d = W_phi · Y · alm + n` with `W_phi` a constant matrix — which makes
+`p(alm | C_l, phi, d)` **exactly Gaussian** with precision
+`C_l^{-1} + (W_phi Y)^T N^{-1} (W_phi Y)`. Only the *joint* `(alm, phi)` posterior is
+non-Gaussian; only Block 3 (`phi | alm`) genuinely requires HMC. Three consequences:
+(1) **HMC for Block 2 is a cost/engineering choice, not a necessity** — the honest reason is
+that the exact draw's operator changes with `phi` every sweep (so the Phase 0c messenger
+`AᵀA` calibration, currently cached once per model, would need to be `phi`-dependent), not
+non-Gaussianity; the paper text must say this or a referee who knows the algebra will.
+(2) An **exact messenger/CG Block-2 draw in the lensed case may be viable**: weak lensing is
+near-norm-preserving (`W_phi^T W_phi ≈ I` up to O(magnification)), so the block-diagonal-by-m
+`AᵀA` structure plausibly survives as a good approximation with the *unlensed* calibration —
+worth one cheap small-lmax check before defaulting to HMC, since an exact draw beats HMC on
+both correctness bookkeeping and per-sweep cost. (3) **Free per-block validation either way**:
+at small lmax the exact Gaussian conditional is computable densely, so Block-2 HMC (or the
+lensed messenger draw) can be validated against an exact reference — the same
+dense-reference discipline that caught three real bugs in Phase 0c Steps 1–2. The Phase 0b
+preconditioner `P = C_l^{-1} + (1/σ²) diag(Y^T Y)` remains the correct HMC mass matrix if
+HMC is retained — it captures the Gaussian curvature of the unlensed problem, with lensing a
+manageable perturbation.
 
 - [x] Add `phi_alm` as a parameter block — `run_gibbs_chain(..., cl_phiphi_full=...)`, 2026-07-01
 - [x] Implement `log_prob_phi_block(phi_alm, alm, Cl_phi)` using the Phase 1 lensed likelihood
@@ -311,9 +337,89 @@ These are listed to record the platform argument, not to be worked on. Each is a
 
 ---
 
+## Proposed additions — external strategy review 2026-07-04 (NOT YET DONE, none started)
+
+Recorded from a portfolio-wide gap-analysis pass; none of these are commitments until the
+critical path (Phase 0c Step 6) lands, but three of them are cheap and de-risk the two
+things referees will actually attack.
+
+1. **The joint (alm, phi) mixing problem — the single biggest un-planned research risk in
+   Phase 2.** The roadmap plans naive Gibbs alternation between Block 2 (`alm | phi`) and
+   Block 3 (`phi | alm`). But the flat-sky experience this project positions itself against
+   is explicit that this is the hard part: Millea, Anderes & Wandelt 2020's central
+   algorithmic contribution was not the per-block samplers but a **reparametrisation**
+   (interpolating between lensed and unlensed parametrisations) introduced precisely because
+   `f` and `phi` are so correlated in the joint posterior that naive block alternation mixes
+   catastrophically slowly at high S/N. Nothing in Phase 2's checklist mentions
+   block-correlation, joint IAT, or reparametrisation — with perfect per-block samplers the
+   outer chain could still have autocorrelation times in the thousands, which is a
+   show-stopper discovered only *after* production compute is spent. **Cheap early gate
+   (do before any lmax=300 Phase 2 chain):** on a lensed simulation at lmax≤50, measure the
+   joint (alm, phi) IAT of the alternating chain directly. If it is pathological, the known
+   fixes are the Millea-style mixed parametrisation (curved-sky version = new methods
+   content, arguably a *stronger* paper) or joint (alm, phi) HMC updates. Either way, knowing
+   at lmax=50 costs hours; knowing at lmax=300 costs weeks.
+
+2. **Forward-model realism gaps that block any real-data claim: beam, pixel window,
+   anisotropic noise.** Verified against the code 2026-07-04 (grep, not memory): there is
+   **no beam transfer function `B_l` and no HEALPix pixel window** anywhere in the forward
+   model (`alm_utils.py`'s `hp.smoothalm(fwhm=0.0)` is a no-op), and the noise model is
+   uniform white (`model.py`: `full_Ninv = 1/σ²`, zeroed under the mask) with no hit-count
+   anisotropy. For simulation-only Phase 2 validation this is self-consistent and fine. It is
+   **not** fine for the two real-data surfaces this project already touches: Phase 0's
+   validation *fits real Planck data* (a 5′-class effective beam is a ~3–4% C_l suppression
+   at l=300, NSIDE=256 pixel window another ~1–2% — both currently absorbed silently into the
+   recovered C_l), and the A_L-anomaly interrogation PAPERS.md advertises as this project's
+   tension hook is a real-Planck claim that would be referee-rejected without them. The fixes
+   are cheap and localised: `B_l·p_l` is one diagonal multiply in harmonic space (works
+   identically in the dense and matrix-free SHT paths), and per-pixel diagonal `N_ii` is
+   natively supported by the messenger formalism (`τ² = min N_ii` over observed pixels) — but
+   they must be *in the model* before any real-data figure is quoted. Add as an explicit
+   pre-condition on the A_L work, and note the A_L hook itself in this roadmap (it currently
+   exists only in PAPERS.md, so a reader of this file alone doesn't know Phase 2 has a
+   real-data science headline waiting).
+
+3. **Named fallback if pure messenger sweeps are too slow at lmax=300:** the
+   messenger-as-preconditioner-for-CG hybrid (Huffenberger & Næss 2018) — known to converge
+   faster than either pure method on masked-sky systems; it reuses everything built in
+   Phase 0c (the messenger operator becomes the preconditioner, CG supplies the convergence
+   guarantee the diagonal preconditioner couldn't). Also record the τ²-cooling-schedule
+   option (Elsner & Wandelt's own λτ² annealing) as the first tuning knob. And one
+   correctness note worth writing down so nobody "fixes" it wrongly later: alternating
+   `t | s` / `s | t` sub-iterations is exact data augmentation — the augmented `(s, t)`
+   chain targets the exact joint, so a finite `n_messenger_iter` per outer sweep affects
+   *mixing only, not correctness*; tune `n_messenger_iter` by measuring augmented-chain IAT
+   (e.g. 10 vs 100 sub-iterations may buy nearly identical mixing per wall-clock second),
+   don't treat 100 as load-bearing.
+
+4. **Block-2 exactness opportunity under lensing** — see the corrected "Note on Block 2"
+   under Phase 2: the lensed `alm` conditional is still exactly Gaussian at fixed `phi`, so
+   (a) the paper must not claim HMC is *required* for Block 2, and (b) one cheap small-lmax
+   experiment (lensed messenger draw with the unlensed `AᵀA` calibration, checked against a
+   dense exact reference) decides whether Phase 2 can keep exact draws for both Gaussian
+   blocks and confine HMC to Block 3 only — a cleaner, faster, and more defensible sampler
+   design if it works.
+
+5. **The mandatory CMBLensing.jl benchmark implicitly assumes the sampler works at
+   patch-scale f_sky — untested (added 2026-07-04, second pass).** The Phase 2 plan promises
+   a comparison "on a matched flat-patch simulation within both codes' domains" — for
+   CMBLensing.jl that means a ~650 deg² patch, i.e. **f_sky ≈ 0.016** on the HEALPix side.
+   Every messenger-sampler validation to date ran at f_sky ≈ 0.69–0.77; the masked-sky
+   pathology this whole Phase 0c campaign fought (off-diagonal `AᵀA` coupling from the mask)
+   *grows* as the mask deepens, and nobody knows whether the block-diagonal-by-m correction
+   (or the m_group_size=5 sweet spot) survives a 98%-masked sky. Two-hour check at small
+   lmax (`debug_messenger_masksky.py` with a patch-scale mask) *before* the benchmark is
+   promised in any paper text; if it fails there, the honest benchmark design inverts —
+   compare full-sky DiffCMB against the quadratic estimator (its natural domain) as primary,
+   with the flat-patch CMBLensing.jl comparison scoped to whatever f_sky the sampler
+   demonstrably handles.
+
+---
+
 ## Standing discipline
 
 - **One critical path:** 0b (verify) → 1.5 (build+gate) → 2 (validate+write). Anything not on it waits.
 - **No Phase 2 production submissions until the Phase 1.5 gate benchmark passes** (~1s lensed forward+backward at lmax=300).
 - **Precision rule:** fp64 end-to-end unless a mixed scheme with fp64 accumulation is explicitly validated against fp64 chains (Phase 0 float32 false convergence is the standing counterexample).
 - **Claims hygiene:** every "first" in a draft carries a scope qualifier ("full-sky", "curved-sky", "sampler") and a citation to the nearest prior work (Millea, Anderes & Wandelt 2020; MUSE; delensalot). Re-check the arXiv for curved-sky MUSE/field-level papers before each submission milestone.
+- **Opt-in flags need an actually-active test.** The Step 6 wiring bug (2026-07-04: `use_block_correction`/`m_group_size` accepted but silently ignored by `run_gibbs_chain`, so `alm_sampler='messenger'` quietly ran the known-biased diagonal path) is the second silently-defaulted-flag bug in this portfolio in a week (cf. galform_imf's silent stub-import fallback). Any new opt-in code path gets a regression test asserting the non-default branch is actually exercised (sentinel, log line, or a result that *differs* from the default path) — "runs without error" does not count.
