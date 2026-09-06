@@ -1,488 +1,181 @@
 # Literature — DiffCMB (Paper 7)
 
-*Annotated bibliography with the novelty/positioning argument folded in. Every arXiv ID below
-was verified on its abstract page unless explicitly marked otherwise. Last full rescan:
-2026-08-05.*
+*Annotated bibliography with the novelty/positioning argument folded in. IDs added or re-checked this pass carry `[v 2026-09-03]`; older entries were verified in earlier passes.*
+
+**Last checked: 2026-09-03.** Method: ~14 targeted web searches across the eight axes below, plus arXiv advanced-search enumeration (abstract field, astro-ph + cross-lists) for `lensing` over 2026-08-01→2026-09-04 and `"field-level"` over 2026-06-01→2026-09-04, and the `astro-ph.CO` 2026-08 (377 entries) and 2026-09 (20 entries) listings. **The arXiv API (`export.arxiv.org`) returned HTTP 429 throughout and was not used** — the previous pass's exhaustive API enumeration back to 2026-03 could not be repeated, so coverage rests on the search UI and keyword queries and is narrower than 2026-08-05's. Two advanced-search queries also 429'd.
+
+**No `.bib` to reconcile against yet.** `papers/7_DiffCMB/` has no manuscript content. The live draft is `diffcmb/docs/paper/main.tex`, using inline `\bibitem`s — **three referee-visible citation defects in it were found this pass** (below).
 
 ---
 
-## ⚠ Verdict (last checked 2026-08-05)
+## Verdict
 
-**The core claim survives: no curved-sky joint (a_ℓm, C_ℓ, φ, C_L^φφ) sampler exists, and no
-curved-sky MUSE exists.** Checked by keyword search *and* by direct arXiv API enumeration of
-every `astro-ph.CO` submission with "CMB lensing" in the abstract back to 2026-03, and every
-`astro-ph.CO` submission with "field-level" in the abstract back to 2025-12. The complete
-post-2026-03 CMB-lensing list contains **no sampler paper at all** — it is cross-correlations,
-parameter constraints, and estimator engineering (2605.18659 control variates, 2606.07745
-CMBolic emulators, 2607.05784 SPT-3G summer-survey QE). The field-level list contains no CMB
-lensing entry. **Scoop risk on the headline: low.**
+**The core claim survives: no curved-sky joint (a_ℓm, C_ℓ, φ, C_L^φφ) sampler exists, and no curved-sky MUSE exists. Scoop risk: LOW.** Supports:
 
-**But the strategic picture changed materially this pass, and the cause is one paper.**
+- The `"field-level"` enumeration for 2026-06→2026-09 returns **no CMB entry at all** — every cosmology hit is LSS, galaxy weak lensing, or 21cm.
+- The `lensing` enumeration for August 2026 returns exactly one CMB-lensing analysis, `2608.31136` (SPT-3G D1), and it is a **quadratic estimator**. The other two August CMB-lensing papers are a QE template paper and an instrument paper. September (through 09-02) has nothing on-topic.
+- Named-author watch (Millea, Seljak, Bayer, Loureiro): **no φ or lensing extension of Flinch, Almanac or CMBLensing.jl**.
 
-### 1. Flinch (arXiv:2510.26691) is the most important reference this project has not been citing
+**Must engage, in order:**
 
-**Crespi, Bonici, Loureiro, Ruiz-Zapatero, Sladoljev, Li, Bayer, Millea & Seljak (30 Oct
-2025)** — *Flinch: A Differentiable Framework for Field-Level Inference of Cosmological
-parameters from curved sky data*. Fully differentiable, high-performance field-level inference
-on **angular maps on the curved sky**; gradients propagate from individual map pixels to
-cosmological parameters; validated on **masked CMB temperature maps**, reconstructing both maps
-and angular power spectra; ~40% tighter than pseudo-C_ℓ.
+1. **Flinch `2510.26691`** — unchanged as the most consequential entry. It occupies the *Commander cell* differentiably; no φ, no C_L^φφ. Differentiable curved-sky machinery is table stakes: **never lead with the SHT engineering.**
+2. **`2603.04535` — a learned posterior sampler now exists for CMB delensing itself.** The competing-paradigm section previously had to reach to galaxy weak lensing (JADE) for its sharpest example. It no longer does.
+3. **Doeser & Jasche `2606.10023`** — the external statement of why an exact reference posterior is needed. Still uncited in the introduction.
 
-Read the author list. **Millea and Seljak** — i.e. CMBLensing.jl and MUSE — are now co-authors
-on a curved-sky differentiable field-level CMB framework. Three consequences, all of which
-belong in the paper rather than in a referee report:
-
-- **It does not scoop the claim.** Flinch's abstract contains no lensing potential, no φ, no
-  C_L^φφ. It infers (map, C_ℓ, cosmological parameters) on the curved sky — i.e. it occupies the
-  *Commander cell* of the 2×2, differentiably. The lensed/joint cell is still empty. The 2×2
-  boundaries below are unchanged.
-- **It removes "differentiable curved-sky machinery is hard" as a contribution.** DiffCMB's
-  matrix-free-SHT-under-`tf.custom_gradient` engineering (`achievements.md`, Phase 1.5) is no
-  longer a differentiator on its own — it is table stakes. The differentiator is and must be
-  stated as **the joint posterior including φ and C_L^φφ**, exactly as `ROADMAP.md` already
-  says. Do not let any draft lead with the differentiable-SHT engineering.
-- **It shortens the window.** The group with the strongest motive to build a curved-sky joint
-  lensing sampler now has published curved-sky differentiable infrastructure. Adding a φ block
-  to Flinch is a natural next paper for them. This is the single strongest argument in the file
-  for prioritising the lmax≈128 coverage test over anything else.
-
-**It also hands over a concrete, tested fix for DiffCMB's actual bottleneck.** Flinch reports
-**MicroCanonical Langevin Monte Carlo (MCLMC) beating HMC by nearly three orders of magnitude in
-sampling efficiency** at its highest resolutions, corroborating **Bayer, Seljak & Modi
-(arXiv:2307.09504)**, who report >1 order of magnitude over HMC at ~2.6×10⁵ dimensions with the
-gap *widening* with dimension. DiffCMB's one live blocker is φ-block HMC autocorrelation at
-lmax=128 (`ROADMAP.md`, "Currently doing"). Two independent groups now report that the standard
-fix for exactly this symptom, in exactly this dimensionality regime, is not "more leapfrog
-steps" but "a different integrator." See the Open items.
-
-### 2. Almanac (arXiv:2305.16134) was missing and is the closest full-sky HMC neighbour
-
-**Sellentin, Loureiro, Whiteway, Lafaurie, Balan, Olamaie, Jaffe & Heavens (2023)** — HMC
-sampling of **all-sky** noiseless maps *and* their auto/cross power spectra, millions of
-parameters, handles highly variable S/N, spin-2 E/B/EB without EB-leakage. This is a full-sky
-HMC (map, C_ℓ) sampler that is *not* Commander and *not* Gibbs, and this file did not cite it.
-A referee who knows the sphere-sampling literature will know it. It is lensing-blind, so the
-2×2 is unaffected — but "Commander is the other occupied cell" is now an incomplete sentence;
-Almanac and Flinch occupy it too, by different routes.
-
-### 3. Two citation errors fixed this pass — both referee-visible
-
-1. **Carron & Lewis 2017 (iterative MAP lensing) was cited as arXiv:1701.01712. That is wrong.**
-   1701.01712 is **Carron, Lewis & Challinor, "Internal delensing of Planck CMB temperature and
-   polarization"** — a different paper. The MAP-reconstruction paper is **arXiv:1704.08230, Phys.
-   Rev. D 96, 063510 (2017)** (verified on the abstract page). Fix before this reaches a `.bib`.
-2. **arXiv:2209.10512 was described here as "MUSE's own follow-up, still flat-sky/patch-based."**
-   It is **Millea, "Improved Marginal Unbiased Score Expansion (MUSE) via Implicit
-   Differentiation"** — a *methodological* paper (implicit differentiation; test cases are Neal's
-   funnel, Bayesian NNs, probabilistic PCA), with no sky geometry at all. The correct statement
-   is: *no curved-sky MUSE application has been published*; 2209.10512 is geometry-agnostic
-   machinery, not evidence either way. The conclusion is unchanged; the wording was wrong.
-
-### 4. Nothing found bears directly on the 51–86% φ-power deficit — but one lead is strong
-
-No paper reports a comparable systematic φ-power deficit in a joint sampler. Nothing in the
-literature diagnoses it. But **Millea, Anderes & Wandelt 2020 (arXiv:2002.00965)** is the right
-place to look: their central methodological result is that the *naive* joint parameterisation
-mixes catastrophically, and that the ancillary-vs-sufficient reparameterisation is what makes
-the chain move — a slowly-mixing φ block warm-started from a MAP/Wiener-filtered estimate will
-*retain the Wiener suppression of its starting point*, which is a low-amplitude φ, and a
-51–86% deficit that grows with S/N-starved multipoles is the expected signature of that, not of
-a wrong conditional. See the dedicated section below. **This is a hypothesis, not a literature
-finding — no source states it about this configuration.**
+**On the demonstrated scale (lmax=64, not 128).** A referee will ask, and **nothing found this pass states a defensible minimum scale** — no threshold exists in the literature. What does exist is the comparison set, and it is unflattering on raw dimension: MUSE ~6×10⁶ latents (`2112.09354`), Almanac 1.68×10⁷ parameters (`2210.13260`), Bayer et al. ~2.6×10⁵ (`2307.09504`), practical weak-lensing FLI 8×10⁶ (`2606.12255`). DiffCMB's lmax=64 is ~4×10³ real dof per field. **The defence cannot be "this is large" — it must be "this is the first demonstration that the joint posterior is sampled *correctly*, at a scale where correctness can be certified."** State the scale plainly, state the SBC result, give the scaling route (`2510.01785` cuHPX, `2406.14542` cunuSHT) as future work. Never write lmax≈128.
 
 ---
 
-## The 2×2: full-sky × joint-φ-sampling. The claim's boundaries
+## Citation corrections (this pass)
 
-The claim is a cell in {flat-sky, curved-sky} × {marginal/point-estimate, joint sampling of φ}.
-Cell (curved-sky, joint sampling) is empty. Everything below is a neighbour that occupies one of
-the other three.
+Found by grepping `main.tex` for arXiv IDs and resolving each on its abstract page.
 
-### Flat-sky, joint sampling — the nearest prior work
+1. **MUSE is cited as `2112.09091`, which is "Dualities in one-dimensional quantum lattice models"** (Lootens, Delcamp, Ortiz & Verstraete) — an unrelated quantum-physics paper. Correct: **`2112.09354`** (Millea & Seljak, PRD 105, 103531). `[v 2026-09-03]`
+2. **CMBLensing/SPTpol is cited as `2012.00011`, which is "Mass-gap Mergers in Active Galactic Nuclei"** (Tagawa et al.). Correct: **`2012.01709`** (Millea et al. 2021, ApJ 922, 259). `[v 2026-09-03]`
+3. **`2212.08549` is titled "Microcanonical *Hamiltonian* Monte Carlo", not "…Langevin…"** (Robnik, De Luca, Silverstein & Seljak; v1 2022-12, v3 2026-05). MCLMC appears inside it as a continuous variant. ID and authors are right; the title string is wrong. `[v 2026-09-03]`
 
-- **Millea, Anderes & Wandelt 2020**, arXiv:2002.00965, Phys. Rev. D 102, 123542 — *"Bayesian
-  delensing delight: sampling-based inference of the primordial CMB and gravitational lensing."*
-  Flat-sky joint (f, φ, r, A_φ) Bayesian sampling; CMBLensing.jl. **The nearest prior work, full
-  stop.** Their reparametrisation lesson (naive block alternation mixes catastrophically at high
-  S/N) motivated this project's Phase-2 mixing-risk gate — and is the leading suspect for the
-  φ-deficit.
-- **Millea et al. 2021**, arXiv:2012.01709, ApJ 922, 259 — *Optimal CMB Lensing Reconstruction
-  and Parameter Estimation with SPTpol Data.* CMBLensing.jl on real SPTpol data, 100 deg²
-  polarization; A_φ = 0.949 ± 0.122, 17% smaller errors than their own QE pipeline. The
-  "sampling works on real data" existence proof, and the benchmark for the CMBLensing.jl
-  related-work paragraph (`docs/notes/cmblensing_benchmark_notes.md`).
-- **Anderes, Wandelt & Lavaux 2015**, arXiv:1412.4079, ApJ 808, 152 — Bayesian CMB lensing
-  inference ancestor; the Gibbs-over-(CMB field, φ) idea in its original form.
-- **"Bayesian delensing of CMB temperature and polarization"**, arXiv:1708.06753 — same lineage,
-  flat-sky. *Author list unverified — check before citing.*
+Still standing from earlier passes: Carron & Lewis MAP lensing is **`1704.08230`**, not `1701.01712`; **`2209.10512`** is geometry-agnostic MUSE-via-implicit-differentiation, not a flat-sky MUSE follow-up.
 
-### Curved-sky, marginal or point-estimate — the other occupied cell
+---
 
-- **Millea & Seljak 2022 — MUSE**, arXiv:2112.09354, Phys. Rev. D 105, 103531. Marginal unbiased
-  score expansion: asymptotically-unbiased marginal constraints on global parameters, ~6M latent
-  dimensions, *not a sampler and no joint posterior*. Their own statement that curved-sky HMC is
-  "slightly out of reach" is the sentence that defines this project's empty cell. **No curved-sky
-  MUSE application has been published as of this scan.**
-- **Millea 2022**, arXiv:2209.10512 — MUSE via implicit differentiation. Geometry-agnostic
-  methodology (see correction above), not a curved-sky MUSE.
-- **SPT-3G 2019–2020 MUSE analysis**, arXiv:2411.06000 — production MUSE on real data (lensing +
-  delensed EE); evidence that the field's best lensing inference still is not sampling.
-- **Carron & Lewis 2017**, arXiv:**1704.08230**, Phys. Rev. D 96, 063510 — iterative MAP lensing
-  reconstruction (LensIt). A point estimate, not a posterior. ~2× improvement on σ(r) vs QE for
-  S4. *Corrected ID — see Verdict.*
-- **Carron, Lewis & Challinor 2017**, arXiv:1701.01712 — internal delensing of Planck T and P.
-  Cite separately if the Planck real-data section needs it; do **not** use for the MAP claim.
-- **Belkner, Carron et al. 2023 — CMB-S4 iterative internal delensing**, arXiv:2310.06729, ApJ
-  (2024) — `delensalot`: the first lensing-reconstruction pipeline optimal for arbitrary sky
-  coverage, 92–93% B-lensing power removed. **The curved-sky state of the art that is not a
-  sampler** — the thing Phase 3's sampling-based delensing has to beat or match.
-- **Darwish 2025**, arXiv:2503.03682 — optimal *joint* MAP reconstruction of multiple
-  line-of-sight distortion fields (lensing + birefringence + patchy screening) accounting for
-  mutual contamination. Note the word "joint" in the title: a referee may cite it as prior art.
-  It is joint over *distortion fields*, is a MAP point estimate, and has no C_ℓ or C_L^φφ block.
-  State that distinction explicitly.
-- **Iterative/QE frontier**: arXiv:2407.00228 (non-Gaussian deflections in iterative optimal
-  reconstruction, PRD 110, 103520); arXiv:2506.20667 (iterative estimator minimising
-  instrumental-noise bias, PRD 2026). The non-sampling comparison baselines.
-- **Namikawa & Sherwin 2026**, arXiv:2605.18659 — faster realisation-dependent bias via control
-  variates (~5× on the total cost of an ACT/SO-like lensing power-spectrum measurement). Cite as
-  evidence the QE pipeline is still being actively cost-engineered — i.e. the incumbent is not
-  standing still.
+## The 2×2: {flat-sky, curved-sky} × {marginal/point-estimate, joint φ sampling}
 
-### Curved-sky, joint sampling of (map, C_ℓ) but lensing-blind — the third cell, now crowded
+Cell (curved-sky, joint φ sampling) is empty. Everything below occupies one of the other three.
 
-- **Eriksen et al. 2004 / Jewell, Levin & Anderson 2004 / Wandelt, Larson & Lakshminarayanan
-  2004 — the Commander line.** Full-sky Gibbs over (a_ℓm, C_ℓ), conjugate-only, lensing-blind.
-  The direct structural ancestor of DiffCMB's Blocks 1–2. *Cite the original trio at
-  journal-formatting time; IDs not pinned here.*
-- **Eriksen et al. — "A self-contained guide to the CMB Gibbs sampler"**, arXiv:0905.3823 — the
-  pedagogical reference for the conjugate (a_ℓm | C_ℓ) / (C_ℓ | a_ℓm) structure. Useful for the
-  methods section's exposition.
-- **Racine, Jewell, Eriksen & Wehus 2016**, arXiv:1512.06619 — *Cosmological Parameters from CMB
-  Maps without Likelihood Approximation.* The joint-move step that fixes low-S/N Gibbs
-  degeneracy between signal and spectrum. **Relevant to Block 1/2's mixing**, not just to
-  related work.
-- **"Improved Gibbs samplers for CMB power spectrum estimation"**, arXiv:2111.07664 — the
-  successor line on the same conjugate-block mixing problem. *Author list unverified — check
-  before citing.*
-- **BeyondPlanck collaboration**, arXiv:2303.04819 — polarization Gibbs blocks, inverse-Wishart
-  TE structure. The reference for Phase 3's TQU extension.
-- **Cosmoglobe**, arXiv:2306.15511 — end-to-end CMB cosmological parameter estimation without
-  likelihood approximations. The "global Bayesian analysis" framing DiffCMB's internal-
-  consistency pitch lives adjacent to.
-- **Sellentin, Loureiro et al. 2023 — Almanac**, arXiv:2305.16134 — **NEW this pass.** All-sky
-  HMC over maps and auto/cross-spectra in multiple bins; millions of parameters; spin-2 E/B/EB
-  without EB-leakage. Cite as the nearest full-sky HMC (not Gibbs) neighbour, and note it is
-  model-independent by design (statistical isotropy only) — a different goal from DiffCMB's.
-- **Crespi, Bonici, Loureiro, ..., Millea & Seljak 2025 — Flinch**, arXiv:2510.26691 — **NEW
-  this pass, and the most consequential entry in this file.** See the Verdict. Differentiable
-  curved-sky field-level inference from masked CMB temperature maps to cosmological parameters;
-  MCLMC ≫ HMC; no φ. **Must be cited, must be distinguished, and its author list must inform the
-  schedule.**
-- **Taylor, Ashdown & Hobson — Hamiltonian sampling for CMB power spectra**, arXiv:0708.2989 —
-  the HMC-instead-of-Gibbs ancestor; reports HMC correlation lengths comparable to or better than
-  Gibbs *except at the highest S/N*. Directly relevant prior evidence for DiffCMB's own
-  block-choice. *Author list unverified — check before citing.*
+**Flat-sky, joint sampling — nearest prior work**
+
+- **Millea, Anderes & Wandelt 2020**, `2002.00965`, PRD 102, 123542 — flat-sky joint (f, φ, r, A_φ) sampling; CMBLensing.jl. **The nearest prior work, full stop.** Their result that naive block alternation mixes catastrophically and the fix is reparameterisation, not compute, is the standing external reference for DiffCMB's Block 3 problem.
+- **Millea et al. 2021**, `2012.01709`, ApJ 922, 259 — CMBLensing.jl on real SPTpol data; A_φ = 0.949 ± 0.122, 17% smaller errors than their own QE. **ID corrected this pass.**
+- **Anderes, Wandelt & Lavaux 2015**, `1412.4079` — the Gibbs-over-(field, φ) ancestor. **`1708.06753`** — same lineage, flat-sky; *author list unverified*.
+
+**Curved-sky, marginal or point-estimate**
+
+- **MUSE**, `2112.09354`, PRD 105, 103531 — ~6×10⁶ latents; not a sampler, no joint posterior. Their "curved-sky HMC is slightly out of reach" defines this project's empty cell. **No curved-sky MUSE has appeared.** **`2209.10512`** — MUSE via implicit differentiation, geometry-agnostic. **`2411.06000`** — production MUSE on SPT-3G data.
+- **Carron & Lewis 2017**, `1704.08230`, PRD 96, 063510 — iterative MAP lensing (LensIt); a point estimate.
+- **Belkner, Carron et al. 2023**, `2310.06729` — `delensalot`, CMB-S4 iterative internal delensing, 92–93% B-lensing power removed. **The curved-sky state of the art that is not a sampler.**
+- **Darwish 2025**, `2503.03682` — optimal *joint* MAP over multiple line-of-sight distortion fields (lensing + birefringence + patchy screening), extending `delensalot`. Joint over *distortion fields*, a point estimate, no C_ℓ or C_L^φφ block. Draw the distinction explicitly — a referee may raise the word "joint" as prior art.
+- **Iterative/QE frontier**: `2407.00228` (non-Gaussian deflections, PRD 110, 103520); `2506.20667` (noise-bias-minimising iterative estimator); `2605.18659` (control variates, ~5× cheaper RD bias).
+- **SPT-3G D1 QE lensing**, `2608.31136` (Omori et al., 2026-08-31) — **new.** Lensing amplitude to 2% of ΛCDM, Σm_ν < 0.072 eV (95%), σ₈Ω_m^0.25 = 0.6046 ± 0.0096. No field-level, MAP or sampling content. **This is the scoop check's headline negative: the flagship 2026 lensing analysis is still a quadratic estimator.** `[v 2026-09-03]`
+
+**Curved-sky, joint (map, C_ℓ) sampling but lensing-blind**
+
+- **The Commander line** — Eriksen et al. 2004 / Jewell, Levin & Anderson 2004 / Wandelt, Larson & Lakshminarayanan 2004: full-sky Gibbs over (a_ℓm, C_ℓ), conjugate-only, lensing-blind; the structural ancestor of Blocks 1–2. *IDs not pinned.* **`0905.3823`** — the pedagogical guide.
+- **Racine, Jewell, Eriksen & Wehus 2016**, `1512.06619` — the joint-move step fixing low-S/N signal–spectrum degeneracy; relevant to Block 1/2 mixing, not just related work. **`2111.07664`** — the successor line; *author list unverified*.
+- **BeyondPlanck** `2303.04819`; **Cosmoglobe** `2306.15511` — polarization Gibbs blocks and end-to-end Bayesian analysis without likelihood approximations; the Phase 3 TQU reference.
+- **Almanac**, `2305.16134` (Sellentin, Loureiro, Whiteway, Lafaurie, Balan, Olamaie, Jaffe & Heavens 2023, OJA) — *"MCMC-based signal extraction of power spectra and maps on the sphere"*: all-sky HMC over maps and auto/cross-spectra, millions of parameters, spin-2 E/B/EB without EB-leakage. **Actual title recorded for the first time this pass.** `[v 2026-09-03]`
+- **Almanac companion**, `2210.13260` (Loureiro, Whiteway, Sellentin, Lafaurie, Jaffe & Heavens, OJA 6, 2023) — **new, and it matters**: *"Weak Lensing power spectra and map inference on the masked sphere"*, HMC over 1.68×10⁷ parameters on the **curved and masked** sky. The file previously implied Almanac was full-sky/noiseless only. Masked curved-sky HMC over (map, C_ℓ) already exists; acknowledge it. `[v 2026-09-03]`
+- **Flinch**, `2510.26691` (Crespi, Bonici, Loureiro, Ruiz-Zapatero, Sladoljev, Li, Bayer, Millea & Seljak, 2025-10-30) — differentiable curved-sky field-level inference from masked CMB temperature maps to cosmological parameters; MCLMC "orders-of-magnitude" over HMC; up to 40% tighter than pseudo-C_ℓ. **No φ, no C_L^φφ.** Must be cited, must be distinguished, and its author list must inform the schedule. `[re-verified 2026-09-03]`
+- **Taylor, Ashdown & Hobson**, `0708.2989` — HMC-instead-of-Gibbs ancestor; correlation lengths comparable to Gibbs except at the highest S/N. *Author list unverified.*
 
 ---
 
 ## The competing paradigm: diffusion / learned posteriors
 
-**The most likely referee question is the diffusion/score-based route, and the paper needs an
-answer on file.** Nothing new appeared this pass; the threat set is stable.
+**This axis moved this pass, in the direction that matters.**
 
-- **"Denoising diffusion delensing"**, arXiv:2405.05598, MNRAS 533, 423 (2024) — score-based
-  generative reconstruction of the CMB lensing convergence, pitched **explicitly as an
-  alternative to HMC**, claiming uncorrelated samples and better large-angular-scale behaviour
-  than MCMC chains. The single most dangerous citation for this paper.
-- **JADE**, arXiv:2606.31988 (2026) — *Joint inference of weak lensing convergence map and
-  cosmology with diffusion models.* Joint posterior over convergence maps **and** cosmological
-  parameters from one conditional diffusion model; amortised (~0.2 s/sample); explicitly requires
-  **neither a differentiable forward model nor inference-time MCMC**. Galaxy weak lensing, not
-  CMB — not a literal pre-emption, but the clearest statement of the paradigm's ambition to
-  obviate DiffCMB's two core design choices.
-- **Zhao, Scognamiglio, Doré & Bouman 2026 — "Generative Diffusion Priors for 3D Mapping of the
-  Dark Universe"**, arXiv:2606.00803 — same family, wider scope; evidence the approach is a
-  programme, not a one-off.
-- **Likhit & Saha 2025**, arXiv:2512.22683 — generative reconstruction of low-ℓ CMB B-modes via
-  reverse diffusion (VE-SDE), trained on r=0.001 spectra for ECHO. The one *CMB-domain* diffusion
-  paper found: it treats lensing as a contaminant to denoise away rather than a field to infer.
-  **No lensing posterior, joint or otherwise.**
-- **arXiv:2511.04792** — blind strong-lensing inversion with score-based models. Galaxy lensing,
-  off-topic; recorded so a future scan does not re-litigate it.
+- **Sotoudeh, Lemos & Perreault-Levasseur 2026**, `2603.04535` (2026-03-04) — *A Fast Generative Framework for High-dimensional Posterior Sampling: Application to CMB Delensing.* Hierarchical Probabilistic U-Net / VAE posterior sampler, an order of magnitude faster than a diffusion baseline, recovering the unlensed CMB power spectrum with uncertainty estimates and reported robust to cosmological-parameter variation. **The first learned posterior sampler applied to the CMB delensing problem itself.** Sky geometry is not stated in the abstract and it does not infer C_L^φφ — read the body before asserting either in print. `[v 2026-09-03]`
+- **`2405.05598`** (MNRAS 533, 423) — denoising-diffusion reconstruction of the lensing convergence, pitched explicitly as an HMC alternative. **JADE `2606.31988`** — joint diffusion posterior over convergence map *and* cosmology, amortised ~0.2 s/sample, needing neither a differentiable forward model nor inference-time MCMC; galaxy weak lensing, not CMB. **`2606.00803`**, **`2512.22683`** (low-ℓ B-modes by reverse diffusion; treats lensing as contaminant), **`2511.04792`** (strong lensing — off-topic, recorded so it is not re-litigated).
+- **Spherical Fourier Neural Operators for CMB delensing** — SFNO on HEALPix with differentiable SHTs in JAX; OpenReview `I8k3wwwm9l`, circa Nov 2025. **[UNVERIFIED — no arXiv ID located, page not fetchable. Do not cite until a versioned copy is found.]**
 
-**Why this is sharper than a normal related-work gap:** DiffCMB's current bottleneck *is* HMC
-autocorrelation in the φ block. The diffusion line markets the exact cure for the exact symptom,
-while discarding the two things DiffCMB spent its engineering budget building. "Why fight HMC
-autocorrelation when diffusion gives uncorrelated samples in 0.2 s?" is the first question a
-methods referee will ask.
-
-**Four answers, to state in the paper rather than discover at referee time:**
-
-1. **Exactness.** HMC targets the true posterior asymptotically; a diffusion model samples a
-   *learned* approximation whose error has no convergence guarantee and no diagnostic that
-   certifies it. For a measurement intended to feed a tension debate, that difference is the
-   product.
-2. **Scope of the posterior.** Both cited works infer a lensing map (JADE adds cosmological
-   parameters). DiffCMB's object is the joint **(a_ℓm, C_ℓ, φ, C_L^φφ)** posterior — the C_ℓ and
-   C_L^φφ blocks, and their correlations with φ, are absent from the diffusion route and are what
-   make the internal-consistency framing (`ROADMAP.md` §2) possible at all.
-3. **No training set required.** Diffusion priors must be trained on simulations, importing every
-   bias of that suite; the Gibbs/HMC route needs only the forward model.
-4. **Someone has to be the reference.** See next section — this is the offensive version of the
-   argument and the one to lead with.
-
-**Portfolio-level argument — use it.** The reason to prefer an exact sampler over an amortised
-learned posterior for a tension-grade measurement is precisely the ANVIL/KARMA thesis: learned
-posteriors can pass their diagnostics and still be wrong ("calibrated but not accurate"), and in
-field-level cosmology specifically no known fix repairs it. DiffCMB can cite that trust-verdict
-work as the methodological justification for its architecture. Worth a paragraph in the
-introduction.
-
-**Honest limit:** this framing is only as strong as the scale at which converged reference
-posteriors are actually produced. If that's lmax≈128 and the diffusion papers operate at
-lmax≫1000, say so plainly rather than overclaiming (`ROADMAP.md` scope discussion).
+**Four answers to have on file** (unchanged, now aimed at a CMB-domain opponent): exactness with an asymptotic guarantee; the *scope* of the posterior (C_ℓ and C_L^φφ and their correlations with φ, which no learned route produces); no training set required; and someone has to be the reference standard.
 
 ---
 
-## "Exact sampler as reference standard" — the supporting literature
+## "Exact sampler as reference standard"
 
-The reference-standard positioning is not a bare assertion; there is a citable practice of
-validating fast/learned inference against exact MCMC, and it is growing.
-
-- **Doeser & Jasche 2026**, arXiv:2606.10023 (Learning the Universe) — in high-dimensional
-  field-level inference, matching posterior means/marginals/cross-correlations does **not** imply
-  correct uncertainty structure, established **by checking against HMC reference posteriors**.
-  This is the argument DiffCMB is built to serve, made by someone else, in a neighbouring
-  regime. **Cite prominently in the introduction.**
-- **Mishra 2026**, arXiv:2606.16248 — *Benchmarking Exact, GP-Emulated, and Simulation-Based
-  Inference for Late-Time Cosmology.* Treats exact MCMC as the gold standard and measures GP/SBI
-  against it (agreement to 0.3σ on easy data, drifting to ~1.5σ on harder combinations).
-  Low-dimensional and late-time, so it is a *precedent for the protocol*, not a competitor.
-- **ANVIL / KARMA** (in-house, `../ANVIL/`, `../karma/literature.md`) — the calibrated-but-not-
-  accurate verdict and the C2ST instrument. Own the general claim by citing them rather than
-  re-deriving it.
+- **Doeser & Jasche 2026**, `2606.10023` — matching posterior means, marginals or cross-correlations does **not** imply correct uncertainty structure, established by checking Stochastic Interpolants and GLOW flows against **HMC reference posteriors**. The DiffCMB argument, made by someone else, in a neighbouring regime. **Cite prominently in the introduction.**
+- **Omori, Zeghal, Chang, Lanusse & Perreault-Levasseur 2026**, `2606.12255` (2026-06-10) — *Towards Practical Field-Level Inference for Weak Lensing.* Implicit (SBI) and explicit field-level inference compared head-to-head on 8×10⁶-parameter forward models; posteriors closely consistent, implicit analyses coverage-tested. **The counterpoint to cite honestly**: there the learned route *did* agree. DiffCMB's claim is that agreement must be demonstrated per problem, not assumed — which is what a reference standard provides. `[v 2026-09-03]`
+- **Pietroni & Schmidt 2026**, `2604.25385` (2026-04-28) — *On the Relation Between Field-Level Posteriors, Correlators, and their Likelihoods*: makes explicit which terms power-spectrum and bispectrum likelihoods capture and which are lost under compression. The principled version of "why a field-level posterior, not a summary." `[v 2026-09-03]`
+- **Mishra 2026**, `2606.16248` — exact MCMC as gold standard, GP/SBI measured against it (0.3σ→1.5σ drift). Low-dimensional and late-time: a precedent for the protocol, not a competitor.
+- **ANVIL / KARMA** (in-house) — the calibrated-but-not-accurate verdict and the C2ST instrument. Own the general claim by citing them, not re-deriving.
 
 ---
 
-## Validation, convergence and coverage — the critical path's own literature
+## Differentiable CMB infrastructure
 
-The lmax≈128 rank/coverage test is the paper's headline evidence. Its methodology needs citing
-properly, and one subtlety in `achievements.md` has a literature home.
-
-- **Cook, Gelman & Rubin 2006**, *Validation of Software for Bayesian Models Using Posterior
-  Quantiles*, JCGS 15, 675 — the original posterior-quantile validation scheme. **Note the
-  published correction (Taylor & Francis, 2017)** to the distributional claim about posterior
-  quantiles; cite the corrected form, not the 2006 statement, or a statistician referee will
-  catch it.
-- **Talts, Betancourt, Simpson, Vehtari & Gelman 2018 — SBC**, arXiv:1804.06788 — rank-statistic
-  simulation-based calibration; the correct modern form of the above. **This is the protocol
-  `scripts/aggregate_coverage_ranks.py` implements** and the one the paper should name.
-- **Modrák et al. — "Simulation-Based Calibration Checking for Bayesian Computation: The Choice
-  of Test Quantities Shapes Sensitivity"**, arXiv:2211.02383 — SBC's sensitivity depends
-  entirely on which test quantities are ranked. Directly load-bearing: DiffCMB ranks per-ℓ-bin
-  φ-power summaries, and this paper is the citation for why that choice is not innocent. **Read
-  before finalising the coverage-test design.**
-- **Vehtari, Gelman, Simpson, Carpenter & Bürkner 2021**, arXiv:1903.08008, Bayesian Analysis
-  16, 667 — rank-normalised, folded, split R̂ plus quantile-local ESS. The paper's convergence
-  gates should use *this* R̂, not Gelman–Rubin 1992, and should show **rank plots rather than
-  trace plots** — their explicit recommendation, and a cheap way to make the convergence section
-  look current. Aligns with `ROADMAP.md`'s "R-hat on C_ℓ alone is not convergence."
-- **`achievements.md`'s SBC-scope finding has no literature counterexample.** The observation
-  that strict SBC applies to the fields (a_ℓm, φ) but not to the spectra — because Blocks 1 and 4
-  have flat/improper implied priors, so there is no θ_true ~ p(θ) to rank — is correct and
-  self-consistent with Talts et al.'s prior-sampling requirement. Nothing found contradicts it.
-  **Label the spectrum result "interval coverage against realized power," never "calibration."**
+- **jax-cosmo**, `2302.05163`, OJAp 6, 15 — the canonical "why differentiability" citation and Flinch's substrate.
+- **Reinecke, Belkner & Carron 2023**, `2304.10431`, A&A 678, A165 — the accuracy standard for the curved-sky lensing operator and its adjoint (`lenspyx`/`ducc`). **The correct citation for DiffCMB's lensing operator.**
+- **Price & McEwen — s2fft**, `2311.14670`, J. Comput. Phys. 510, 113109 (2024) — differentiable, accelerated spherical harmonic and Wigner transforms in JAX/PyTorch; the custom-vjp pattern DiffCMB's `tf.custom_gradient` wrapper follows. **ID confirmed — open item closed.** `[v 2026-09-03]`
+- **cuHPX**, `2510.01785` (Cheng, Subramaniam, Wu & Brenowitz, 2025-10-02) — GPU-accelerated differentiable SHTs on **HEALPix**, >20× over existing libraries; better matched to DiffCMB's pixelisation than s2fft. **Abstract confirmed — open item closed.** `[v 2026-09-03]`
+- **cunuSHT**, `2406.14542`, RASTI 3, 711 — GPU non-uniform SHTs; the route if Phase 4 (lmax ≥ 1000) is unparked.
+- **Furax**, `2603.19600` (Chanial et al., 2026-03-20) — **new.** Modular JAX framework of composable linear operators for CMB map-making, instrument modelling and component separation. Adjacent infrastructure, not a competitor: no lensing operator, no field-level lensing posterior. `[v 2026-09-03]`
+- **Negative result, recorded so it is not re-checked:** `2606.28175` (HIcosmo) is a differentiable JAX cosmology framework but is **background-only** — no Boltzmann solver, no CMB, no spherical harmonics. Irrelevant. `[v 2026-09-03]`
+- **Elsner & Wandelt 2013**, `1210.4931` — messenger field, the abandoned Phase 0c route. **Papež, Grigori & Stompor 2018**, **Huffenberger & Næss 2018** — messenger-preconditioned CG, the named fallback family; *IDs still not pinned*.
 
 ---
 
-## Bearing on the open 51–86% φ-power deficit
+## Samplers and the Block 3 mixing problem
 
-**⚠ 2026-08-24: `lensing.py` had an alm author/healpy ordering bug (fixed, commit `a16e9e6`,
-`ROADMAP.md`'s stop-block) that scrambled every φ coefficient onto the wrong multipole, including
-in every pilot run this section's autocorrelation numbers (e.g. "0.981" below) are drawn from.
-Treat the deficit-vs-mixing argument below as a hypothesis motivated by pre-fix evidence, not a
-conclusion — re-derive the lag-1/deficit numbers post-fix (job 11849969 in flight) before citing
-them.**
+Block 3 (φ|a_ℓm, C_ℓ) is where the remaining defect lives: Option 2's strict C_L^φφ SBC rank is 0.3802, moving to 0.4196 under doubled trajectories, with the residual concentrated in ℓ∈[10,30).
 
-**⚠ 2026-08-31 — the ranking below is superseded by an internal finding. Two defects were
-found in this project's own code that are far better candidates than anything in the
-literature, and both have the low-ℓ concentration the deficit shows:**
-
-0. **The parameterisation is missing one real degree of freedom per multipole (leading
-   candidate, still OPEN).** `alm_utils.py::splittosingularalm` forces `Im(a_{ℓ,1}) = 0`, so
-   the model carries 2ℓ dof rather than 2ℓ+1 and **cannot represent a general sky**. Measured
-   unrepresentable power ≈ 1/(2ℓ+1): ~20% of the modes at ℓ=2, 0.8% at ℓ=63. A deficit that
-   grows toward low ℓ is exactly what this predicts, and it needs no appeal to mixing at all.
-   This is not a literature question — it is a bug (`ROADMAP.md`, `achievements.md`). Resolve
-   it before spending further effort attributing the deficit to sampler dynamics.
-0b. **Blocks 1 and 4 used an inverse-Gamma shape assuming 2ℓ+1 dof (fixed 2026-08-31).**
-   `E[C_ℓ]` was biased by (ℓ-1.5)/(ℓ-2) — 0.8% at ℓ=63 but 50% at ℓ=3. Again low-ℓ weighted.
-
-**No paper found reports or explains a comparable deficit.** State that plainly — and note
-that the reason may simply be that it was ours, not the field's. What the literature supplies
-is a ranked list of *external* suspects, all cheap to test, retained below for completeness:
-
-1. **Under-mixing retaining a Wiener-suppressed start (most likely).** Millea, Anderes & Wandelt
-   (arXiv:2002.00965) make the parameterisation of the joint (f, φ) chain their central
-   methodological result: the naive alternation mixes catastrophically, and the fix is a
-   reparameterisation, not more compute. A φ block that has not equilibrated, started from a
-   MAP/Wiener-filtered φ, keeps its starting amplitude — and Wiener filtering suppresses exactly
-   the low-S/N modes, which is where the deficit is largest. **The lmax=300 chain's φ-power
-   deficit and the lmax=128 pilot's lag-1 autocorrelation of 0.981 are plausibly the same
-   phenomenon at two scales.** Testable without new physics: does the deficit shrink monotonically
-   with chain length / `phi_n_lfs`? If yes, it is mixing, not bias, and it is not a separate open
-   problem at all.
-2. **The competing hypothesis has a literature home too.** Taylor, Ashdown & Hobson
-   (arXiv:0708.2989) report HMC correlation lengths degrading specifically **at the highest
-   S/N** — the opposite regime. If the deficit turns out to be worst at *high*-S/N multipoles
-   rather than low, suspicion should move from the Wiener-start story to the sampler geometry.
-   The l=10–300 span reported in `achievements.md` is not resolved finely enough to distinguish
-   these; a per-ℓ-bin deficit-vs-S/N plot is the discriminating diagnostic and costs nothing.
-3. **Ruled out by construction, but say so.** The deficit is *not* the QE/iterative N0/N1 or
-   mean-field bias family (arXiv:2506.20667, arXiv:2407.00228) — a Gibbs sampler has no
-   noise-bias subtraction step. It is *not* the non-Gaussian-deflection effect (arXiv:2407.00228)
-   at Gaussian-φ simulated input. It is *not* foreground-induced (arXiv:2406.15351,
-   arXiv:2502.20801) in a foreground-free simulation. Naming these and dismissing them costs
-   three sentences and pre-empts three referee questions.
-4. **Lensing-operator accuracy is not a suspect.** The operator is validated to machine precision
-   against the dense reference and against `healpy` (`achievements.md`), and the accuracy standard
-   for curved-sky lensing operators is set by Reinecke, Belkner & Carron (arXiv:2304.10431), whose
-   `ducc0`/`lenspyx` implementation DiffCMB uses. Do not spend compute here.
-
-**Bottom line: nothing in the literature turns the deficit into a known failure mode, and
-suspect (1) predicts it would dissolve under the lmax≈128 equilibration work already on the
-critical path.** That supports `ROADMAP.md`'s decision not to chase it with lmax=300 compute.
+- **Neal 2011 / Duane et al. 1987** — HMC; **TFP `DualAveragingStepSizeAdaptation`** — the step-size scheme `run_chain_hmc` uses.
+- **Robnik, De Luca, Silverstein & Seljak**, `2212.08549` — *Microcanonical **Hamiltonian** Monte Carlo* (MCHMC), introducing MCLMC as a continuous variant. **Title corrected this pass.** `[v 2026-09-03]`
+- **Bayer, Seljak & Modi 2023**, `2307.09504` — MCLMC >1 order of magnitude over HMC at ~2.6×10⁵ dimensions, gap widening with dimension; corroborated by Flinch on curved-sky CMB maps. **In-house status: MCLMC was ported and tested; it fails the stationarity gate and production is plain HMC.** Cite as prior art — and keep the draft from describing Block 3 as MCLMC (that error was found and fixed 2026-09-01).
+- **Millea, Anderes & Wandelt**, `2002.00965` — the reparameterisation lesson; still the leading external suspect for a slowly-mixing φ block.
+- **Nothing found this pass bears on the ℓ∈[10,30) localisation.** No paper reports a multipole-localised mixing failure in a joint lensing sampler. The internal evidence — strong, asymmetric cross-L Hessian coupling; the Nyström `block` mass matrix falsified — has no literature counterpart. State that plainly rather than manufacturing one.
 
 ---
 
-## Samplers, numerics and differentiable infrastructure
+## Validation, convergence and coverage
 
-- **Neal 2011 / Duane et al. 1987** — HMC. **TFP `DualAveragingStepSizeAdaptation`** — the
-  step-size scheme `run_chain_hmc` uses.
-- **Bayer, Seljak & Modi 2023 — MCLMC for field-level inference**, arXiv:2307.09504 — >1 order of
-  magnitude over HMC at ~2.6×10⁵ dimensions, gap **widening** with dimension. **Corroborated by
-  Flinch (arXiv:2510.26691) at ~3 orders of magnitude on curved-sky CMB maps.** Two independent
-  reports, both in this project's dimensionality regime, both on the exact symptom that is
-  blocking the critical path. See Open items.
-- **Elsner & Wandelt 2013**, arXiv:1210.4931 — messenger-field method; this project's abandoned
-  Phase 0c route (`achievements.md`).
-- **Papež, Grigori & Stompor 2018** — messenger as CG preconditioner; the named fallback family
-  if the HMC pivot ever needs revisiting. *ID not pinned — check before citing.*
-- **Huffenberger & Næss 2018** — messenger-preconditioned CG for map-making; same family. *ID not
-  pinned — check before citing.*
-- **ducc0 (Reinecke)** — the matrix-free SHT backend. **Reinecke, Belkner & Carron 2023**,
-  arXiv:2304.10431, A&A 678, A165 — *Improved CMB (de-)lensing using general spherical harmonic
-  transforms*: the accuracy/performance standard for the curved-sky lensing operator and its
-  adjoint (NUFFT-based, `lenspyx` + `ducc`). **The correct citation for DiffCMB's lensing
-  operator**, alongside the plain ducc0 reference.
-- **Belkner et al. 2024 — cunuSHT**, arXiv:2406.14542, RASTI 3, 711 — GPU non-uniform SHTs on
-  arbitrary pixelisations, machine precision, up to 5× the fastest CPU algorithm at ℓ_max > 4000.
-  The GPU route if Phase 4 (lmax ≥ 1000) is ever unparked — and the reason not to hand-roll one.
-- **s2fft (Price & McEwen)** — JAX/PyTorch differentiable spherical harmonic and Wigner
-  transforms, precompute and on-the-fly modes, hybrid auto/manual differentiation; the custom-vjp
-  pattern DiffCMB's `tf.custom_gradient` wrapper was cribbed from. *arXiv ID not verified —
-  check before citing; the JCP 2024 paper is "Differentiable and accelerated spherical harmonic
-  and Wigner transforms."*
-- **cuHPX**, arXiv:2510.01785 — GPU-accelerated differentiable SHTs specifically on **HEALPix**
-  grids. Newer and more directly matched to DiffCMB's pixelisation than s2fft. *Abstract not
-  fetched this pass — verify before citing.*
-- **jax-cosmo**, arXiv:2302.05163, OJAp 6, 15 (2023) — the end-to-end differentiable cosmology
-  library; the canonical "why differentiability" citation, and what Flinch is built on top of.
-  Cite in the introduction's framing of the differentiable-cosmology programme.
+The lmax=64 rank/coverage test is the paper's headline evidence, so its methodology must be cited exactly.
+
+- **Talts, Betancourt, Simpson, Vehtari & Gelman 2018 — SBC**, `1804.06788` — the protocol `scripts/aggregate_coverage_ranks.py` implements, and the one the paper should name.
+- **Cook, Gelman & Rubin 2006**, JCGS 15, 675 — the original posterior-quantile scheme. **Cite the 2017 published correction**, not the 2006 distributional statement.
+- **Modrák et al.**, `2211.02383` — SBC sensitivity depends entirely on the test quantity. Directly load-bearing: DiffCMB ranks per-ℓ-bin φ-power summaries, and the residual is now localised to one bin. **Still unread; still on the critical path.**
+- **Vehtari, Gelman, Simpson, Carpenter & Bürkner 2021**, `1903.08008`, Bayesian Analysis 16, 667 — rank-normalised, folded, split R̂ plus quantile-local ESS, and rank plots rather than trace plots. Use *this* R̂.
+- **Margossian, Hoffman, Sountsov, Riou-Durand, Vehtari & Gelman**, `2110.13017`, Bayesian Analysis (2024) — **nested R̂**, for convergence when running **many short chains** rather than a few long ones. **New, and directly applicable**: the coverage ensemble is 12 short chains per realization, exactly the regime classical split-R̂ is weakest in. `[v 2026-09-03]`
+- **Seiffert & Pereira 2024**, `2408.13411` (stat.ME) — ESS/IACT estimators **may not be statistically consistent**; their variance grows linearly in chain length, and two estimators on the same chain disagreed on the *order of magnitude* of the ESS. **New, and the literature home for the hard-won internal lesson that the lag-1 equilibration gate was a measurement artefact** conflating slow-but-stationary with unequilibrated. Cite it when reporting τ_int (Geyer's estimator truncated early in all 48 chain×bin combinations, so those are bounds) — it turns reporting a bound into a virtue rather than a weakness. `[v 2026-09-03]`
+- **The SBC-scope finding still has no literature counterexample.** Strict SBC applies to the fields (a_ℓm, φ) but not to spectra whose blocks carry flat/improper implied priors — there is no θ_true ~ p(θ) to rank. Consistent with Talts et al.'s prior-sampling requirement. **Label the spectrum result "interval coverage against realized power," never "calibration."**
 
 ---
 
-## Science targets and real-data framing
+## Science targets and real-data framing (Phase 3 / LiteBIRD)
 
-- **LiteBIRD lensing forecast**, arXiv:2507.22618 (2025) — Planck+LiteBIRD full-sky QE
-  reconstruction. The target experiment's pipeline is still QE/iterative — the gap Phase 3's
-  sampling-based delensing fills. Benchmark and motivation citation.
-- **LiteBIRD multitracer delensing**, arXiv:2312.05194, JCAP 06 (2024) 010 (Namikawa, Lonappan et
-  al.) — external tracers (CIB, S4, Euclid/LSST) improve σ(r) by ~20%. The competing route to the
-  same goal; Phase 3 must say why *internal* sampling-based delensing is complementary.
-- **CMB-S4 iterative internal delensing**, arXiv:2310.06729 — the 92–93% B-lensing-removal
-  benchmark any Phase 3 delensing-efficiency number gets compared to.
-- **Planck 2018 lensing & likelihood papers** — the A_L anomaly's origin.
-- **Planck PR4/NPIPE likelihoods (CamSpec, HiLLiPoP)** — report A_L much weakened / ΛCDM-
-  consistent.
-- **ACT DR6 lensing** (Madhavacheril et al. 2024) + **ACT DR6 extended models**,
-  arXiv:2503.14454 — no lensing-amplitude excess; corroborates the resolution.
-- **"Revisiting A_L in Planck 2018 temperature"**, arXiv:2310.03127 — the anomaly's anatomy;
-  basis for the post-mortem framing.
-- **Robustness of Bayesian lensing to foregrounds**: arXiv:2406.15351 (polarized extragalactic
-  foregrounds on Bayesian CMB lensing, PRD 111, 023503) and arXiv:2502.20801 (non-Gaussian
-  foreground bias in optimal reconstruction of lensing *and* temperature spectra). **The second
-  is the closer analogue** — it asks what foregrounds do to a *joint* lensing+C_ℓ reconstruction,
-  which is DiffCMB's object. Both are the honest "limitations" citations for the real-data run.
+- **LiteBIRD lensing forecast**, `2507.22618` — Planck+LiteBIRD full-sky QE; internal delensing improves σ(r) by ~6%. The target experiment's pipeline is still QE. **LiteBIRD multitracer delensing**, `2312.05194`, JCAP 06 (2024) 010 — external tracers improve σ(r) ~20%; Phase 3 must say why *internal* sampling-based delensing is complementary.
+- **Hertig et al. (ACT) 2025**, `2511.21949` (2025-11-26, submitted PRD) — *B-mode delensing with DR6 data and external tracers*: ACT DR6 internal lensing + unWISE + Planck CIB, removing ~39% of lensing power at 100≤ℓ≤1500 and ~47% at 30≤ℓ≤300, "the highest delensing efficiency to date" on data. **New — the current real-data benchmark.** `[v 2026-09-03]`
+- **Nakato et al. (SPT-3G) 2026**, `2608.06343` (2026-08-06) — *Foreground-Robust Lensing Templates for Primordial Gravitational Wave Searches*: profile-hardened GMV quadratic estimator + CIB, **A_lens^res ≈ 0.48 over 20≤ℓ≤200**, claimed highest-efficiency template to date, validated against non-Gaussian foreground sims. **New — the number any Phase 3 delensing claim will be measured against.** `[v 2026-09-03]`
+- **SPT-3G+**, `2608.20236` (2026-08-20) — next-generation SPT receiver for deep lensing maps and foreground-B-mode delensing. Motivation citation only. `[verified via arXiv search listing 2026-09-03; abstract page not fetched]`
+- **CMB-S4 iterative internal delensing**, `2310.06729` — the 92–93% simulation benchmark.
+- **A_L anomaly is not a live hook.** Planck PR4/NPIPE (CamSpec, HiLLiPoP) weaken it; ACT DR6 lensing (`2503.14454`) shows no excess; `2310.03127` anatomises it. The honest real-data pitch is post-mortem / internal consistency.
+- **Foreground robustness**: `2406.15351` (polarized extragalactic foregrounds on Bayesian CMB lensing, PRD 111, 023503) and `2502.20801` (non-Gaussian foreground bias in optimal *joint* lensing + temperature-spectrum reconstruction — the closer analogue). The honest limitations citations.
 
-**The A_L anomaly is no longer a live hook.** Planck PR4/NPIPE (especially HiLLiPoP) report it
-much weakened; ACT DR6 lensing shows no excess. The honest real-data pitch is the
-post-mortem/internal-consistency framing in `ROADMAP.md` §2, not "interrogate a live anomaly."
+---
+
+## Counterclaims / must-engage
+
+1. **"Flinch already does curved-sky differentiable field-level CMB inference."** True; cite it. No φ block, no C_L^φφ block — it is the Commander cell done differentiably.
+2. **"Almanac already does curved-sky HMC over maps and spectra, on a masked sphere."** True (`2305.16134`, `2210.13260`), at 1.68×10⁷ parameters, and lensing-blind. Do not overstate the novelty of curved-sky sampling itself.
+3. **"Darwish 2025 is already a *joint* optimal reconstruction."** Joint over distortion fields, MAP point estimate, no spectrum blocks. One sentence settles it.
+4. **"Learned posteriors are faster and now exist for CMB delensing" (`2603.04535`).** Answer with exactness, posterior scope, no-training-set, and the reference-standard argument — and concede honestly that `2606.12255` found implicit and explicit field-level inference agreeing in a neighbouring problem.
+5. **"lmax=64 is a toy."** The weakest point in the paper; no literature sets a threshold and the comparison set is 10²–10⁴× larger. Answer on certified correctness, not scale, and give the scaling route.
+6. **"Your τ_int and ESS numbers are unreliable."** They are lower bounds. `2408.13411` makes reporting them as bounds defensible; `2110.13017` (nested R̂) is the right diagnostic for a many-short-chains ensemble.
 
 ---
 
 ## Standing claims-hygiene rule
 
-Before every submission milestone, re-scan arXiv for **three** things — the third is new:
+Re-scan before every submission milestone for **four** things — search the *problem*, not only the *method family*:
 
 1. curved-sky MUSE / curved-sky field-level lensing samplers;
-2. the generative/diffusion route for **CMB** (not just galaxy) joint lensing posteriors;
-3. **any φ / lensing extension of Flinch, Almanac, or CMBLensing.jl.** The Flinch author list
-   (Millea, Seljak, Bayer, Loureiro) is the highest-probability source of a scoop that now
-   exists. Watch those authors by name, not only by keyword.
-
-Search the *problem* (joint CMB lensing posteriors), not only the *method family* this project
-happens to use — item (2) was missed for over a year of scans that only looked for samplers and
-MUSE variants, and item (3) was missed until 2026-08-05 despite Flinch being nine months old.
+2. the generative/diffusion/VAE route for **CMB** (not just galaxy) lensing posteriors — now an occupied cell (`2603.04535`), not a hypothetical;
+3. any φ or lensing extension of **Flinch, Almanac or CMBLensing.jl** — watch Millea, Seljak, Bayer, Loureiro **by name**;
+4. **delensing-efficiency records** (`2511.21949`, `2608.06343`) — Phase 3's headline number is benchmarked against a target that moved twice in ten months.
 
 ---
 
 ## Open items
 
-- [x] **Cite Flinch (arXiv:2510.26691) and Almanac (arXiv:2305.16134) in related work, with the
-      distinction stated explicitly**: both are curved-sky (map, C_ℓ) samplers, neither has a φ or
-      C_L^φφ block. **Done 2026-08-24** — `docs/paper/main.tex` carries both as `\bibitem`s and
-      states the lensing-blind distinction in three places: the related-work opening, the
-      "vs Commander / Almanac / Flinch" positioning entry, and the conclusion. Flinch is also
-      cited as the precedent for the differentiable-SHT machinery (framed as enabling machinery,
-      not a contribution — see the next item).
-- [ ] **Stop leading with the differentiable-SHT engineering.** Flinch makes curved-sky
-      differentiability table stakes. Lead with the joint (C_ℓ, C_L^φφ) posterior.
-- [ ] **Evaluate MCLMC for the φ block — TRIGGERED 2026-08-07, spike implemented and mid-decision
-      2026-08-08.** Job 11694912 (`phi_n_lfs` 80→240) came back NO-GO with near-zero improvement
-      despite 3x compute — evidence for a geometry problem, not just under-mixing (contradicting
-      the deficit-vs-S/N plot's direction), which triggered the port per `ROADMAP.md`'s decision
-      rule. Hand-implemented directly in TF (`diffcmb/mclmc.py`, no JAX/blackjax dependency — see
-      `ROADMAP.md` for why), unit-validated, and grid-tuned at small lmax=20: the best config beat
-      HMC's ESS/wall-clock-second on 4/6 probed l-bins with a clean bias check, confirming the
-      1–3-orders-of-magnitude reports transfer at least partially at this dimensionality. Deciding
-      run at the actual lmax≈128 pilot scale/problem bin is in flight — see `ROADMAP.md`'s
-      "Currently doing" for live status and the GO/NO-GO procedure.
-- [x] **Fix the Carron & Lewis ID** — 1704.08230, not 1701.01712 — done 2026-08-06 at
-      `diffcmb/lensing.py:24` (the only live occurrence outside this file). Re-check before it
-      reaches a `.bib` or a draft.
-- [x] **Fix the 2209.10512 description** — checked 2026-08-06, no occurrences outside this file;
-      already correctly described here as geometry-agnostic MUSE methodology, not a flat-sky
-      MUSE follow-up.
-- [ ] **Read Modrák et al. (arXiv:2211.02383) before finalising the coverage-test design** — SBC
-      sensitivity depends on the test quantity, and per-ℓ-bin φ-power is a non-innocent choice.
-- [ ] **Use rank-normalised split-R̂ and rank plots** (arXiv:1903.08008), not Gelman–Rubin 1992
-      and trace plots, in the convergence section.
-- [ ] **Cite the corrected form of Cook, Gelman & Rubin 2006** (JCGS correction, 2017), not the
-      original quantile statement.
-- [x] **Produce the per-ℓ-bin φ-deficit-vs-S/N plot** — done 2026-08-06
-      (`scripts/analyze_phi_deficit_vs_snr.py`, `results/analysis/phi_deficit_vs_snr_lmax300.png`).
-      Result: deficit decreases with S/N (Spearman ρ=-0.78) — the Wiener-suppressed-start/
-      under-mixing hypothesis, not high-S/N sampler geometry. See `ROADMAP.md`'s "Currently doing"
-      for the full write-up and its bearing on the sampler-lever decision.
-- [ ] **Add the three-sentence "what the deficit is not" paragraph** (not N0/N1, not mean-field,
-      not non-Gaussian deflection, not foregrounds) to pre-empt referee questions.
-- [ ] **Cite Doeser & Jasche (arXiv:2606.10023) in the introduction** as the external, independent
-      statement of why an exact reference posterior is needed at all.
-- [ ] Cite **Reinecke, Belkner & Carron (arXiv:2304.10431)** for the lensing operator, and
-      **Racine et al. (arXiv:1512.06619)** / **arXiv:2111.07664** for the conjugate-block mixing
-      lineage.
-- [ ] Verify before citing: s2fft arXiv ID; cuHPX (arXiv:2510.01785) abstract; author lists for
-      arXiv:1708.06753, arXiv:2111.07664, arXiv:0708.2989; Papež et al. 2018 and Huffenberger &
-      Næss 2018 IDs; the Eriksen/Jewell/Wandelt 2004 Commander trio IDs.
+- [ ] **Fix `docs/paper/main.tex`: `2112.09091`→`2112.09354` (MUSE); `2012.00011`→`2012.01709` (CMBLensing/SPTpol); retitle `2212.08549` to "Microcanonical *Hamiltonian* Monte Carlo".** Highest priority — all three are instantly checkable by a referee.
+- [ ] **Cite `2603.04535`** in the competing-paradigm section, replacing JADE as the lead example; read its body first to establish sky geometry.
+- [ ] **Cite Doeser & Jasche (`2606.10023`) in the introduction**; and **cite `2606.12255` honestly as the counterpoint** rather than leaving it for a referee.
+- [ ] **Add `2210.13260` (masked-sphere Almanac)** alongside `2305.16134`, and correct the draft's "all-sky, noiseless" characterisation of Almanac.
+- [ ] **Read Modrák et al. (`2211.02383`) before finalising the coverage-test design** — per-ℓ-bin φ-power is a non-innocent test quantity and the residual is now localised to one bin.
+- [ ] **Adopt nested R̂ (`2110.13017`)** alongside rank-normalised split-R̂ (`1903.08008`) and rank plots; **report τ_int as a lower bound citing `2408.13411`**; **cite the corrected form of Cook, Gelman & Rubin 2006**.
+- [ ] **State the demonstrated scale as lmax=64 everywhere**, with the comparison set and the cuHPX/cunuSHT scaling route. Never lmax≈128.
+- [ ] **Add the "what the deficit is not" paragraph** (not N0/N1, not mean-field, not non-Gaussian deflection, not foregrounds).
+- [ ] **Benchmark Phase 3 delensing against `2511.21949` (~47% at 30≤ℓ≤300) and `2608.06343` (A_lens^res ≈ 0.48)**, not only the CMB-S4 forecast.
+- [x] **s2fft ID** — `2311.14670`, JCP 510, 113109 (2024). Closed 2026-09-03.
+- [x] **cuHPX abstract** — `2510.01785`, GPU differentiable SHTs on HEALPix. Closed 2026-09-03.
+- [ ] Locate an arXiv/proceedings version of the SFNO CMB-delensing paper (OpenReview `I8k3wwwm9l`) or drop it — currently **[UNVERIFIED]**.
+- [ ] Still unverified before citing: author lists for `1708.06753`, `2111.07664`, `0708.2989`; Papež et al. 2018 and Huffenberger & Næss 2018 IDs; the Eriksen/Jewell/Wandelt 2004 Commander trio IDs.
