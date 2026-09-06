@@ -72,6 +72,19 @@ surprise.
 3. **The re-run is the outstanding work** (Step 6 of the scoping plan): the
    Option 1 ensemble (12 × lmax=64, Block 4 off) to re-establish the exactness
    claim, then whichever proper-prior configuration is current.
+
+   **LAUNCHED 2026-09-06: job 11951115**,
+   `scripts/submit_pilot_packing_v2_lmax64_nocl4.slurm` →
+   `results/analysis/pilot_packing_v2_lmax64_nocl4/`. One realization at job
+   11903181's exact configuration (lmax=64, nside=64, `phi_n_lfs=240`,
+   `phi_mass_matrix='prior'`, Block 4 OFF, `n_burnin=100`, `n_samples=600`,
+   MAP start), so the packing is the only difference from the headline
+   ensemble. **Pass = the three sanity checks the 2026-08-30 MAP-start
+   validation used** (job 11892308): φ-power/truth ratio O(1), alm-vs-truth
+   cosine high and flat, `logp` plateaued. **Explicitly not a pass criterion:
+   any rank or SBC number** — one realization cannot produce one. Only after
+   this clears should the 12-chain ensemble go out. ~5h expected, 24h
+   walltime, checkpoints every 50 sweeps.
 4. `docs/paper/main.tex` still states the 2L derivations and the pre-change
    numbers. It must not be updated to "2L+1" until the re-run supplies numbers
    to go with it — a paper quoting a new packing with old chains' statistics
