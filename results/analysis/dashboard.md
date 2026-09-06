@@ -102,7 +102,7 @@ Tested whether Nystrom rank deficiency explained previous block mass matrix fail
 
 `aggregate_coverage_ranks.py` FLAGs the `C_l^TT` and `C_L^φφ` rows in every run.
 **Those flags are not evidence of bias.** The statistic ranks the truth's
-realized power `S_L/k_L` (`k_L = 2L`, the packed dof) against posterior draws — and that is exactly the
+realized power `S_L/k_L` (`k_L` = the packed dof, `2L` for every run on this page, `2L+1` after the 2026-09-06 restoration) against posterior draws — and that is exactly the
 *mode* of the inverse-Gamma conditional. An inverse-Gamma is right-skewed, so
 `P(draw < mode) < 0.5` for a *correct* sampler, and bin-averaging shrinks the
 spread while preserving the offset, driving the mean rank toward zero.
@@ -137,9 +137,32 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-Nothing in flight as of 2026-09-02. Job 11912088 harvested (see above); next
-step is analysis/investigation of Block 3 in the `[10,30)` bin, not a new
-launch, pending direction.
+**Job 11951115 — packing-v2 validation, launched 2026-09-06.**
+`scripts/submit_pilot_packing_v2_lmax64_nocl4.slurm` →
+`results/analysis/pilot_packing_v2_lmax64_nocl4/`. One realization at job
+11903181's exact configuration (lmax=64, nside=64, `phi_n_lfs=240`,
+`phi_mass_matrix='prior'`, Block 4 OFF, `n_burnin=100`, `n_samples=600`, MAP
+start), so the restored `Im(a_{L,1})` packing (`k_L = 2L` → `2L+1`) is the only
+difference from the headline ensemble. ~5h expected, 24h walltime, checkpoints
+every 50 sweeps.
+
+**Pass = the three MAP-start sanity checks** (job 11892308's, `achievements.md`),
+read off `chain_r000.npz`: φ-power/truth ratio O(1) — healthy lmax=64 pilots
+land in 0.09–2.5 and the broken-ensemble signature is 1e3–1e5; alm-vs-truth
+cosine high and *flat* across the chain (11892308: 0.9998 throughout); `logp`
+plateaued, half-chain fit slopes at noise level. The script raises after saving
+if the φ ratio fails, so a `FAILED` task with a chain on disk means that check
+tripped. **Not a pass criterion: any rank or SBC number** — one realization
+cannot produce one, and reading a single chain's rank as calibration is a
+mistake this project has already made.
+
+If it passes, the next launch is the 12-chain Option 1 ensemble (Block 4 off)
+to re-establish φ 0.4688 / alm 0.5312 under the new packing — **needs user
+sign-off, do not chain it automatically.**
+
+The pre-existing open question is unchanged and unaddressed by any of this:
+Block 3's conditioning in the `[10,30)` bin. Nothing links the restored dof to
+it (Step 0 of the scoping plan was skipped).
 
 Standing harvest checklist for the next ensemble: `.err` for tracebacks (SLURM
 `COMPLETED` is not sufficient), per-realization φ/truth power ratio O(1),
