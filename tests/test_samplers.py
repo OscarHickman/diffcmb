@@ -2,6 +2,8 @@
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 
 def _has_all():
     try:
@@ -238,7 +240,7 @@ def test_gibbs_chain_with_phi_block_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -271,7 +273,7 @@ def test_gibbs_chain_with_phi_block_mclmc_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -308,7 +310,7 @@ def test_gibbs_chain_with_phi_block_nuts_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -343,7 +345,7 @@ def test_gibbs_chain_cg_with_phi_block_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -528,7 +530,7 @@ def test_build_phi_block_mass_chol_reduces_to_diagonal_when_hessian_empty():
     rng = np.random.default_rng(2)
     cl_phiphi_full = rng.uniform(1e-12, 1e-10, size=lmax)
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     diag_fisher_per_L = np.zeros(lmax)
     diag_fisher_per_L[5] = 1e11
 
@@ -560,7 +562,7 @@ def test_build_phi_block_mass_chol_offdiag_from_hessian():
     lmax = 10
     cl_phiphi_full = np.full(lmax, 1e-6)
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
     diag_fisher_per_L = np.zeros(lmax)
 
@@ -612,7 +614,7 @@ def test_phi_whitener_block_roundtrip_and_matches_diag_when_diagonal():
     lmax = 10
     cl_phiphi_full = np.full(lmax, 1e-6)
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n = n_real + n_imag
     diag_fisher_per_L = np.zeros(lmax)
 
@@ -644,7 +646,7 @@ def test_gibbs_chain_phi_mass_matrix_block_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -687,7 +689,7 @@ def test_gibbs_chain_sample_cl_phiphi_with_block_mass_matrix_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
@@ -747,7 +749,7 @@ def test_build_phi_block_mass_chol_rebuild_keeps_frozen_hessian_updates_diagonal
 
     lmax = 6
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     diag_fisher_per_L = np.full(lmax, 0.1, dtype=np.float64)
     # A block_hessian entry for (channel='real', m=0): couples all m=0 real
     # coordinates together with off-diagonal curvature, same shape contract
@@ -835,7 +837,7 @@ def test_gibbs_chain_phi_mass_matrix_fisher_moves(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
 
@@ -934,7 +936,7 @@ def test_gibbs_chain_sample_cl_phiphi_moves_and_returns_extra_array(small_model)
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
@@ -990,7 +992,7 @@ def test_gibbs_chain_sample_cl_phiphi_recovers_known_spectrum(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
@@ -1094,7 +1096,7 @@ def test_gibbs_chain_phi_rescale_move_runs_and_records_post_move_spectrum(
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
@@ -1143,7 +1145,7 @@ def test_gibbs_chain_phi_rescale_move_zero_scale_matches_move_off(small_model):
     lmax = small_model.lmax
     cl_phiphi_full = np.full(lmax, 1e-6, dtype=np.float64)
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi_initial = np.random.default_rng(3).normal(
         scale=1e-3, size=n_real + n_imag
     )
@@ -1195,7 +1197,7 @@ def test_gibbs_chain_seed_is_immune_to_prior_global_tf_rng_state(small_model):
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
 
@@ -1257,7 +1259,7 @@ def test_gibbs_chain_proper_cl_phiphi_prior_restrains_an_inflated_phi(small_mode
 
     lmax = small_model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     C0 = 1e-6
     cl_phiphi_full = np.full(lmax, C0, dtype=np.float64)
 
@@ -1297,3 +1299,26 @@ def test_gibbs_chain_proper_cl_phiphi_prior_restrains_an_inflated_phi(small_mode
         f"fiducial) -- check that the prior fiducial is snapshotted before the "
         f"sweep loop rather than read from the rebound cl_phiphi_full"
     )
+
+
+@skip_no_tfp
+def test_checkpoint_packing_version_mismatch(small_model, tmp_path):
+    """Resume fails fast and with a clear message if checkpoint packing_version or vector length mismatches."""
+    from diffcmb import run_gibbs_chain
+
+    ckpt_file = str(tmp_path / "bad_ckpt.npz")
+    # Write a checkpoint with an incompatible packing_version
+    np.savez(
+        ckpt_file,
+        packing_version=np.int32(999),
+        samples=np.zeros((1, 5)),
+        logp=np.zeros(1),
+        accepts=np.ones(1, dtype=bool),
+        alm_state=np.zeros(10),
+        lncl_state=np.zeros(small_model.lmax - 2),
+        mass_sqrt=np.ones(10),
+        step_size=np.float64(0.01),
+    )
+
+    with pytest.raises(ValueError, match="Checkpoint packing version 999 does not match current code PACKING_VERSION"):
+        run_gibbs_chain(small_model, n_samples=2, checkpoint_path=ckpt_file)

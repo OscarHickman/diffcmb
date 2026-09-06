@@ -26,6 +26,8 @@ parametrization is the matrix-free path's first A-operator check.
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 try:
     import tensorflow as tf
     HAS_TF = True
@@ -69,7 +71,7 @@ def _force_multi_gpu_split(model, n_parts, gpus):
 def _check_matvec_linear_symmetric_pd(model):
     lmax = model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
     lncl_np = np.log(model.prior_cls[2:lmax] + 1e-30)
     lncl_tf_c = tf.constant(lncl_np, dtype=tf.float64)

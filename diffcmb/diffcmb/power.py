@@ -75,10 +75,10 @@ def beam_pixwin_transfer_packed(lmax: int, fwhm_arcmin: float, nside: int) -> np
     m=0..L, then imag parts L=2..lmax-1 m=2..L) -- ready to multiply directly
     against a packed alm vector as the diagonal beam/pixel-window operator.
     """
+    from .alm_utils import packed_sizes
     from .samplers import _alm_index_lm
 
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     per_l = beam_pixwin_transfer(lmax, fwhm_arcmin, nside)

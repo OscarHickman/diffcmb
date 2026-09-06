@@ -12,6 +12,8 @@ Validation strategy (mirrors tests/test_lensing.py's dense-reference discipline)
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 try:
     import tensorflow as tf
     HAS_TF = True
@@ -117,7 +119,7 @@ def test_mclachlan_step_finite_on_real_potential():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
 
     rng = np.random.default_rng(11)
@@ -152,7 +154,7 @@ def test_mclmc_trajectory_finite_and_moves():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
 
     rng = np.random.default_rng(23)

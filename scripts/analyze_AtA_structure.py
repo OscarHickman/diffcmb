@@ -9,6 +9,7 @@ Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/analyze_AtA_structure.py
 """
 import numpy as np
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.samplers import _packed_to_alm_ho
 from diffcmb.sht_ducc import HealpixSHT
 
@@ -47,7 +48,7 @@ def build_dense_J(lmax, nside, n_real, n_imag):
 def main():
     lmax, nside = LMAX, NSIDE
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
     print(f"lmax={lmax}, NSIDE={nside}, n_alm={n_alm}")
 

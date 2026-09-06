@@ -56,6 +56,7 @@ import tensorflow as tf
 from pilot_coverage_equilibration import LCDM_PARAMS, get_cl_phiphi
 
 from diffcmb import CosmologyAdvancedSampling
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import estimate_phi_diag_fisher, psi_lensed
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm
@@ -158,7 +159,7 @@ def main():
     n_total = phi_samples.shape[0]
 
     n_real = args.lmax * (args.lmax + 1) // 2 - 3
-    n_imag = (args.lmax - 2) * (args.lmax - 1) // 2
+    n_imag = packed_sizes(args.lmax)[1]
     L_arr, _ = _alm_index_lm(args.lmax, n_real, n_imag)
 
     bins = [(2, 10), (10, 30), (30, 60), (60, args.lmax)]

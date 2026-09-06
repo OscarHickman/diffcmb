@@ -27,8 +27,10 @@ import healpy as hp
 LMAX = 20
 NSIDE = 16
 NPIX = 12 * NSIDE * NSIDE
+from diffcmb.alm_utils import packed_sizes
+
 n_real = LMAX * (LMAX + 1) // 2 - 3
-n_imag = (LMAX - 2) * (LMAX - 1) // 2
+n_imag = packed_sizes(LMAX)[1]
 n_packed = n_real + n_imag
 
 print(f"LMAX={LMAX}, NSIDE={NSIDE}, NPIX={NPIX}, n_packed={n_packed}")

@@ -4,6 +4,12 @@
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
+> **⚠ 2026-09-06: every number on this page predates the `Im(a_{L,1})`
+> restoration** (`k_L = 2L` → `2L+1`, `achievements.md`). They describe a model
+> that carried one fewer real dof per multipole, and are kept as the reference to
+> compare the re-run against — the headline pair being φ 0.4688 / alm 0.5312 (job
+> 11903181). No chain has yet been run under the restored packing.
+
 ---
 
 ## Current headline — simulation-based calibration
@@ -82,6 +88,13 @@ obviously the next lever. **Recommendation carried to `ROADMAP.md`: stop
 scanning `phi_n_lfs` and look at Block 3 (φ|alm,C_ℓ) mechanics specifically
 in the `[10,30)` range** — e.g. whether the HMC step size/mass matrix is
 comparably well-conditioned there vs the bins that do pass.
+
+**HARVESTED 2026-09-02: pilot job 11913324 (`block` mass matrix, $n_{\mathrm{probes}}=24$, Block 4 ON, ν=6 proper prior, 600 sweeps):**
+Tested whether Nystrom rank deficiency explained previous block mass matrix failures. Result: **falsified**.
+- `[10,30)`: $\tau_{\mathrm{int}}=25.3$ vs $14.8$ for baseline `prior` (no improvement in target bin).
+- `[2,10)`: $\tau_{\mathrm{int}}$ severely regressed to $113.7$ (vs $48.3$), $\hat{R}=1.951$, drift $-2.39\sigma$.
+- Sweep time $+44\%$ ($35.1\text{s}$ vs $24.3\text{s}$).
+- **Conclusion:** The non-diagonal Nystrom mass matrix route is closed post-fix. Baseline remains `phi_mass_matrix='prior'`.
 
 ---
 

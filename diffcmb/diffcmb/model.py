@@ -14,6 +14,7 @@ from .alm_utils import (
     hpmapsmooth,
     hpmaptoalm,
     invgamma_shape_for_spectrum,
+    packed_sizes,
     splittosingularalm_tf,
 )
 
@@ -230,14 +231,17 @@ class CosmologyAdvancedSampling:
         _count = 0
         for L in range(_lmax):
             for m in range(L + 1):
-                if m == 0 or m == 1:
+                if m == 0:
                     _count = _count + 1
                 else:
-                    if _count < len(i_alms_init):
-                        x0.append(i_alms_init[_count])
+                    if L < 2:
+                        _count = _count + 1
                     else:
-                        x0.append(0.0)
-                    _count = _count + 1
+                        if _count < len(i_alms_init):
+                            x0.append(i_alms_init[_count])
+                        else:
+                            x0.append(0.0)
+                        _count = _count + 1
 
         self.lmax = _lmax
         self.NSIDE = _NSIDE
@@ -257,7 +261,7 @@ class CosmologyAdvancedSampling:
                     if L < 2:
                         continue
                     scl = _sqrt_cl[L] if _sqrt_cl[L] > 1e-10 else 1.0
-                    if m < 2:
+                    if m == 0:
                         x0[_lmax - 2 + _count_r] /= scl
                         _count_r += 1
                     else:
@@ -295,14 +299,13 @@ class CosmologyAdvancedSampling:
                 for _ in range(L + 1):
                     mass_sqrt[idx] = scale
                     idx += 1
-            # imaginary alm: L=2..lmax-1, m=2..L
+            # imaginary alm: L=2..lmax-1, m=1..L
             for L in range(2, lmax):
                 cl = max(abs(float(cls[L])) if L < len(cls) else 0.0, 1e-30)
                 scale = 1.0 / np.sqrt(cl)
-                for m in range(L + 1):
-                    if m >= 2:
-                        mass_sqrt[idx] = scale
-                        idx += 1
+                for _m in range(1, L + 1):
+                    mass_sqrt[idx] = scale
+                    idx += 1
         else:
             # non-centered: u params have N(0,1) prior → identity mass
             mass_sqrt[idx:] = 1.0
@@ -366,7 +369,7 @@ class CosmologyAdvancedSampling:
 
         _imag_mask = []
         for L in range(2, self.lmax):
-            for m in range(2, L + 1):
+            for m in range(1, L + 1):
                 _imag_mask.append(L * (L + 1) // 2 + m)
         self.imag_indices = tf.convert_to_tensor(_imag_mask, dtype=np.int32)
 
@@ -465,8 +468,10 @@ class CosmologyAdvancedSampling:
 
         _lnclstart = tf.zeros(2, tf.float64)
         _lncl = tf.concat([_lnclstart, tf.cast(_params[: (_lmax - 2)], tf.float64)], axis=0)
-        _real_p = tf.cast(_params[_lmax - 2 : (int(_lmax * (_lmax + 1) / 2) - 3 + _lmax - 2)], tf.float64)
-        _imag_p = tf.cast(_params[(int(_lmax * (_lmax + 1) / 2) - 3 + _lmax - 2) :], tf.float64)
+        _n_real, _ = packed_sizes(_lmax)
+        _split = _lmax - 2 + _n_real
+        _real_p = tf.cast(_params[_lmax - 2 : _split], tf.float64)
+        _imag_p = tf.cast(_params[_split:], tf.float64)
 
         if self.parameterization == 'non-centered':
             _cl_per_alm = tf.gather(tf.math.exp(_lncl), self.l_indices)
@@ -532,7 +537,7 @@ class CosmologyAdvancedSampling:
         alm_flat_np: 1-D numpy array = x0[lmax-2:] (real parts then imaginary parts).
         """
         lmax = self.lmax
-        n_real = lmax * (lmax + 1) // 2 - 3
+        n_real, _ = packed_sizes(lmax)
         real_p = alm_flat_np[:n_real]
         imag_p = alm_flat_np[n_real:]
         S = np.zeros(lmax)
@@ -542,8 +547,8 @@ class CosmologyAdvancedSampling:
             for m in range(L + 1):
                 re = real_p[r_idx]
                 r_idx += 1
-                im = imag_p[i_idx] if m >= 2 else 0.0
-                if m >= 2:
+                im = imag_p[i_idx] if m >= 1 else 0.0
+                if m >= 1:
                     i_idx += 1
                 if m == 0:
                     S[L] += re * re
@@ -556,7 +561,8 @@ class CosmologyAdvancedSampling:
 
         The log-posterior implied by psi_tf gives:
             C_l | alm ~ InvGamma(alpha=l-0.5, beta=S_l/2)
-        where S_l = sum_{m=-l}^{l} |a_{lm}|^2.
+        where S_l = sum_{m=-l}^{l} |a_{lm}|^2 and k_l = 2l+1 (with
+        Im(a_{l,1}) restored, the packed vector carries the full 2l+1 real dof).
 
         Returns lncl array of shape (lmax-2,).
         """
@@ -566,12 +572,9 @@ class CosmologyAdvancedSampling:
         if np.any(~np.isfinite(alm_flat_np)):
             raise ValueError("Non-finite values (NaNs/Infs) detected in alm_flat_np during sample_cl_given_alm!")
         S = self.compute_sl_np(alm_flat_np)
-        # alpha = k_l/2 - 1 with k_l the packed vector's REAL dof at l, which
-        # is 2l (not 2l+1): splittosingularalm forces Im(a_{l,1}) = 0. Using
-        # l-0.5 here assumed 2l+1 and biased E[C_l] by (l-1.5)/(l-2) -- 0.8%
-        # at l=63 but 50% at l=3 and undefined at l=2. Derived from the
-        # packing rather than hardcoded so it stays correct if that missing
-        # dof is ever restored. See achievements.md, 2026-08-31.
+        # alpha = k_l/2 - 1 with k_l = packed_dof_per_multipole = 2l+1
+        # (with Im(a_{l,1}) restored). Derived from the packing so it stays
+        # exact if the layout ever changes again. See achievements.md, 2026-09-01.
         alpha_l = invgamma_shape_for_spectrum(lmax)
         lncl = np.empty(lmax - 2)
         for i in range(lmax - 2):
@@ -612,8 +615,7 @@ class CosmologyAdvancedSampling:
         f_sky = n_unmasked / self.NPIX
         Ninv_eff = f_sky * Ninv_mean * self.NPIX / (4.0 * np.pi)
 
-        n_real = lmax * (lmax + 1) // 2 - 3
-        n_imag = (lmax - 2) * (lmax - 1) // 2
+        n_real, n_imag = packed_sizes(lmax)
         mass_sqrt = np.empty(n_real + n_imag, dtype=np.float64)
         idx = 0
         for L in range(2, lmax):
@@ -626,9 +628,8 @@ class CosmologyAdvancedSampling:
         for L in range(2, lmax):
             cl = max(float(cl_full[L]) if L < len(cl_full) else 1e-30, 1e-30)
             scale = np.sqrt(2.0 * (1.0 / cl + Ninv_eff))
-            for m in range(L + 1):
-                if m >= 2:
-                    mass_sqrt[idx] = scale
-                    idx += 1
+            for _m in range(1, L + 1):
+                mass_sqrt[idx] = scale
+                idx += 1
         assert idx == n_real + n_imag
         return mass_sqrt

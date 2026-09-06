@@ -10,6 +10,8 @@ matrix-free, at a small lmax on synthetic data so it runs in seconds.
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 
 def _has_deps():
     try:
@@ -70,7 +72,7 @@ def test_psi_tf_value_matches_dense():
     model_dense, model_free = _make_model_pair()
 
     n_real = LMAX * (LMAX + 1) // 2 - 3
-    n_imag = (LMAX - 2) * (LMAX - 1) // 2
+    n_imag = packed_sizes(LMAX)[1]
     n_params = (LMAX - 2) + n_real + n_imag
     rng = np.random.default_rng(0)
     params_np = rng.standard_normal(n_params) * 0.05
@@ -90,7 +92,7 @@ def test_psi_tf_grad_matches_dense():
     model_dense, model_free = _make_model_pair()
 
     n_real = LMAX * (LMAX + 1) // 2 - 3
-    n_imag = (LMAX - 2) * (LMAX - 1) // 2
+    n_imag = packed_sizes(LMAX)[1]
     n_params = (LMAX - 2) + n_real + n_imag
     rng = np.random.default_rng(1)
     params_np = rng.standard_normal(n_params) * 0.05
@@ -116,7 +118,7 @@ def test_psi_tf_raw_traceable_with_matrixfree_sht():
 
     _, model = _make_model_pair()
     n_real = LMAX * (LMAX + 1) // 2 - 3
-    n_imag = (LMAX - 2) * (LMAX - 1) // 2
+    n_imag = packed_sizes(LMAX)[1]
     n_params = (LMAX - 2) + n_real + n_imag
     params_np = np.zeros(n_params)
     params_np[: LMAX - 2] = 5.0

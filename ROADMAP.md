@@ -37,6 +37,46 @@
 
    **Reading it:** compare this chain's `[10,30)` τ_int/split-R̂/phi-power-ratio against job 11912088 realization 0 (`prior`, current baseline) and job 11874976 (`block`, n_probes=6, older config). Clear improvement in `[10,30)` specifically ⇒ the rank-deficiency hypothesis was right, worth a real ensemble. No improvement (or worse) ⇒ the earlier `block` failure is not a rank artifact — closes the mass-matrix route more firmly and redirects to the likelihood/prior shape in `[10,30)` itself (e.g. Block 4's proper-prior construction at that L).
 
+   **HARVESTED 2026-09-02: job 11913324 (COMPLETED, 5h50m55s, exit 0, clean `.err`) — NO-GO. The rank-deficiency hypothesis is falsified, closing the Nystrom mass-matrix route.** Realization 0 comparison with bit-identical data/truth/warm-start:
+   - `[10,30)` τ_int is **25.3** (ESS 23.7, R̂ 1.015) vs **14.8** (ESS 40.5, R̂ 1.012) on the baseline `prior` matrix — no mixing improvement in the target bin.
+   - Low-L `[2,10)` severely regressed: τ_int jumped **48.3 → 113.7**, ESS fell **12.4 → 5.3**, R̂ degraded **1.000 → 1.951**, drift **-2.39σ**.
+   - Wall-clock cost increased by ~44% (35.1s/sweep vs 24.3s/sweep).
+   - **Conclusion:** Nystrom rank deficiency was not the issue. The static low-rank cross-L correction fails to track the moving Block 4 prior and harms low-L conditioning. **The non-diagonal mass matrix route (`phi_mass_matrix='block'`) is definitively closed post-fix.** Baseline stays `phi_mass_matrix='prior'`. The remaining investigation shifts entirely to likelihood/prior geometry and the missing-mode representation defect.
+
+### ⟹ 2026-09-06: the missing `Im(a_{L,1})` dof is RESTORED — every saved φ number now describes a different model
+
+`k_L = 2L` → `2L+1`. The packing carries the full 2L+1 real dof per multipole, so
+the model can represent a general sky for the first time. Suite green (130 passed,
+1 skipped), ruff clean. Detail, including the two library sites the scoping note
+did not enumerate and the acceptance-ratio Jacobian this changed, is in
+`docs/notes/restore_missing_alm_dof_scoping.md` ("What was actually done").
+
+**Step 0 of the scoping plan was skipped**: nothing has been measured linking the
+missing mode to the `[10,30)` SBC residual or the chronic `[2,10)` R̂ pathology.
+This was done as a correctness fix on its own merits — a referee can check
+"your parameterisation has 2L dof" in five minutes — *not* as a fix for the
+open sampling question. If the residual survives the re-run, that is not a
+surprise.
+
+**Consequences, before citing anything below:**
+
+1. **Every φ and C_ℓ number in this file, in `achievements.md`, in
+   `results/analysis/dashboard.md` and in `docs/paper/main.tex` was measured
+   through the 2L packing.** They are the pre-change reference, recorded per the
+   scoping note's standing caution — the headline pair to compare against is
+   **φ 0.4688 (KS_p 0.124) / alm 0.5312 (KS_p 0.235)**, job 11903181, Block 4 off.
+   They are not current results.
+2. **Checkpoints are versioned** (`samplers.PACKING_VERSION = 2`) and resume now
+   refuses a mismatched version *or* vector length rather than silently loading a
+   wrong-length vector. Pre-change checkpoints read as version 1 and refuse.
+3. **The re-run is the outstanding work** (Step 6 of the scoping plan): the
+   Option 1 ensemble (12 × lmax=64, Block 4 off) to re-establish the exactness
+   claim, then whichever proper-prior configuration is current.
+4. `docs/paper/main.tex` still states the 2L derivations and the pre-change
+   numbers. It must not be updated to "2L+1" until the re-run supplies numbers
+   to go with it — a paper quoting a new packing with old chains' statistics
+   would be worse than one that is merely out of date.
+
 **Also done 2026-09-01, no compute (detail in the numbered sections below):** the joint (C_ℓ, C_L^φφ) differentiator figure is **built and is a null** at this sample size (§2); the CMBLensing.jl comparison is **written into the paper** (§3); the missing-`Im(a_{L,1})` fix is **scoped** in `docs/notes/restore_missing_alm_dof_scoping.md`; and two stale method claims were found and fixed in `main.tex` — Block 3 was described as **MCLMC** when MCLMC was tested and *fails* the stationarity gate (production is plain HMC), and the demonstrated scale was quoted as **lmax≈128** in three places when the calibration test passes at **lmax=64**.
 
 **Done 2026-09-01 (no compute), item 2: the Block 4 PIT's control now has power again** — multi-lag controls in `validate_coverage_rank_nulls.py` (lag-10/50 rejected at KS_p=0 where lag-1 passes at 0.183), so the aligned KS_p=0.42 is a genuine pass rather than a vacuous one. Detail in §1 below.
@@ -228,6 +268,19 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - Phase 5 — non-Gaussian extensions (fNL, mask in-painting, learned priors, systematics): separate papers after Phases 2-3.
 - Lensed-operator exact Block-2 draw: rejected shortcut, alternative unexplored (`achievements.md`). Not worth it unless HMC-on-both-blocks becomes a proven bottleneck.
 - Re-tune matrix-free-HMC step-size adaptation: current regime mixes ~4x less efficiently per-sample than the old dense-SHT reference. Skip unless Phase 2 chains show it matters.
+
+## Literature actions (2026-09-03 rescan)
+
+*Full annotations in `literature.md`.*
+
+- [ ] **CRITICAL — three referee-visible citation errors were in `docs/paper/main.tex`; all three are now fixed, but re-check the rest of the reference list the same way.** MUSE was cited as `2112.09091`, which is a **quantum-lattice-models paper** (correct: `2112.09354`); CMBLensing/SPTpol as `2012.00011`, which is **"Mass-gap Mergers in AGN"** (correct: `2012.01709`); and `2212.08549` was titled "Microcanonical *Langevin* Monte Carlo" when the paper is "Microcanonical **Hamiltonian** Monte Carlo". That last one matters doubly given Block 3's own MCLMC mislabel.
+- [ ] **The lmax=64 defensibility question has NO literature answer — plan the defence accordingly.** No source sets a minimum scale, and the verified comparison set is 10²–10⁴× larger than DiffCMB's ~4×10³ dof/field: MUSE ~6×10⁶ latents, Almanac 1.68×10⁷, Bayer et al. ~2.6×10⁵, weak-lensing FLI 8×10⁶. **The defence must be certified correctness, not scale.**
+- [ ] **Engage arXiv:2603.04535** (Sotoudeh, Lemos & Perreault-Levasseur, 4 Mar 2026) — a VAE/HPU-Net learned posterior sampler applied directly to **CMB delensing**, an order of magnitude faster than a diffusion baseline. The competing-paradigm section no longer has to reach to galaxy weak lensing for its sharpest example. **Concede the paired counterpoint honestly:** arXiv:2606.12255 found implicit and explicit field-level inference *agreeing* at 8×10⁶ parameters.
+- [ ] **Correct the Almanac characterisation** — the file described it as all-sky/noiseless only. The masked-sky companion **arXiv:2210.13260** (Loureiro et al., OJA 6) does HMC over 1.68×10⁷ parameters on the **curved and masked** sky.
+- [ ] **Two diagnostics papers that speak directly to the lag-1-gate lesson, worth citing where that is discussed:** arXiv:2408.13411 (ESS/IACT estimators may not be statistically consistent — two estimators disagreed on the ESS's order of magnitude) and arXiv:2110.13017 (nested R̂ for **many short chains**, exactly the coverage ensemble's regime).
+- [ ] Verify the SFNO CMB-delensing paper found on OpenReview — marked `[UNVERIFIED]`, no locatable arXiv ID.
+
+*Novelty holds, scoop risk LOW: the curved-sky joint (a_ℓm, C_ℓ, φ, C_L^φφ) sampler cell is still empty and no curved-sky MUSE exists. The `"field-level"` enumeration for 2026-06→09 returns no CMB entry at all; August's only CMB-lensing analysis (2608.31136, SPT-3G D1) is a quadratic estimator. **Coverage caveat:** the arXiv API was HTTP 429 throughout, so the previous pass's exhaustive enumeration back to 2026-03 could not be repeated — this pass used the advanced-search UI plus ~14 keyword searches. `papers/7_DiffCMB/` confirmed to have no manuscript and no `.bib`. New delensing benchmarks logged for the Phase 3 LiteBIRD follow-up: 2511.21949 (ACT DR6, ~47% at 30≤ℓ≤300), 2608.06343 (SPT-3G, A_lens^res ≈ 0.48).*
 
 ## Standing discipline
 

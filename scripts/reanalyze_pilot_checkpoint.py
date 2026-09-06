@@ -21,6 +21,7 @@ from pilot_coverage_equilibration import (
     report_equilibration,
 )
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.samplers import _alm_index_lm
 
 
@@ -41,7 +42,7 @@ def main():
     print(f"  phi block accept rate: {phi_accept:.4f} (gate floor is {PHI_ACCEPT_NOGO})")
 
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     ell_bins = [(lo, min(hi, lmax)) for lo, hi in

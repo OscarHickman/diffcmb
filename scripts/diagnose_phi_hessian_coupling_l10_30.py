@@ -67,6 +67,7 @@ from coverage_ensemble_chain import (
 )
 
 from diffcmb import CosmologyAdvancedSampling
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf, psi_lensed
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm
@@ -159,7 +160,7 @@ def main():
     other_bins = [(lo, min(hi, args.lmax)) for lo, hi in other_bins if lo < args.lmax]
 
     n_real = args.lmax * (args.lmax + 1) // 2 - 3
-    n_imag = (args.lmax - 2) * (args.lmax - 1) // 2
+    n_imag = packed_sizes(args.lmax)[1]
     L_arr, _ = _alm_index_lm(args.lmax, n_real, n_imag)
 
     realizations = [int(x) for x in args.realizations.split(",")]

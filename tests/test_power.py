@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from diffcmb import power
+from diffcmb.alm_utils import packed_sizes
 
 try:
     import healpy as hp
@@ -70,7 +71,7 @@ def test_beam_pixwin_transfer_zero_fwhm_is_pixwin_only():
 def test_beam_pixwin_transfer_packed_length_matches_alm_layout():
     lmax = 20
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     out = power.beam_pixwin_transfer_packed(lmax=lmax, fwhm_arcmin=5.0, nside=8)
     assert len(out) == n_real + n_imag
 
@@ -84,7 +85,7 @@ def test_beam_pixwin_transfer_packed_matches_per_l_broadcast():
 
     lmax = 20
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     per_l = power.beam_pixwin_transfer(lmax=lmax, fwhm_arcmin=5.0, nside=8)

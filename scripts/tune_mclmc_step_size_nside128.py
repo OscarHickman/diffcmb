@@ -58,6 +58,7 @@ import tensorflow as tf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, compute_sl_phi_np, lens_map_tf
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm, find_map_estimate
@@ -222,7 +223,7 @@ def main():
     print(f"  MAP done in {time.time() - t_map:.1f}s")
 
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _ = _alm_index_lm(lmax, n_real, n_imag)
     ell_bins = [(lo, min(hi, lmax)) for lo, hi in
                 [(2, 10), (10, 30), (30, 60), (60, 100), (100, 150)] if lo < lmax]

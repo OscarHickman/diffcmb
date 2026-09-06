@@ -18,6 +18,7 @@ sys.path.insert(0, '/cosma/apps/durham/dc-hick2/diffcmb/diffcmb')
 
 import tensorflow as tf
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, psi_lensed
 from diffcmb.model import CosmologyAdvancedSampling
 
@@ -54,7 +55,7 @@ def main():
     print(f"Model setup: {time.time() - t0:.1f}s")
 
     n_real = LMAX * (LMAX + 1) // 2 - 3
-    n_imag = (LMAX - 2) * (LMAX - 1) // 2
+    n_imag = packed_sizes(LMAX)[1]
     n_alm = n_real + n_imag
 
     lncl_np = np.log(model.prior_cls[2:LMAX] + 1e-30)

@@ -1,7 +1,10 @@
 # Scoping note: restoring the missing `Im(a_{L,1})` degree of freedom
 
-*Written 2026-09-01. Planning only — nothing in this note has been implemented.
-`ROADMAP.md` carries the one-line status; this is the detail that would bloat it.*
+*Written 2026-09-01 as a plan. **IMPLEMENTED 2026-09-06** — Steps 1-5 are done and
+the suite is green (130 passed, 1 skipped, ruff clean); Step 0 was skipped by
+decision (see "What was actually done" at the end) and Step 6, the re-run, is the
+outstanding work. The body below is kept as written so the plan and the outcome can
+be compared. `ROADMAP.md` carries the live status.*
 
 ## The defect in one paragraph
 
@@ -136,3 +139,59 @@ against every number in `achievements.md` that was measured through the old
 packing — which is all of them. Record the pre-change values of the headline
 statistics (Option 1's φ 0.4688 / alm 0.5312) before starting, so the post-change
 run can be compared against something rather than merely re-measured.
+
+
+---
+
+## What was actually done (2026-09-06)
+
+**Step 0 was skipped.** The note argued for measuring that the missing mode
+tracks the low-ℓ pathology before spending the effort. That measurement was
+never made; the change was carried out as a correctness fix on its own merits.
+The consequence to hold onto: **there is still no evidence linking the missing
+dof to the `[10,30)` SBC residual or the chronic `[2,10)` R̂ pathology.** If the
+post-change ensemble still shows them, that is not a surprise and not a failure
+of this change — it closes a referee-visible correctness hole regardless.
+
+**Steps 1-3, done as one change** rather than the planned bit-identical Step 1
+followed by a behavioural Step 2. `alm_utils.packed_sizes`/`packed_length` were
+added and all 32 files carrying the inline literal now derive from them;
+`n_imag` is `(lmax-2)(lmax+1)/2`. `packed_dof_per_multipole` returns `2L+1`
+because it counts the packing, and `invgamma_shape_for_spectrum` follows, so
+Blocks 1 and 4 moved without either conditional being edited by hand.
+
+**Two library sites the note did not enumerate**, both found by the suite:
+- `alm_utils.hpalminit` realified the first `2*lmax - 1` healpy entries — the
+  m=0 **and** m=1 blocks — so it imposed the defect on the *data and prior*
+  alms, not only on the sampled vector. Now `lmax` entries (m=0 only).
+- `lensing.sample_phi_amplitude_rescale`'s acceptance ratio is packing-
+  dependent: the Jacobian exponent is `n_L + 2 - k_L`, which is `1` for
+  `n_L = k_L = 2L` and `2` for `2L+1`. The brute-force test in
+  `tests/test_phi_ancillary_move.py` had the matching `2L+2` hardcoded, so it
+  agreed with the code and both were wrong together until the stationary-
+  distribution test (which uses an independent exact Gibbs reference) caught
+  the shift. That is the case for keeping an *independent* reference chain
+  around: the analytic-vs-analytic check could not see it.
+
+**Step 4, tests re-derived not relaxed.** The specs of the defect that had to
+change: `test_splittosingularalm_roundtrip`, `test_almtomap_tf_matches_healpy`,
+`test_alm_hp_to_packed_uses_true_healpy_ordering`,
+`test_packed_sl_matches_healpy_power_per_multipole` (it used to zero
+`Im(a_{L,1})` on the *reference* side), `test_packed_dof_per_multipole_...`
+(`2L` → `2L+1`), and the two conjugate-prior shapes in `test_lensing.py`. The
+new test the note asked for is
+`test_general_synalm_draw_survives_pack_unpack_with_no_power_loss` — an
+unrestricted `hp.synalm` draw through pack→unpack, exact per-multipole power.
+Measured on one draw under the old rule, the lost fraction at L=2..6 was
+0.356/0.008/0.222/0.002/0.047 against an expected `1/(2L+1)` of
+0.200/0.143/0.111/0.091/0.077 — realization scatter, but unmistakably nonzero.
+
+**Step 5, checkpoint versioning, is in.** `samplers.PACKING_VERSION = 2` is
+written into every checkpoint; resume refuses on a version mismatch *and* on a
+vector-length mismatch, with a test (`test_checkpoint_packing_version_mismatch`).
+Checkpoints written before this carry no `packing_version` field and are read as
+version 1, so they refuse rather than silently resuming.
+
+**Step 6 is outstanding.** Every saved chain, every `.npz` in
+`results/analysis/`, and every φ number in `achievements.md` and
+`docs/paper/main.tex` predates the layout and describes a different model.
