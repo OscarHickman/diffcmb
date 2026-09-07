@@ -85,6 +85,28 @@ surprise.
    any rank or SBC number** — one realization cannot produce one. Only after
    this clears should the 12-chain ensemble go out. ~5h expected, 24h
    walltime, checkpoints every 50 sweeps.
+
+   **HARVESTED 2026-09-08: job 11951115 (COMPLETED, 2h04m39s, exit 0) — PASS, all three criteria clear.**
+   φ-power/truth ratio **0.9612** (O(1) — healthy pilots land 0.09–2.5);
+   alm-vs-truth cosine similarity **+0.9942** (high, data-driven not
+   truth-initialised); `logp` plateaued (mean **26200.5** over sweeps
+   0–299 vs **26198.0** over sweeps 300–599 — flat within noise, no drift).
+   `phi_calibration_ok=True` in the saved chain. This clears the gate: the
+   restored packing samples correctly at production scale, at least for one
+   realization.
+
+   **LAUNCHED 2026-09-08: job 11955622** (array 0-11),
+   `scripts/submit_coverage_ensemble_lmax64_prior_nocl4_packingv2.slurm` →
+   `results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`. The
+   full 12-realization re-run of the headline exactness ensemble under the
+   restored 2L+1 packing — otherwise identical to job 11903181 (lmax=64,
+   `phi_mass_matrix='prior'`, Block 4 OFF, MAP start). Compare the resulting
+   pooled phi/alm mean_u and KS_p directly against the 2L reference
+   (φ 0.4688/p=0.124, alm 0.5312/p=0.235) once harvested — **this
+   comparison, not the pilot above, is what re-establishes (or revises) the
+   headline exactness claim under the corrected model.** Do not merge
+   `restore-im-alm-l1-dof` into `main` or update `docs/paper/main.tex`'s
+   numbers until this lands.
 4. `docs/paper/main.tex` still states the 2L derivations and the pre-change
    numbers. It must not be updated to "2L+1" until the re-run supplies numbers
    to go with it — a paper quoting a new packing with old chains' statistics

@@ -15,6 +15,19 @@ Done as the staged plan in `docs/notes/restore_missing_alm_dof_scoping.md`
 (Steps 1-5; that note's "What was actually done" section carries the full
 detail). Suite green: 130 passed, 1 skipped, ruff clean.
 
+**Production-scale validation, Step 6 of the scoping plan.** A single-realization
+pilot at the exact job-11903181 configuration (lmax=64, `phi_mass_matrix='prior'`,
+Block 4 OFF, MAP start; job 11951115, harvested 2026-09-08) passed all three
+pass criteria: φ-power/truth ratio **0.9612** (O(1)), alm-vs-truth cosine
+similarity **+0.9942** (high), `logp` plateaued (mean 26200.5 sweeps 0-299 vs
+26198.0 sweeps 300-599, flat within noise). The restored packing samples
+correctly at production scale. **This is not yet the exactness re-run itself**
+— that is the 12-realization ensemble (job 11955622, launched 2026-09-08,
+`results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`), which
+re-establishes (or revises) the headline pair φ 0.4688/alm 0.5312 (job
+11903181, pre-restoration 2L packing) under the corrected model. See
+`ROADMAP.md` for harvest instructions and status.
+
 **What changed structurally.** `alm_utils.packed_sizes`/`packed_length` are now
 the single definition of the `(n_real, n_imag)` split, and the 32 files that
 carried the literal `(lmax-2)*(lmax-1)//2` inline derive from them instead.
