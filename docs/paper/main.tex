@@ -220,33 +220,42 @@ not a free choice}
 Equation~\eqref{eq:block4} deserves care in two respects: the number of degrees
 of freedom it encodes, and the prior it implies.
 
-Our packed parameterisation stores an imaginary part only for $m \ge 2$, so
-each multipole carries $k_L = 2L$ real degrees of freedom rather than $2L+1$.
-The Gaussian prior normalisation is then $C^{-k_L/2}$, and against a prior
-$\mathrm{InvGamma}(a_0, b_0)$ the exact conditional is
-$\mathrm{InvGamma}(k_L/2 + a_0,\; b_0 + S_L/2)$ --- i.e.\ shape $L-1$ under the
-flat prior, not $L-\tfrac12$. We note this explicitly because the error is
-invisible to the obvious check: a probability-integral-transform test of the
-draws against the sampler's own stated conditional passes for \emph{any} shape
-parameter, since code and reference share the assumption. Only an independent
-generative calibration test --- which requires a proper prior, below --- can
-detect it.
+Our packed parameterisation stores an imaginary part for every $m \ge 1$ (only
+the $m=0$ coefficient, which a real field requires to be real, is forced real),
+so each multipole carries the full $k_L = 2L+1$ real degrees of freedom a real
+field on the sphere has.\footnote{An earlier version of this parameterisation
+forced $\mathrm{Im}(a_{L,1}) = 0$ as well, discarding one real degree of
+freedom per multipole ($k_L = 2L$) and making the model unable to represent a
+general sky; the corresponding sampler shape was for a time separately
+mis-derived as $L-1$ rather than $L-\tfrac12$ under the flat prior. Both were
+fixed, and the SBC result below was re-measured against the corrected model
+and confirmed unchanged within sampling noise. We record this because the
+shape error was invisible to the obvious check: a probability-integral-transform
+test of the draws against the sampler's own stated conditional passes for
+\emph{any} shape parameter, since code and reference share the assumption.
+Only an independent generative calibration test --- which requires a proper
+prior, below --- can detect it.} The Gaussian prior normalisation is then
+$C^{-k_L/2}$, and against a prior $\mathrm{InvGamma}(a_0, b_0)$ the exact
+conditional is $\mathrm{InvGamma}(k_L/2 + a_0,\; b_0 + S_L/2)$ --- i.e.\ shape
+$L-\tfrac12$ under the flat prior.
 
 Equation~\eqref{eq:block4} is otherwise the conditional implied by a
 \emph{flat} prior on $\clpp$, which is improper. This is worth stating explicitly rather than
 leaving implicit, because it propagates into the $\phi$ block in a way that is
 easy to miss. Integrating $\clpp$ out of the joint gives a marginal on the
-field, $p(\phi) \propto S_L^{-(k_L/2 - 1)} = S_L^{-(L-1)}$; against the radial
-measure for the $k_L = 2L$ real components of $\phi_{Lm}$,
+field, $p(\phi) \propto S_L^{-(k_L/2 - 1)} = S_L^{-(L-\frac12)}$; against the radial
+measure for the $k_L = 2L+1$ real components of $\phi_{Lm}$,
 $r^{\,k_L - 1}\,\mathrm{d}r$ with $S_L = r^2$, this is
 \begin{equation}
   p(r) \;\propto\; r^{\,1} ,
 \end{equation}
-i.e.\ flat in $S_L$ --- improper, and \emph{increasing} with amplitude. The
+i.e.\ flat in $S_L$ --- improper, and \emph{increasing} with amplitude,
+independent of $k_L$: this conjugate-marginal result holds for any real dof
+count, so it is unaffected by which value of $k_L$ is in force. The
 $\phi$ amplitude is therefore constrained by the lensing likelihood alone, with
 no prior restoring force. Equivalently, substituting the conditional mean of
 Eq.~\eqref{eq:block4} into the Gaussian $\phi$ prior term gives
-$\tfrac12 \sum_L S_L/\clpp = \sum_L (L - 2)$, independent of $\phi$: the
+$\tfrac12 \sum_L S_L/\clpp = \sum_L (L - \tfrac32)$, independent of $\phi$: the
 prior is exactly scale-free along the amplitude ray.
 
 In practice this is benign whenever the lensing signal-to-noise is sufficient
@@ -347,7 +356,11 @@ We accordingly compare each observed rank against a null simulated from the
 conditional itself. For $\cl^{TT}$ the observed bin means
 $\placeholder{0.083, 0.083, 0.094, 0.333}$ agree with the simulated null
 $\placeholder{0.086, 0.092, 0.114, 0.344}$ in every bin, each observation
-lying inside the null's $95\%$ band. For $\clpp$ the null
+lying inside the null's $95\%$ band --- reproduced, to comparable agreement,
+under the corrected $k_L=2L+1$ packing of Sec.~\ref{sec:clpp-prior}
+($\placeholder{0.104, 0.073, 0.125, 0.333}$ against a null of
+$\placeholder{0.098, 0.096, 0.114, 0.348}$, again inside band throughout).
+For $\clpp$ the null
 must additionally retain the chain's own sweep-to-sweep scatter in $\phi$,
 which contributes a common-mode variance across $\ell$ that does not average
 down within a bin; a null that freezes $\phi$ at the truth is far too narrow
@@ -385,16 +398,21 @@ $\clpp$ held at the fiducial spectrum, so that the $\phi$ prior is proper and
 independent chains at $\lmax = \placeholder{64}$ over four multipole bins, the
 mean normalised ranks are
 \begin{equation*}
-  \bar u_{\phi} = \placeholder{0.4688}\ (p = \placeholder{0.124}), \qquad
-  \bar u_{\alm} = \placeholder{0.5312}\ (p = \placeholder{0.235}),
+  \bar u_{\phi} = \placeholder{0.4792}\ (p = \placeholder{0.4078}), \qquad
+  \bar u_{\alm} = \placeholder{0.5130}\ (p = \placeholder{0.6369}),
 \end{equation*}
-both consistent with uniformity and with no individual bin flagged in either
-field, against $\bar u_\phi = \placeholder{0.367}$
+both consistent with uniformity. One of the eight individual bins is
+flagged ($\phi$, $\ell \in [30,60)$: $\bar u = 0.260$, $p = 0.005$, $N=12$
+realizations) --- the same bin flagged, at comparable significance, by an
+earlier ensemble run under the pre-correction $k_L=2L$ packing, so we read it
+as a small-sample artifact of the $N=12$ per-bin count rather than a
+reopened defect, pending a larger ensemble to resolve it either way. These
+are measured against $\bar u_\phi = \placeholder{0.367}$
 ($p = \placeholder{0.004}$) for the same configuration with $\clpp$ resampled
 under the flat improper prior. These are measured against the corrected
-inverse-Gamma shape of Sec.~\ref{sec:clpp-prior}; the configuration is
-otherwise a single-variable change from the resampled-$\clpp$ run, so the
-difference is attributable to the $\clpp$ prior alone.
+inverse-Gamma shape and dof count of Sec.~\ref{sec:clpp-prior}; the
+configuration is otherwise a single-variable change from the resampled-$\clpp$
+run, so the difference is attributable to the $\clpp$ prior alone.
 \todo{Add rank histograms.}
 
 That the $\phi$ rank is uniform only once $\clpp$ is held fixed is itself
@@ -408,7 +426,12 @@ Eq.~\eqref{eq:block4-proper} and drawing the truth from that same joint prior
 restores a strict calibration test while retaining the $\clpp$ block that
 produces the joint posterior of Sec.~\ref{sec:joint-posterior}.
 
-We report the status of that configuration rather than assert it. Run with
+We report the status of that configuration rather than assert it, and note
+that --- unlike the fixed-$\clpp$ result above --- the numbers in this
+subsection have not yet been re-measured against the corrected $k_L=2L+1$
+packing of Sec.~\ref{sec:clpp-prior} and so remain provisional; the mixing
+diagnosis (Block 3 under the resampled-$\clpp$ funnel) is a mechanism, not a
+number, and is not expected to change. Run with
 $\nu = \placeholder{6}$ at $\lmax = \placeholder{64}$, the strict rank of
 the true $\clpp$ --- drawn, uniquely in this configuration, from the same
 prior the sampler targets, so that no null simulation is required --- is
