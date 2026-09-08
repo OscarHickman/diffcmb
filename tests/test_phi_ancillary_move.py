@@ -54,10 +54,7 @@ def _has_deps():
 skip_no_deps = pytest.mark.skipif(not _has_deps(), reason="healpy/scipy unavailable")
 
 
-def _packed_sizes(lmax):
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
-    return n_real, n_imag
+from diffcmb.alm_utils import packed_sizes as _packed_sizes
 
 
 def _coord_L_and_weight(lmax):
@@ -65,7 +62,7 @@ def _coord_L_and_weight(lmax):
 
     Mirrors lensing.py::compute_sl_phi_np's traversal exactly: real parts for
     L=2..lmax-1 and m=0..L (weight 1 at m=0, else 2), then imaginary parts for
-    m>=2 (weight 2). Written out independently here so the tests do not
+    m>=1 (weight 2). Written out independently here so the tests do not
     inherit an indexing bug from the module under test.
     """
     L_arr, w_arr = [], []
@@ -74,10 +71,9 @@ def _coord_L_and_weight(lmax):
             L_arr.append(L)
             w_arr.append(1.0 if m == 0 else 2.0)
     for L in range(2, lmax):
-        for m in range(L + 1):
-            if m >= 2:
-                L_arr.append(L)
-                w_arr.append(2.0)
+        for _m in range(1, L + 1):
+            L_arr.append(L)
+            w_arr.append(2.0)
     return np.array(L_arr), np.array(w_arr)
 
 
@@ -156,7 +152,9 @@ def test_rescale_move_acceptance_ratio_matches_brute_force_target():
     lp_new = _brute_force_log_target(
         res.phi_proposed, res.cl_phiphi_proposed, lmax, neg_log_lik_fn
     )
-    log_jac = sum((2 * L + 2) * res.log_alpha[L - 2] for L in range(2, lmax))
+    # Jacobian: n_L = 2L+1 phi coordinates plus the single C_L, which scales
+    # as alpha^2 -> exponent (2L+1) + 2 per multipole.
+    log_jac = sum((2 * L + 3) * res.log_alpha[L - 2] for L in range(2, lmax))
     expected = lp_new - lp_old + log_jac
 
     np.testing.assert_allclose(res.log_accept_ratio, expected, rtol=1e-9, atol=1e-9)

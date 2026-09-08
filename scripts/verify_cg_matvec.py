@@ -21,6 +21,7 @@ sys.path.insert(0, '/cosma/apps/durham/dc-hick2/diffcmb/diffcmb')
 
 import tensorflow as tf
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.model import CosmologyAdvancedSampling
 
 DATA_DIR = '/cosma8/data/dp004/dc-hick2/Plank'
@@ -49,7 +50,7 @@ def main():
 
     lmax = model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
     lncl_np = np.log(model.prior_cls[2:LMAX] + 1e-30)
     lncl_tf_c = tf.constant(lncl_np, dtype=tf.float64)

@@ -2,6 +2,8 @@
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 
 def _has_deps():
     try:
@@ -40,7 +42,7 @@ def test_model_synthetic_x0_shape():
     lmax, nside = 8, 2
     m = CosmologyAdvancedSampling(_lmax=lmax, _NSIDE=nside, _noisesig=1.0,
                                    data_mode='synthetic')
-    expected_len = (lmax - 2) + (lmax*(lmax+1)//2 - 3) + sum(l-1 for l in range(2, lmax))
+    expected_len = (lmax - 2) + (lmax*(lmax+1)//2 - 3) + packed_sizes(lmax)[1]
     assert len(m.x0) == expected_len, f"x0 length {len(m.x0)} != {expected_len}"
 
 
@@ -180,7 +182,7 @@ def test_psi_tf_beam_pixwin_matches_ground_truth_synthesis():
 
     lmax, nside, fwhm_arcmin = 16, 8, 30.0
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(5)
     real_alm = rng.standard_normal(n_real) * 5.0
@@ -331,7 +333,7 @@ def test_psi_tf_anisotropic_noise_matches_ground_truth_likelihood():
     lmax, nside = 16, 8
     NPIX = 12 * nside**2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_lncl = lmax - 2
 
     rng = np.random.default_rng(23)

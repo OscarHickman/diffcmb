@@ -18,6 +18,8 @@ try:
         _alm_scatter_indices,
         almhotmo,
         almmotho,
+        packed_length,
+        packed_sizes,
         splittosingularalm,
         splittosingularalm_tf,
     )
@@ -26,9 +28,14 @@ except Exception:
     _alm_scatter_indices = None
     almhotmo = None
     almmotho = None
+    packed_length = None
+    packed_sizes = None
     splittosingularalm = None
     splittosingularalm_tf = None
     matvec_on_device = None
+
+
+PACKING_VERSION = 2
 
 
 class WrapperResults:
@@ -199,10 +206,9 @@ def _build_inv_cl_diag(lmax, cl_full, n_real, n_imag):
             idx += 1
     for L in range(2, lmax):
         cl = max(float(cl_full[L]), 1e-30)
-        for m in range(L + 1):
-            if m >= 2:
-                inv_cl[idx] = 2.0 / cl
-                idx += 1
+        for _m in range(1, L + 1):
+            inv_cl[idx] = 2.0 / cl
+            idx += 1
     return inv_cl
 
 
@@ -234,8 +240,7 @@ def sample_alm_cg(model, lncl_np, rng, n_pcg_iter=50, tol=1e-6, verbose_pcg=Fals
         raise ImportError("alm_utils.splittosingularalm_tf and model.matvec_on_device are required")
 
     lmax = model.lmax
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     n_alm = n_real + n_imag
 
     lncl_full = np.zeros(lmax)
@@ -400,10 +405,9 @@ def _build_full_sky_norm_diag(lmax, n_real, n_imag, base_norm_const):
             w[idx] = 1.0 if m == 0 else 2.0
             idx += 1
     for L in range(2, lmax):
-        for m in range(L + 1):
-            if m >= 2:
-                w[idx] = 2.0
-                idx += 1
+        for _m in range(1, L + 1):
+            w[idx] = 2.0
+            idx += 1
     return base_norm_const * w
 
 
@@ -433,7 +437,7 @@ def _calibrate_full_sky_norm_diag(sht_full, lmax, n_real, n_imag, progress_every
 
 def _alm_index_lm(lmax, n_real, n_imag):
     """L and m for each packed-index position, matching _build_inv_cl_diag's
-    layout: real parts (L=2..lmax-1, m=0..L) then imag parts (m=2..L)."""
+    layout: real parts (L=2..lmax-1, m=0..L) then imag parts (m=1..L)."""
     L_arr = np.empty(n_real + n_imag, dtype=np.int64)
     m_arr = np.empty(n_real + n_imag, dtype=np.int64)
     idx = 0
@@ -443,7 +447,7 @@ def _alm_index_lm(lmax, n_real, n_imag):
             m_arr[idx] = m
             idx += 1
     for L in range(2, lmax):
-        for m in range(2, L + 1):
+        for m in range(1, L + 1):
             L_arr[idx] = L
             m_arr[idx] = m
             idx += 1
@@ -574,8 +578,7 @@ def sample_alm_messenger(
         model._ensure_tf_tensors()
 
     lmax = model.lmax
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
 
     if getattr(model, "_sht_full", None) is None:
         model._sht_full = HealpixSHT(
@@ -647,8 +650,7 @@ def build_phi_prior_mass_sqrt(lmax, cl_phiphi_full):
     phi has no cheap diagonal estimate yet, so this is an approximate
     (prior-only) preconditioner.
     """
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     mass_sqrt = np.empty(n_real + n_imag, dtype=np.float64)
     idx = 0
     for L in range(2, lmax):
@@ -660,10 +662,9 @@ def build_phi_prior_mass_sqrt(lmax, cl_phiphi_full):
     for L in range(2, lmax):
         cl = max(float(cl_phiphi_full[L]) if L < len(cl_phiphi_full) else 1e-30, 1e-30)
         scale = np.sqrt(1.0 / cl)
-        for m in range(L + 1):
-            if m >= 2:
-                mass_sqrt[idx] = scale
-                idx += 1
+        for _m in range(1, L + 1):
+            mass_sqrt[idx] = scale
+            idx += 1
     assert idx == n_real + n_imag
     return mass_sqrt
 
@@ -676,8 +677,7 @@ def build_phi_posterior_mass_sqrt(lmax, cl_phiphi_full, diag_fisher_per_L):
     for the alm block. diag_fisher_per_L=0 reduces exactly to
     build_phi_prior_mass_sqrt.
     """
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     mass_sqrt = np.empty(n_real + n_imag, dtype=np.float64)
     idx = 0
     for L in range(2, lmax):
@@ -691,10 +691,9 @@ def build_phi_posterior_mass_sqrt(lmax, cl_phiphi_full, diag_fisher_per_L):
         cl = max(float(cl_phiphi_full[L]) if L < len(cl_phiphi_full) else 1e-30, 1e-30)
         base = 1.0 / cl + float(diag_fisher_per_L[L])
         scale = np.sqrt(base)
-        for m in range(L + 1):
-            if m >= 2:
-                mass_sqrt[idx] = scale
-                idx += 1
+        for _m in range(1, L + 1):
+            mass_sqrt[idx] = scale
+            idx += 1
     assert idx == n_real + n_imag
     return mass_sqrt
 
@@ -726,8 +725,7 @@ def build_phi_block_mass_chol(lmax, cl_phiphi_full, diag_fisher_per_L, block_hes
         channel (real blocks first, then imag), matching
         estimate_phi_block_hessian's dict iteration order.
     """
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
     channel_arr = np.array(["real"] * n_real + ["imag"] * n_imag)
 
@@ -1150,8 +1148,7 @@ def run_gibbs_chain(
         tf.random.set_seed(seed)
     lmax = model.lmax
     n_lncl = lmax - 2
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     n_phi = n_real + n_imag
 
     # --- Resume from checkpoint or initialise fresh ---
@@ -1168,18 +1165,32 @@ def run_gibbs_chain(
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         ckpt = np.load(checkpoint_path, allow_pickle=True)
+        ckpt_version = int(ckpt["packing_version"]) if "packing_version" in ckpt.files else 1
+        if ckpt_version != PACKING_VERSION:
+            raise ValueError(
+                f"Checkpoint packing version {ckpt_version} does not match current code PACKING_VERSION {PACKING_VERSION}. "
+                f"Layout changed; checkpoint cannot be resumed safely."
+            )
+        current_alm_np = ckpt["alm_state"].copy()
+        if len(current_alm_np) != n_phi:
+            raise ValueError(
+                f"Checkpoint alm_state length {len(current_alm_np)} does not match current model packed length {n_phi} (lmax={lmax})."
+            )
         samples_out = list(ckpt["samples"])
         logp_out = list(ckpt["logp"])
         accepts_out = list(ckpt["accepts"].tolist())
-        current_alm_np = ckpt["alm_state"].copy()
         current_lncl = ckpt["lncl_state"].copy()
         mass_sqrt_np = ckpt["mass_sqrt"].copy()
         step_float = float(ckpt["step_size"])
         resuming = True
         if sample_phi:
+            phi_current_np = ckpt["phi_state"].copy()
+            if len(phi_current_np) != n_phi:
+                raise ValueError(
+                    f"Checkpoint phi_state length {len(phi_current_np)} does not match current model packed length {n_phi} (lmax={lmax})."
+                )
             phi_samples_out = list(ckpt["phi_samples"])
             phi_accepts_out = list(ckpt["phi_accepts"].tolist())
-            phi_current_np = ckpt["phi_state"].copy()
             phi_step_float = float(ckpt["phi_step_size"])
             if phi_sampler == 'mclmc':
                 phi_velocity_np = ckpt["phi_velocity"].copy()
@@ -1718,6 +1729,7 @@ def run_gibbs_chain(
 
             if checkpoint_path and len(samples_out) % checkpoint_every == 0:
                 ckpt_kwargs = {
+                    "packing_version": np.int32(PACKING_VERSION),
                     "samples": np.array(samples_out, dtype=np.float64),
                     "logp": np.array(logp_out, dtype=np.float64),
                     "accepts": np.array(accepts_out, dtype=bool),

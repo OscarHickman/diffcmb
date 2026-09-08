@@ -19,7 +19,11 @@
 
 ### ⟹ NEXT SESSION — read this first
 
-**State as of 2026-09-02.** Job 11912088 (the long-trajectory Option 2 ensemble) is harvested; no compute is in flight. The exactness result is still **done and confirmed**: job 11903181 (Block 4 OFF), φ 0.4688 / alm 0.5312, both uniform. **The doubled-trajectory test came back an intermediate, not-clean-either-way result and needs a decision on where to look next:**
+**State as of 2026-09-08. Branch `restore-im-alm-l1-dof` is MERGE-READY, not yet merged.** The `Im(a_{L,1})` dof restoration is fully closed out, pilot through re-run: job 11951115 (pilot) and job 11955622 (12-realization ensemble) both harvested. **The exactness claim is CONFIRMED under the restored 2L+1 packing**: φ pooled mean_u 0.4792 (KS_p 0.4078), alm 0.5130 (KS_p 0.6369), both uniform, superseding job 11903181's pre-restoration pair (0.4688/0.5312). One bin (φ `[30,60)`, KS_p 0.005, N=12) flagged — read as small-N noise, not a reopened defect; see `achievements.md` for the full number set and reasoning. Full test suite re-confirmed green on the branch (130 passed, 1 skipped, ruff clean) as of this state. No compute is currently in flight, working tree is clean.
+
+**Immediate next actions, in no forced order:** (1) merge `restore-im-alm-l1-dof` into `main` — everything that gated it has passed; (2) update `docs/paper/main.tex` onto the confirmed 2L+1 numbers above (previously blocked pending this re-run, now clear — note this is a `.tex` file, not swept up by an "update all .md files" pass). Both were left for explicit user sign-off rather than done automatically. Beyond that, whether to chase the flagged `[30,60)` bin at a larger N, or return to the Block 3 mixing investigation below (all of which predates the dof fix and needs re-validating against the new packing before any of its specific numbers are trusted again), is an open call.
+
+**Everything below this point in this section predates the 2026-09-06 dof restoration** (state as of 2026-09-02) and describes the Block-3-mixing investigation under the OLD 2L packing. Job 11912088 (the long-trajectory Option 2 ensemble) is harvested; no compute is in flight. The exactness result is still **done and confirmed [pre-restoration]**: job 11903181 (Block 4 OFF), φ 0.4688 / alm 0.5312, both uniform. **The doubled-trajectory test came back an intermediate, not-clean-either-way result and needs a decision on where to look next:**
 
 1. **HARVESTED 2026-09-02: job 11912088, 12/12 COMPLETED.** Doubling `phi_n_lfs` 240 → 480 moved the strict `C_L^φφ` SBC rank from 0.3802 (KS_p=0.0013) to **0.4196 (KS_p=0.00049)** — closer to 0.5, but the KS_p got *smaller*, so it is still a firm rejection of uniformity, not the "→0.5, funnel non-convergence" branch the roadmap called a clean pass. τ_int fell in 3 of 4 ℓ-bins (most sharply in the previously-worst `[60,64)`, ~326→87) but *not* in `[30,60)` (max 107.8), and Geyer's estimator truncated early in all 48 chain×bin combinations (window exhausted before finding a non-positive pair), so these are lower bounds, not converged estimates — "τ_int roughly halves" is true for some bins and not others, so neither predicted branch cleanly fired. **The failure is now heavily concentrated in one bin, `[10,30)`** (KS_p 0.0001, mean_u 0.262; the other three bins individually pass at KS_p 0.16-0.57). Full table: `results/analysis/dashboard.md`.
 
@@ -37,13 +41,104 @@
 
    **Reading it:** compare this chain's `[10,30)` τ_int/split-R̂/phi-power-ratio against job 11912088 realization 0 (`prior`, current baseline) and job 11874976 (`block`, n_probes=6, older config). Clear improvement in `[10,30)` specifically ⇒ the rank-deficiency hypothesis was right, worth a real ensemble. No improvement (or worse) ⇒ the earlier `block` failure is not a rank artifact — closes the mass-matrix route more firmly and redirects to the likelihood/prior shape in `[10,30)` itself (e.g. Block 4's proper-prior construction at that L).
 
+   **HARVESTED 2026-09-02: job 11913324 (COMPLETED, 5h50m55s, exit 0, clean `.err`) — NO-GO. The rank-deficiency hypothesis is falsified, closing the Nystrom mass-matrix route.** Realization 0 comparison with bit-identical data/truth/warm-start:
+   - `[10,30)` τ_int is **25.3** (ESS 23.7, R̂ 1.015) vs **14.8** (ESS 40.5, R̂ 1.012) on the baseline `prior` matrix — no mixing improvement in the target bin.
+   - Low-L `[2,10)` severely regressed: τ_int jumped **48.3 → 113.7**, ESS fell **12.4 → 5.3**, R̂ degraded **1.000 → 1.951**, drift **-2.39σ**.
+   - Wall-clock cost increased by ~44% (35.1s/sweep vs 24.3s/sweep).
+   - **Conclusion:** Nystrom rank deficiency was not the issue. The static low-rank cross-L correction fails to track the moving Block 4 prior and harms low-L conditioning. **The non-diagonal mass matrix route (`phi_mass_matrix='block'`) is definitively closed post-fix.** Baseline stays `phi_mass_matrix='prior'`. The remaining investigation shifts entirely to likelihood/prior geometry and the missing-mode representation defect.
+
+### ✅ 2026-09-06/08: the missing `Im(a_{L,1})` dof is RESTORED and RE-VALIDATED — headline exactness claim confirmed under the new packing
+
+`k_L = 2L` → `2L+1`. The packing carries the full 2L+1 real dof per multipole, so
+the model can represent a general sky for the first time. Suite green (130 passed,
+1 skipped), ruff clean. Detail, including the two library sites the scoping note
+did not enumerate and the acceptance-ratio Jacobian this changed, is in
+`docs/notes/restore_missing_alm_dof_scoping.md` ("What was actually done").
+
+**Step 0 of the scoping plan was skipped**: nothing has been measured linking the
+missing mode to the `[10,30)` SBC residual or the chronic `[2,10)` R̂ pathology.
+This was done as a correctness fix on its own merits — a referee can check
+"your parameterisation has 2L dof" in five minutes — *not* as a fix for the
+open sampling question. If the residual survives the re-run, that is not a
+surprise.
+
+**Consequences, before citing anything below:**
+
+1. **Every φ and C_ℓ number elsewhere in this file predating 2026-09-08, in
+   `achievements.md`'s pre-2026-09-08 entries, in `results/analysis/dashboard.md`,
+   and in `docs/paper/main.tex` was measured through the 2L packing.** They are
+   the pre-change reference — the headline pair to compare against was
+   **φ 0.4688 (KS_p 0.124) / alm 0.5312 (KS_p 0.235)**, job 11903181, Block 4 off.
+   **That pair is now superseded**: the 2026-09-08 re-run under the restored
+   2L+1 packing (job 11955622) gives φ 0.4792 (KS_p 0.4078) / alm 0.5130
+   (KS_p 0.6369), confirming the claim rather than revising it — see the
+   entries below and in `achievements.md`.
+   They are not current results.
+2. **Checkpoints are versioned** (`samplers.PACKING_VERSION = 2`) and resume now
+   refuses a mismatched version *or* vector length rather than silently loading a
+   wrong-length vector. Pre-change checkpoints read as version 1 and refuse.
+3. **The re-run is the outstanding work** (Step 6 of the scoping plan): the
+   Option 1 ensemble (12 × lmax=64, Block 4 off) to re-establish the exactness
+   claim, then whichever proper-prior configuration is current.
+
+   **LAUNCHED 2026-09-06: job 11951115**,
+   `scripts/submit_pilot_packing_v2_lmax64_nocl4.slurm` →
+   `results/analysis/pilot_packing_v2_lmax64_nocl4/`. One realization at job
+   11903181's exact configuration (lmax=64, nside=64, `phi_n_lfs=240`,
+   `phi_mass_matrix='prior'`, Block 4 OFF, `n_burnin=100`, `n_samples=600`,
+   MAP start), so the packing is the only difference from the headline
+   ensemble. **Pass = the three sanity checks the 2026-08-30 MAP-start
+   validation used** (job 11892308): φ-power/truth ratio O(1), alm-vs-truth
+   cosine high and flat, `logp` plateaued. **Explicitly not a pass criterion:
+   any rank or SBC number** — one realization cannot produce one. Only after
+   this clears should the 12-chain ensemble go out. ~5h expected, 24h
+   walltime, checkpoints every 50 sweeps.
+
+   **HARVESTED 2026-09-08: job 11951115 (COMPLETED, 2h04m39s, exit 0) — PASS, all three criteria clear.**
+   φ-power/truth ratio **0.9612** (O(1) — healthy pilots land 0.09–2.5);
+   alm-vs-truth cosine similarity **+0.9942** (high, data-driven not
+   truth-initialised); `logp` plateaued (mean **26200.5** over sweeps
+   0–299 vs **26198.0** over sweeps 300–599 — flat within noise, no drift).
+   `phi_calibration_ok=True` in the saved chain. This clears the gate: the
+   restored packing samples correctly at production scale, at least for one
+   realization.
+
+   **LAUNCHED 2026-09-08: job 11955622** (array 0-11),
+   `scripts/submit_coverage_ensemble_lmax64_prior_nocl4_packingv2.slurm` →
+   `results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`. The
+   full 12-realization re-run of the headline exactness ensemble under the
+   restored 2L+1 packing — otherwise identical to job 11903181 (lmax=64,
+   `phi_mass_matrix='prior'`, Block 4 OFF, MAP start).
+
+   **HARVESTED 2026-09-08: job 11955622 (12/12 COMPLETED, clean `.err`, no
+   traceback) — CONFIRMED, headline exactness claim holds under the restored
+   packing.** Pooled over 4 ℓ-bins (N=48, `--thin 90`): **φ mean_u 0.4792
+   (KS_p 0.4078), alm mean_u 0.5130 (KS_p 0.6369)**, both consistent with
+   uniform — comfortably clearing the pre-fix pair (φ 0.4688/p=0.124, alm
+   0.5312/p=0.235). `validate_coverage_rank_nulls.py` confirms all four
+   `C_l^TT` coverage FLAGs sit inside their corrected null bands (the usual
+   rank-vs-mode artifact). Every realization's `phi_calibration_ok=True`
+   and phi-power/truth ratio in `[0.735, 1.320]` — no frozen or blown-up
+   chain. **One individual bin flagged**: φ `[30,60)`, mean_u 0.260, KS_p
+   0.005 (N=12) — the same bin the pre-fix ensemble also flagged, so either
+   a recurring small-N artifact or a genuine weak spot too small an
+   ensemble to resolve; not read as a reopened defect (full detail:
+   `achievements.md`). **This re-establishes the headline exactness claim —
+   the branch is now merge-ready** (pending the paper-numbers update below).
+4. `docs/paper/main.tex` still states the 2L derivations and the pre-change
+   numbers. **It is now clear to update onto the confirmed 2L+1 numbers
+   above** — this was the last blocker on the restore-im-alm-l1-dof branch,
+   held deliberately until the re-run supplied numbers to go with the new
+   packing (a paper quoting a new packing with old chains' statistics would
+   have been worse than one that is merely out of date).
+
 **Also done 2026-09-01, no compute (detail in the numbered sections below):** the joint (C_ℓ, C_L^φφ) differentiator figure is **built and is a null** at this sample size (§2); the CMBLensing.jl comparison is **written into the paper** (§3); the missing-`Im(a_{L,1})` fix is **scoped** in `docs/notes/restore_missing_alm_dof_scoping.md`; and two stale method claims were found and fixed in `main.tex` — Block 3 was described as **MCLMC** when MCLMC was tested and *fails* the stationarity gate (production is plain HMC), and the demonstrated scale was quoted as **lmax≈128** in three places when the calibration test passes at **lmax=64**.
 
 **Done 2026-09-01 (no compute), item 2: the Block 4 PIT's control now has power again** — multi-lag controls in `validate_coverage_rank_nulls.py` (lag-10/50 rejected at KS_p=0 where lag-1 passes at 0.183), so the aligned KS_p=0.42 is a genuine pass rather than a vacuous one. Detail in §1 below.
 
 **Done 2026-09-01 (no compute): `docs/paper/main.tex` brought onto the confirmed numbers and the corrected dof.** Field ranks now read φ **0.4688** (p=0.124) / alm **0.5312** (p=0.235), with "no individual bin flagged". The rank-null paragraph carries the corrected-shape `C_l^TT` observation/null (`0.083,0.083,0.094,0.333` vs `0.086,0.092,0.114,0.344`, job 11903181) and the `C_L^φφ` observation/trajectory-null (`0.260,0.302,0.427,0.406` vs `0.279,0.339,0.457,0.376`, job 11903182, all four inside the band). Three stale derivations that still encoded `2L+1` were re-derived in the Method section (`p(φ) ∝ S_L^{-(k_L/2-1)}` against the `r^{k_L-1}dr` measure — same `p(r) ∝ r¹` conclusion; the scale-free sum is `Σ(L-2)`, not `Σ(L-3/2)`; the conditional's mode is `S_L/k_L`, not `S_L/(2L+1)`), and the Block 4 PIT is now written with the general `InvGamma(k_L/2+a0, (S_L+b0)/2)` shape **and reports its own non-discriminating control** rather than the earlier vacuous pass. Option 2 is written up honestly as improved-not-cleared (strict rank 0.3802, p=0.0013, with the mixing evidence pointing at Block 3), and the joint-posterior figure section carries that caveat inline. Also removed a **misattributed statistic**: §"what the deficit is not" claimed the φ deficit "decreases monotonically with signal-to-noise ratio (ρ = −0.78 across 27 multipole bins)" — that ρ is actually corr(alm misfit, φ inflation) across the 12 realizations of the *cold-start* ensemble (p=0.003), a failure since root-caused and fixed by the MAP warm start; the paragraph now says that instead. Compiles (checked by substituting `article` for the uninstalled `revtex4-2`; only the pre-existing missing `.bib` remains).
 
-Full detail in the harvest block below; the still-open missing-dof defect is unchanged and remains the largest known problem.
+Full detail in the harvest block below. **The missing-dof defect described there as open was closed on 2026-09-06 — see the block at the top of this section; the text below is left as written at the time.**
 
 ### 🛑 2026-08-24: alm ordering bug found — every φ-block result below is invalid
 
@@ -156,7 +251,7 @@ Full detail in the harvest block below; the still-open missing-dof defect is unc
 
    **⚠ `docs/paper/main.tex` still quotes the pre-fix Option 1 numbers** (φ 0.453 p=0.17, alm 0.537 p=0.33) and does not mention the strict `C_L^φφ` rank result. Update to φ **0.4688** (p=0.124) / alm **0.5312** (p=0.235), and add the Option 2 status honestly.
 
-   **🛑 STILL OPEN, and now the largest known defect: the model cannot represent a general sky.** `splittosingularalm` forces `Im(a_{L,1}) = 0` at every multipole, so one real dof per ℓ is missing — measured power loss ~`1/(2L+1)`: ~20% of the modes at ℓ=2, 0.8% at ℓ=63. This is a *parameterisation* bug, not a statistics one, and its low-ℓ concentration matches the chronic low-ℓ φ weakness seen at every scale since lmax=128 (R̂ up to 1.50 in the `[2,10)` bin of every configuration run). Restoring it would also make `k_L = 2L+1` and thus vindicate the original `L-0.5` shape. **SCOPED 2026-09-01, not attempted: `docs/notes/restore_missing_alm_dof_scoping.md`.** Blast radius measured rather than remembered: **276 sites across 37 files** (core package 55 in 4 files — `samplers.py` 37, `lensing.py` 12, `model.py` 4, `power.py` 2), the literal `n_imag = (lmax-2)*(lmax-1)//2` appearing **75 times** verbatim, and **224 saved `.npz` files / 12 GB, of which 107 are checkpoints**. Two findings from the scoping worth knowing here: the right abstraction **already exists** as a local `_packed_sizes(lmax)` helper in `tests/test_phi_ancillary_move.py` and was never promoted into the package (centralising it is a behaviour-identical commit worth doing regardless), and **checkpoints are the real hazard** — `run_gibbs_chain` resumes automatically, so a layout change makes in-flight campaigns resume into a wrong-length vector; versioning them is cheap and is the highest-risk item. The plan is staged so it can be abandoned early: **Step 0 tests, with no new sampling, whether the chronic low-ℓ pathology actually tracks the missing mode** — the ℓ-dependence matching is suggestive, not measured, and if it does not track, this drops in priority. New `n_imag` verified numerically: `(lmax-2)(lmax+1)/2`.
+   **✅ CLOSED 2026-09-06 — restored; see the block at the top of "Currently doing". The entry below is left as written when it was open.** ~~🛑 STILL OPEN, and now the largest known defect: the model cannot represent a general sky.~~ `splittosingularalm` forces `Im(a_{L,1}) = 0` at every multipole, so one real dof per ℓ is missing — measured power loss ~`1/(2L+1)`: ~20% of the modes at ℓ=2, 0.8% at ℓ=63. This is a *parameterisation* bug, not a statistics one, and its low-ℓ concentration matches the chronic low-ℓ φ weakness seen at every scale since lmax=128 (R̂ up to 1.50 in the `[2,10)` bin of every configuration run). Restoring it would also make `k_L = 2L+1` and thus vindicate the original `L-0.5` shape. **SCOPED 2026-09-01, not attempted: `docs/notes/restore_missing_alm_dof_scoping.md`.** Blast radius measured rather than remembered: **276 sites across 37 files** (core package 55 in 4 files — `samplers.py` 37, `lensing.py` 12, `model.py` 4, `power.py` 2), the literal `n_imag = (lmax-2)*(lmax-1)//2` appearing **75 times** verbatim, and **224 saved `.npz` files / 12 GB, of which 107 are checkpoints**. Two findings from the scoping worth knowing here: the right abstraction **already exists** as a local `_packed_sizes(lmax)` helper in `tests/test_phi_ancillary_move.py` and was never promoted into the package (centralising it is a behaviour-identical commit worth doing regardless), and **checkpoints are the real hazard** — `run_gibbs_chain` resumes automatically, so a layout change makes in-flight campaigns resume into a wrong-length vector; versioning them is cheap and is the highest-risk item. The plan is staged so it can be abandoned early: **Step 0 tests, with no new sampling, whether the chronic low-ℓ pathology actually tracks the missing mode** — the ℓ-dependence matching is suggestive, not measured, and if it does not track, this drops in priority. New `n_imag` verified numerically: `(lmax-2)(lmax+1)/2`.
 
    Do not aggregate `results/analysis/coverage_ensemble_lmax64_prior_cl4/` (job 11887897) or `results/analysis/coverage_ensemble_lmax64/` (job 11848757) — both invalid, cold-start/pre-fix respectively.
 
@@ -187,7 +282,7 @@ Retained lesson: job 11781626's verdict line recommended lmax=64 for the ensembl
 - [x] **`docs/paper/main.tex` updated to the confirmed numbers** (φ 0.4688 p=0.124 / alm 0.5312 p=0.235), 2026-09-01, together with the corrected-shape null bands, three stale `2L+1` derivations in the Method section, the Option 2 status, and one misattributed ρ=−0.78 claim. Detail in the state block above.
 - [ ] **Resolve the Option 2 (`C_L^φφ` proper-prior) strict SBC rank: 0.3802, KS_p=0.0013 — improved from 0.25-0.28 but not uniform.** Evidence points at Block 3 mixing under the Block-4-ON funnel, not at Block 4's conditional (which is exact given φ). Next test, needs sign-off per the no-unilateral-tuning rule: rerun 11903182 with a longer φ trajectory / more sweeps and see whether the rank moves toward 0.5.
 - [x] **Block 4 PIT's discriminating power RESTORED (2026-09-01, no compute).** `validate_coverage_rank_nulls.py` now runs the misalignment control at several lags (`--control_lags`, default `1,10,50`), prints the measured `corr[S_L(φ_i), S_L(φ_{i+k})]` beside each, and refuses to call the aligned result a pass unless some control is rejected at p<1e-3. On job 11903182: lag-1 corr **0.915** → control passes (KS_p 0.183, the vacuous case); lag-10 corr **0.522** and lag-50 corr **0.086** → both rejected at **KS_p=0**. So the aligned **KS_p=0.42, mean_u=0.4999** is now a genuine pass, and the "Block 4 is exact given φ, the residual is Block 3" conclusion rests on a test with demonstrated power. Written into `docs/paper/main.tex`.
-- [ ] Optional strengthening: push to lmax≈128 only if a referee asks. Per "demonstrated beats asserted", a passing test at 64 outranks a partial one at 128 — do not spend φ compute here while the missing-dof defect is open.
+- [ ] Optional strengthening: push to lmax≈128 only if a referee asks. Per "demonstrated beats asserted", a passing test at 64 outranks a partial one at 128. (The missing-dof defect that previously blocked this was closed 2026-09-06; what blocks it now is simply that lmax=64 itself has to be re-established under the restored packing first.)
 
 ### 2. Differentiator figures (what the paper is *for*)
 - [x] **Joint (C_ℓ^TT, C_L^φφ) posterior correlation figure — BUILT 2026-09-01, and the result is a null.** `scripts/plot_joint_cl_clpp_posterior.py` → `results/analysis/figures/joint_cl_clpp_posterior.png`, sourced from job 11903182. **1 of 16 bin-pair cells exceeds its permutation null against 0.8 expected by chance — no detection**; strongest cell `C_ℓ^TT [2,10) × C_L^φφ [10,30)` at r = +0.174 vs a 95% null of 0.15. That is a statement about sample size: at the 168 pooled draws 12×600 sweeps supply after thinning by τ_int, the estimator throws |r| ~ 0.15 on *uncorrelated* data. Resolving |r|=0.10 at 2σ needs ~2.4× this ensemble, |r|=0.05 needs ~9.5×. A small correlation is also physically expected — `C_ℓ^TT` is the *unlensed* spectrum and `C_L^φφ` depends on φ alone given φ, so they couple only through the data via the lensing likelihood. Method choices that keep this honest: per-chain standardisation before pooling (else it measures cosmic variance across the 12 truths, a different and much larger quantity), a **chain-level** bootstrap (only the chains are independent), and significance against a within-chain permutation null rather than against zero. **Next step is more effective samples, not a new estimator** — the longer-trajectory ensemble (job 11912088, harvested 2026-09-02, see §1 above) is the same sample count (12×600 sweeps) with a different `phi_n_lfs`, so it does not itself add samples; a dedicated long run or pooling both ensembles' post-thin draws remains the actual lever, still not done.
@@ -228,6 +323,19 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - Phase 5 — non-Gaussian extensions (fNL, mask in-painting, learned priors, systematics): separate papers after Phases 2-3.
 - Lensed-operator exact Block-2 draw: rejected shortcut, alternative unexplored (`achievements.md`). Not worth it unless HMC-on-both-blocks becomes a proven bottleneck.
 - Re-tune matrix-free-HMC step-size adaptation: current regime mixes ~4x less efficiently per-sample than the old dense-SHT reference. Skip unless Phase 2 chains show it matters.
+
+## Literature actions (2026-09-03 rescan)
+
+*Full annotations in `literature.md`.*
+
+- [ ] **CRITICAL — three referee-visible citation errors were in `docs/paper/main.tex`; all three are now fixed, but re-check the rest of the reference list the same way.** MUSE was cited as `2112.09091`, which is a **quantum-lattice-models paper** (correct: `2112.09354`); CMBLensing/SPTpol as `2012.00011`, which is **"Mass-gap Mergers in AGN"** (correct: `2012.01709`); and `2212.08549` was titled "Microcanonical *Langevin* Monte Carlo" when the paper is "Microcanonical **Hamiltonian** Monte Carlo". That last one matters doubly given Block 3's own MCLMC mislabel.
+- [ ] **The lmax=64 defensibility question has NO literature answer — plan the defence accordingly.** No source sets a minimum scale, and the verified comparison set is 10²–10⁴× larger than DiffCMB's ~4×10³ dof/field: MUSE ~6×10⁶ latents, Almanac 1.68×10⁷, Bayer et al. ~2.6×10⁵, weak-lensing FLI 8×10⁶. **The defence must be certified correctness, not scale.**
+- [ ] **Engage arXiv:2603.04535** (Sotoudeh, Lemos & Perreault-Levasseur, 4 Mar 2026) — a VAE/HPU-Net learned posterior sampler applied directly to **CMB delensing**, an order of magnitude faster than a diffusion baseline. The competing-paradigm section no longer has to reach to galaxy weak lensing for its sharpest example. **Concede the paired counterpoint honestly:** arXiv:2606.12255 found implicit and explicit field-level inference *agreeing* at 8×10⁶ parameters.
+- [ ] **Correct the Almanac characterisation** — the file described it as all-sky/noiseless only. The masked-sky companion **arXiv:2210.13260** (Loureiro et al., OJA 6) does HMC over 1.68×10⁷ parameters on the **curved and masked** sky.
+- [ ] **Two diagnostics papers that speak directly to the lag-1-gate lesson, worth citing where that is discussed:** arXiv:2408.13411 (ESS/IACT estimators may not be statistically consistent — two estimators disagreed on the ESS's order of magnitude) and arXiv:2110.13017 (nested R̂ for **many short chains**, exactly the coverage ensemble's regime).
+- [ ] Verify the SFNO CMB-delensing paper found on OpenReview — marked `[UNVERIFIED]`, no locatable arXiv ID.
+
+*Novelty holds, scoop risk LOW: the curved-sky joint (a_ℓm, C_ℓ, φ, C_L^φφ) sampler cell is still empty and no curved-sky MUSE exists. The `"field-level"` enumeration for 2026-06→09 returns no CMB entry at all; August's only CMB-lensing analysis (2608.31136, SPT-3G D1) is a quadratic estimator. **Coverage caveat:** the arXiv API was HTTP 429 throughout, so the previous pass's exhaustive enumeration back to 2026-03 could not be repeated — this pass used the advanced-search UI plus ~14 keyword searches. `papers/7_DiffCMB/` confirmed to have no manuscript and no `.bib`. New delensing benchmarks logged for the Phase 3 LiteBIRD follow-up: 2511.21949 (ACT DR6, ~47% at 30≤ℓ≤300), 2608.06343 (SPT-3G, A_lens^res ≈ 0.48).*
 
 ## Standing discipline
 

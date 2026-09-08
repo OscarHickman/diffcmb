@@ -31,6 +31,7 @@ import numpy as np
 import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm
@@ -110,7 +111,7 @@ def run_one_seed(lmax, nside, noisesig, n_burnin, n_samples, hmc_step_size, n_lf
             seed=seed,
         )
         n_real = lmax * (lmax + 1) // 2 - 3
-        n_imag = (lmax - 2) * (lmax - 1) // 2
+        n_imag = packed_sizes(lmax)[1]
         L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
         rows = []
         for ell in probe_ells:

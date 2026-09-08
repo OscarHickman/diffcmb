@@ -23,6 +23,7 @@ import time
 
 import numpy as np
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.messenger import build_block_cholesky
 from diffcmb.model import CosmologyAdvancedSampling
 from diffcmb.samplers import _alm_index_lm, _build_inv_cl_diag, _packed_to_alm_ho
@@ -46,7 +47,7 @@ def main():
 
     lmax = model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
     print(f"n_alm = {n_alm}")
 

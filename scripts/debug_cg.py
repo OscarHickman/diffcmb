@@ -49,6 +49,8 @@ model._ensure_tf_tensors()
 import glob
 import os
 
+from diffcmb.alm_utils import packed_sizes
+
 ckpt_files = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, 'chain1_checkpoint_*.npz')))
 if ckpt_files:
     ckpt = np.load(ckpt_files[-1])
@@ -61,7 +63,7 @@ else:
 
 lmax = model.lmax
 n_real = lmax * (lmax + 1) // 2 - 3
-n_imag = (lmax - 2) * (lmax - 1) // 2
+n_imag = packed_sizes(lmax)[1]
 n_alm = n_real + n_imag
 cl_full = np.zeros(lmax)
 cl_full[2:] = np.exp(lncl_np)

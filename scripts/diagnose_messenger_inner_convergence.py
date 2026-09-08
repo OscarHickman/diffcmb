@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import tensorflow as tf  # noqa: E402
 
 from diffcmb import CosmologyAdvancedSampling  # noqa: E402
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.messenger import (  # noqa: E402
     build_block_cholesky,
     sample_s_given_t_block,
@@ -107,7 +108,7 @@ def main():
     print(f"  done in {time.time()-t0:.1f}s\n")
 
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 

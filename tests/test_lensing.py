@@ -16,6 +16,8 @@ Validation strategy
 import numpy as np
 import pytest
 
+from diffcmb.alm_utils import packed_sizes
+
 try:
     import healpy as hp
     HAS_HEALPY = True
@@ -54,7 +56,7 @@ def _rand_phi_packed(lmax, rng, amplitude=5e-4):
 def _rand_alm_packed(lmax, rng, scale=10.0):
     """Random CMB alm in packed (real+imag) format."""
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     return rng.standard_normal(n_real + n_imag).astype(np.float64) * scale
 
 
@@ -118,10 +120,12 @@ def _packed_slots(L, m):
     """Packed real/imag indices of coefficient (L, m), derived independently.
 
     real slots run L=2.., m=0..L  -> offset L(L+1)/2 - 3 + m
-    imag slots run L=2.., m=2..L  -> offset (L-2)(L-1)/2 + (m - 2)
+    imag slots run L=2.., m=1..L  -> offset (L-2)(L+1)/2 + (m - 1)
     """
     real = L * (L + 1) // 2 - 3 + m
-    imag = (L - 2) * (L - 1) // 2 + (m - 2) if m >= 2 else None
+    # Imag slot for (L,m): packed_sizes(L)[1] counts the imag slots of all
+    # multipoles below L, and within L the m=1..L slots are contiguous.
+    imag = packed_sizes(L)[1] + (m - 1) if m >= 1 else None
     return real, imag
 
 
@@ -153,14 +157,14 @@ def test_alm_hp_to_packed_uses_true_healpy_ordering():
             f"Re a_({L},{m}) landed in the wrong packed slot -- "
             "author/healpy alm ordering not converted"
         )
-        # The packed layout has no slot for Im a_{L,1}, so m<=1 keeps only Re.
-        if m >= 2:
+        # Only m=0 is real for a real field, so m>=1 carries an Im slot too.
+        if m >= 1:
             n_real = lmax * (lmax + 1) // 2 - 3
             assert packed[n_real + imag_slot] == pytest.approx(5.0), (
                 f"Im a_({L},{m}) landed in the wrong packed slot"
             )
         # Nothing else may be populated.
-        assert np.count_nonzero(packed) == (2 if m >= 2 else 1)
+        assert np.count_nonzero(packed) == (2 if m >= 1 else 1)
 
 
 @pytest.mark.skipif(not HAS_HEALPY, reason="healpy not installed")
@@ -170,8 +174,9 @@ def test_packed_sl_matches_healpy_power_per_multipole():
     This is the consequence that matters physically: if the ordering is not
     converted, the C_L prior that Block 1 / Block 4 apply per multipole is
     applied to coefficients that live at a different multipole on the sky.
-    Im a_{L,1} is zeroed on the reference side first, since the packed layout
-    has no slot for it, so both sides see identical data and the comparison is
+    Only Im a_{L,0} is zeroed on the reference side (a real field has a real
+    m=0 coefficient); Im a_{L,1} is left alone, since the packed layout now
+    carries it. Both sides therefore see identical data and the comparison is
     exact rather than statistical.
     """
     import healpy as hp
@@ -188,8 +193,6 @@ def test_packed_sl_matches_healpy_power_per_multipole():
         alm_hp[hp.Alm.getidx(lmax - 1, L, 0)] = alm_hp[
             hp.Alm.getidx(lmax - 1, L, 0)
         ].real
-        idx1 = hp.Alm.getidx(lmax - 1, L, 1)
-        alm_hp[idx1] = alm_hp[idx1].real
 
     S_ref = np.zeros(lmax)
     for L in range(2, lmax):
@@ -205,6 +208,53 @@ def test_packed_sl_matches_healpy_power_per_multipole():
         S[2:lmax], S_ref[2:lmax], rtol=1e-12, atol=1e-14,
         err_msg="packed S_L does not match the healpy power at the same "
                 "multipole -- author/healpy alm ordering not converted",
+    )
+
+
+@pytest.mark.skipif(not HAS_HEALPY, reason="healpy not installed")
+def test_general_synalm_draw_survives_pack_unpack_with_no_power_loss():
+    """A GENERAL sky must survive pack -> unpack with its power intact.
+
+    This is the test the old packing could not pass. `splittosingularalm` used
+    to write `complex(real, 0)` for `m == 0 or m == 1`, so Im(a_{L,1}) was
+    discarded and every multipole lost one of its 2L+1 real dof -- 20% of the
+    power at L=2, 0.8% at L=63. A round-trip test cannot see that on its own
+    (the restriction is idempotent, so pack->unpack->pack is still stable);
+    what catches it is starting from an UNRESTRICTED hp.synalm draw and
+    comparing per-multipole power before and after.
+    """
+    import healpy as hp
+
+    from diffcmb.lensing import _alm_hp_to_packed, _alm_packed_to_hp
+
+    lmax = 24
+    rng = np.random.default_rng(2026)
+    cl = np.zeros(lmax)
+    cl[2:] = 1.0 / np.arange(2, lmax) ** 2
+    np.random.seed(int(rng.integers(1 << 31)))
+    alm_hp = hp.synalm(cl, lmax=lmax - 1, new=True).astype(np.complex128)
+    alm_hp[: 3] = 0.0  # monopole/dipole are not represented either way
+
+    round_tripped = _alm_packed_to_hp(_alm_hp_to_packed(alm_hp, lmax), lmax)
+
+    np.testing.assert_allclose(
+        round_tripped, alm_hp, rtol=1e-12, atol=1e-14,
+        err_msg="a general synalm draw did not survive pack -> unpack; the "
+                "packed layout is dropping a degree of freedom",
+    )
+
+    def power_per_L(a):
+        out = np.zeros(lmax)
+        for L in range(2, lmax):
+            for m in range(L + 1):
+                v = a[hp.Alm.getidx(lmax - 1, L, m)]
+                out[L] += (1.0 if m == 0 else 2.0) * (v.real ** 2 + v.imag ** 2)
+        return out
+
+    np.testing.assert_allclose(
+        power_per_L(round_tripped)[2:], power_per_L(alm_hp)[2:],
+        rtol=1e-12, atol=1e-30,
+        err_msg="per-multipole power changed across the packing round trip",
     )
 
 
@@ -395,11 +445,11 @@ def test_psi_lensed_zero_phi_matches_unlensed():
     model = _make_model()
     lmax = model.lmax
 
-    params_np = np.zeros(lmax - 2 + (lmax * (lmax + 1) // 2 - 3) + (lmax - 2) * (lmax - 1) // 2)
+    params_np = np.zeros(lmax - 2 + (lmax * (lmax + 1) // 2 - 3) + packed_sizes(lmax)[1])
     params_np[: lmax - 2] = 5.0
 
     params_tf = tf.constant(params_np, dtype=tf.float64)
-    n_phi = (lmax * (lmax + 1) // 2 - 3) + (lmax - 2) * (lmax - 1) // 2
+    n_phi = (lmax * (lmax + 1) // 2 - 3) + packed_sizes(lmax)[1]
     phi_tf = tf.zeros(n_phi, dtype=tf.float64)
 
     from diffcmb.lensing import psi_lensed
@@ -432,11 +482,11 @@ def test_psi_lensed_zero_phi_matches_unlensed_with_beam():
     model._ensure_tf_tensors()
     lmax = model.lmax
 
-    params_np = np.zeros(lmax - 2 + (lmax * (lmax + 1) // 2 - 3) + (lmax - 2) * (lmax - 1) // 2)
+    params_np = np.zeros(lmax - 2 + (lmax * (lmax + 1) // 2 - 3) + packed_sizes(lmax)[1])
     params_np[: lmax - 2] = 5.0
 
     params_tf = tf.constant(params_np, dtype=tf.float64)
-    n_phi = (lmax * (lmax + 1) // 2 - 3) + (lmax - 2) * (lmax - 1) // 2
+    n_phi = (lmax * (lmax + 1) // 2 - 3) + packed_sizes(lmax)[1]
     phi_tf = tf.zeros(n_phi, dtype=tf.float64)
 
     from diffcmb.lensing import psi_lensed
@@ -457,7 +507,7 @@ def test_psi_lensed_alm_grad_vs_fd():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(11)
     params_np = np.zeros(n_lncl + n_real + n_imag)
@@ -508,7 +558,7 @@ def test_psi_lensed_phi_grad_vs_fd():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
 
     rng = np.random.default_rng(99)
@@ -555,7 +605,7 @@ def test_log_prob_phi_block_zero_prior_matches_neg_psi_lensed():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(7)
     params_np = np.zeros(n_lncl + n_real + n_imag)
@@ -585,7 +635,7 @@ def test_log_prob_phi_block_grad_vs_fd():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_phi = n_real + n_imag
 
     rng = np.random.default_rng(13)
@@ -690,7 +740,7 @@ def test_psi_lensed_matrixfree_matches_dense():
     lmax = LMAX
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     params_np = np.zeros(n_lncl + n_real + n_imag)
     params_np[:n_lncl] = 5.0
     params_np[n_lncl:] = rng.standard_normal(n_real + n_imag) * 0.1
@@ -799,7 +849,7 @@ def test_psi_lensed_matrixfree_matches_dense_masked_sky_zero_phi():
     lmax = LMAX
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     params_np = np.zeros(n_lncl + n_real + n_imag)
     params_np[:n_lncl] = 5.0
     params_np[n_lncl:] = rng.standard_normal(n_real + n_imag) * 0.1
@@ -847,7 +897,7 @@ def test_psi_lensed_matrixfree_alm_grad_vs_fd_masked_sky():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(31)
     params_np = np.zeros(n_lncl + n_real + n_imag)
@@ -913,7 +963,7 @@ def test_estimate_phi_diag_fisher_vs_dense_hessian_small_lmax():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(21)
     params_np = np.zeros(n_lncl + n_real + n_imag)
@@ -989,7 +1039,7 @@ def test_estimate_phi_block_hessian_matches_dense_block_small_lmax():
     lmax = model.lmax
     n_lncl = lmax - 2
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
 
     rng = np.random.default_rng(22)
     params_np = np.zeros(n_lncl + n_real + n_imag)
@@ -1132,7 +1182,7 @@ def test_sample_cl_phiphi_given_phi_recovers_known_spectrum():
     L_probe = 25
     C0 = 3e-9
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_tot = n_real + n_imag
 
     L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
@@ -1171,7 +1221,7 @@ def test_sample_cl_phiphi_given_phi_matches_false_when_zero_phi():
     from diffcmb.lensing import sample_cl_phiphi_given_phi
     lmax = 10
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi_packed = np.zeros(n_real + n_imag)
     rng = np.random.default_rng(0)
     lncl = sample_cl_phiphi_given_phi(phi_packed, lmax, rng=rng)
@@ -1184,7 +1234,7 @@ def test_sample_cl_phiphi_given_phi_rejects_non_finite_input():
     from diffcmb.lensing import sample_cl_phiphi_given_phi
     lmax = 10
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi_packed = np.zeros(n_real + n_imag)
     phi_packed[0] = np.nan
     with pytest.raises(ValueError):
@@ -1219,7 +1269,7 @@ def test_block4_refitted_prior_is_scale_free_in_phi_amplitude():
 
     lmax = 12
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     rng = np.random.default_rng(11887897)
     phi_packed = rng.normal(size=n_real + n_imag)
 
@@ -1253,7 +1303,7 @@ def test_block4_fixed_spectrum_prior_DOES_constrain_amplitude():
 
     lmax = 12
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     rng = np.random.default_rng(0)
     phi_packed = rng.normal(size=n_real + n_imag)
     cl_fixed = np.full(lmax, 1.0)
@@ -1287,7 +1337,7 @@ def test_cl_phiphi_prior_nu_none_is_bit_identical_to_flat_prior():
 
     lmax = 12
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi = np.random.default_rng(0).normal(scale=1e-3, size=n_real + n_imag)
 
     a = sample_cl_phiphi_given_phi(phi, lmax, rng=np.random.default_rng(7))
@@ -1317,7 +1367,7 @@ def test_cl_phiphi_proper_prior_matches_conjugate_invgamma():
 
     lmax = 8
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     rng = np.random.default_rng(3)
     phi = rng.normal(scale=1e-3, size=n_real + n_imag)
     nu = 6.0
@@ -1332,7 +1382,8 @@ def test_cl_phiphi_proper_prior_matches_conjugate_invgamma():
     S = compute_sl_phi_np(phi, lmax)
     for i in range(lmax - 2):
         L = i + 2
-        alpha = L + nu / 2.0
+        # k_L/2 + nu/2 with k_L = 2L+1 (Im(a_{L,1}) restored)
+        alpha = L + 0.5 + nu / 2.0
         beta = (S[L] + nu * cl_fid[L]) / 2.0
         p = stats.kstest(draws[:, i], "invgamma", args=(alpha, 0.0, beta)).pvalue
         assert p > 1e-3, f"L={L}: draws do not match conjugate posterior (KS p={p:.2g})"
@@ -1351,7 +1402,7 @@ def test_cl_phiphi_proper_prior_shrinks_an_inflated_amplitude_toward_fiducial():
 
     lmax = 10
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     cl_fid = np.full(lmax, 1e-6)
     rng = np.random.default_rng(5)
     # phi drawn at the fiducial scale, then inflated 100x in amplitude.
@@ -1392,7 +1443,7 @@ def test_cl_phiphi_prior_nu_must_be_positive_for_a_proper_phi_marginal():
 
     lmax = 6
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi = np.random.default_rng(1).normal(scale=1e-3, size=n_real + n_imag)
     cl_fid = np.full(lmax, 1e-6)
 
@@ -1436,7 +1487,7 @@ def test_cl_phiphi_proper_prior_is_not_scale_free_in_phi_amplitude():
 
     lmax = 12
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     phi0 = np.random.default_rng(4).normal(scale=1e-3, size=n_real + n_imag)
     nu, cl_fid = 6.0, np.full(lmax, 1e-6)
 
@@ -1445,7 +1496,7 @@ def test_cl_phiphi_proper_prior_is_not_scale_free_in_phi_amplitude():
         S = compute_sl_phi_np(phi0 * scale, lmax)
         total = 0.0
         for L in range(2, lmax):
-            alpha = L - 0.5 + nu / 2.0
+            alpha = L + 0.5 + nu / 2.0   # k_L/2 + nu/2, k_L = 2L+1
             beta = (S[L] + nu * cl_fid[L]) / 2.0
             c_mean = beta / (alpha - 1.0)          # InvGamma mean
             total += 0.5 * S[L] / c_mean
@@ -1460,10 +1511,10 @@ def test_cl_phiphi_proper_prior_is_not_scale_free_in_phi_amplitude():
 
 @pytest.mark.skipif(not HAS_HEALPY, reason="healpy required")
 def test_packed_dof_per_multipole_matches_the_actual_packing():
-    """k_L must be counted from the packing, not assumed to be 2L+1.
+    """k_L must be counted from the packing, not assumed.
 
-    `splittosingularalm` writes `complex(real, 0)` when `m == 0 or m == 1`,
-    so Im(a_{L,1}) is forced to zero and every multipole carries 2L real dof.
+    `splittosingularalm` writes `complex(real, 0)` only when `m == 0`, so with
+    Im(a_{L,1}) restored every multipole carries the full 2L+1 real dof.
     Cross-checked against the independent (L, m) index map used by the
     samplers, so the two descriptions of the layout cannot drift apart.
     """
@@ -1472,11 +1523,11 @@ def test_packed_dof_per_multipole_matches_the_actual_packing():
 
     lmax = 16
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _ = _alm_index_lm(lmax, n_real, n_imag)
     dof = packed_dof_per_multipole(lmax)
     for L in range(2, lmax):
-        assert dof[L] == int((L_arr == L).sum()) == 2 * L, (
+        assert dof[L] == int((L_arr == L).sum()) == 2 * L + 1, (
             f"L={L}: dof bookkeeping disagrees with the packing"
         )
 

@@ -1,9 +1,13 @@
 # CMBLensing.jl benchmark design — research notes (2026-07-29)
 
-*Reviewed 2026-08-31: the CMBLensing.jl facts below are unchanged. One diffcmb-side
-detail referenced here has moved on — the exact inverse-Gamma C_l block is still exact,
-but its shape parameter was corrected on 2026-08-31 (it assumed 2l+1 packed dof where the
-vector carries 2l; see `achievements.md`). Nothing in the benchmark design depends on it.*
+*Reviewed 2026-09-06: the CMBLensing.jl facts below are unchanged. One diffcmb-side
+detail referenced here has moved twice — the exact inverse-Gamma C_l block is still exact,
+but its shape parameter was corrected on 2026-08-31 (it had assumed 2l+1 packed dof where
+the vector then carried 2l), and on 2026-09-06 the missing `Im(a_{l,1})` dof was restored,
+so the packing genuinely carries 2l+1 and the shape is `l - 0.5` again (see
+`achievements.md`). The shape is derived from the packing, not hardcoded. Nothing in the
+benchmark design depends on either move; the cost figures quoted below are per-sweep and
+unaffected by the 62 extra coordinates at lmax=64.*
 
 ## 1. CMBLensing.jl technical facts (from Millea, Anderes & Wandelt 2020, arXiv:2002.00965, and repo)
 

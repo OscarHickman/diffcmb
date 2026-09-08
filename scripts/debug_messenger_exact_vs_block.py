@@ -30,6 +30,7 @@ import tensorflow as tf
 sys.path.insert(0, "diffcmb")
 
 from diffcmb import CosmologyAdvancedSampling
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.messenger import (
     build_block_cholesky,
     run_messenger_gibbs,
@@ -60,7 +61,7 @@ def main():
     model._ensure_tf_tensors()
 
     n_real = LMAX * (LMAX + 1) // 2 - 3
-    n_imag = (LMAX - 2) * (LMAX - 1) // 2
+    n_imag = packed_sizes(LMAX)[1]
     n_alm = n_real + n_imag
     L_arr, _m_arr = _alm_index_lm(LMAX, n_real, n_imag)
     print(f"n_alm = {n_alm}")

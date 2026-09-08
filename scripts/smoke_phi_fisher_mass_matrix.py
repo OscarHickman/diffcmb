@@ -36,6 +36,7 @@ import numpy as np
 import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm
@@ -134,7 +135,7 @@ def main():
 
     x0 = np.concatenate([np.log(cl_true[2:lmax]), alm_true_packed])
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
     probe_ells = sorted({max(2, min(lmax - 1, v)) for v in
                           np.linspace(2, lmax - 1, 6).round().astype(int)})

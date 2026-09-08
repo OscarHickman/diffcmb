@@ -2,6 +2,95 @@
 
 *Condensed record of what's validated and closed out — current state, not a change log. Full debugging history is in git log. Forward plan: `ROADMAP.md`.*
 
+## 2026-09-06: the missing `Im(a_{L,1})` degree of freedom is restored (`k_L = 2L` → `2L+1`)
+
+The largest known open defect is closed. `splittosingularalm` wrote
+`complex(real, 0)` for `m == 0 or m == 1`, forcing `Im(a_{L,1}) = 0` at every
+multipole, so the model carried 2L real dof where a real field on the sphere has
+2L+1 and **could not represent a general sky** — 20% of the modes missing at
+ℓ=2, 0.8% at ℓ=63. Only the `m == 0` case is correct (a real field's m=0
+coefficient is real); m=1 shared the branch by accident.
+
+Done as the staged plan in `docs/notes/restore_missing_alm_dof_scoping.md`
+(Steps 1-5; that note's "What was actually done" section carries the full
+detail). Suite green: 130 passed, 1 skipped, ruff clean.
+
+**Production-scale validation, Step 6 of the scoping plan — DONE and CONFIRMED
+(2026-09-08).** A single-realization pilot at the exact job-11903181
+configuration (lmax=64, `phi_mass_matrix='prior'`, Block 4 OFF, MAP start;
+job 11951115) passed all three pass criteria: φ-power/truth ratio **0.9612**
+(O(1)), alm-vs-truth cosine similarity **+0.9942** (high), `logp` plateaued
+(mean 26200.5 sweeps 0-299 vs 26198.0 sweeps 300-599, flat within noise).
+That cleared the gate for the full 12-realization re-run (job 11955622, same
+configuration as 11903181, `results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`).
+All 12 tasks COMPLETED, clean `.err`, `phi_calibration_ok=True` and
+phi-power/truth ratio in `[0.735, 1.320]` on every realization (no frozen or
+blown-up chain).
+
+**Headline exactness claim CONFIRMED under the restored 2L+1 packing,
+superseding job 11903181's pre-restoration pair.** Pooled over 4 ℓ-bins
+(N=48, `--thin 90`): **φ mean_u 0.4792 (KS_p 0.4078), alm mean_u 0.5130
+(KS_p 0.6369)** — both consistent with uniform, comfortably clearing the
+pre-fix pair (0.4688/0.5312). `validate_coverage_rank_nulls.py` confirms all
+four `C_l^TT` coverage FLAGs sit inside the corrected null band (observed
+0.104/0.073/0.125/0.333 vs null 0.098/0.096/0.114/0.348, all within their
+95% bands) — the usual rank-statistic-vs-mode artifact, not bias. φ power
+bias per bin stays near 1 (median 0.996-1.047, max 1.49 in the noisiest
+`[2,10)` bin).
+
+**One individual bin flagged**: φ `[30,60)`, mean_u 0.260, KS_p 0.005 (N=12)
+— the pre-fix ensemble's *only* flagged bin was also φ `[30,60)`, so this is
+either the same small-N artifact recurring by chance or a genuine weak spot
+in that range that a 12-chain ensemble is underpowered to resolve either way.
+Not read as a reopened defect (the pooled result passes cleanly and the
+standing caution on O(10)-realization tests applies), but worth watching if
+a larger ensemble is ever run. `docs/paper/main.tex` is now clear to update
+onto these confirmed 2L+1 numbers (previously blocked pending this re-run).
+
+**What changed structurally.** `alm_utils.packed_sizes`/`packed_length` are now
+the single definition of the `(n_real, n_imag)` split, and the 32 files that
+carried the literal `(lmax-2)*(lmax-1)//2` inline derive from them instead.
+`packed_dof_per_multipole` returns 2L+1 *because it counts the packing*, so
+Blocks 1 and 4 moved without either inverse-Gamma conditional being edited by
+hand — which is exactly what that function was written for on 2026-08-31.
+
+**Two sites the scoping note's 276-site survey missed, both caught by tests:**
+
+- `alm_utils.hpalminit` realified the first `2*lmax - 1` healpy entries, i.e.
+  the m=0 **and** m=1 blocks. `model.py` calls it on the data alms and the prior
+  alms, so the defect was imposed on the *inputs*, not only on the sampled
+  vector. A grep for the packed-length literal could never have found it.
+- `lensing.sample_phi_amplitude_rescale`'s acceptance ratio is packing-dependent:
+  the Jacobian exponent is `n_L + 2 - k_L`, which is 1 when `n_L = k_L = 2L` and
+  2 when both are 2L+1. **The brute-force test had `2L+2` hardcoded and so agreed
+  with the code**; both were wrong together, and only
+  `test_rescale_move_preserves_stationary_distribution_of_exact_gibbs_chain` —
+  which compares against an independent exact-Gibbs reference chain rather than
+  against the analytic expression — caught the shift in the ln C_2 marginal.
+  **Standing lesson: an analytic reference that shares an assumption with the
+  code is not independent.** This is the same failure mode as the 2026-08-31
+  PIT that validated the draw but not the derivation.
+
+**The new test that would have caught the original defect** is
+`test_general_synalm_draw_survives_pack_unpack_with_no_power_loss`: an
+unrestricted `hp.synalm` draw through pack→unpack, with exact per-multipole
+power. A round-trip test alone never could — the restriction is idempotent, so
+pack→unpack→pack was stable while silently lossy, exactly as with the
+2026-08-24 ordering bug.
+
+**Not established: that this fixes anything about sampling.** Step 0 of the plan
+(measure that the missing mode tracks the low-ℓ pathology before spending the
+effort) was skipped by decision. No evidence links it to the `[10,30)` strict
+`C_L^φφ` residual or the chronic `[2,10)` R̂ problem.
+
+**Invalidates every φ number recorded above.** All of them were measured through
+the 2L packing. The pre-change reference to compare the re-run against is
+φ 0.4688 (KS_p 0.124) / alm 0.5312 (KS_p 0.235), job 11903181. Checkpoints are
+versioned (`samplers.PACKING_VERSION = 2`) and resume refuses on a version or
+length mismatch, so the 107 pre-change checkpoints fail loudly instead of
+resuming into a wrong-length vector.
+
+
 ## Validated foundations
 
 - **Phase 0 — unlensed Gibbs baseline on real Planck data (lmax=300, float64): converged and trusted.** Reference everything downstream is checked against.
@@ -61,10 +150,9 @@ The central blocker for the whole project since lmax≈128 pilots began: the φ 
 
 **User decision, 2026-08-27: ship the coverage ensemble on `prior` + Block 4 (job 11849969's configuration), accepting the weak `[60,64)` bin** rather than debugging `block`, trying `fisher`, or lengthening the window further. Ensemble launched — see `ROADMAP.md`.
 
-**Leading hypothesis (2026-08-23, not yet tested): fixed Nystrom rank vs. growing block size — a rank-deficiency problem, not a grouping problem.** `estimate_phi_block_hessian` uses `n_probes=6` (default, and `run_gibbs_chain`'s `phi_block_n_probes=6`), a *constant*, while blocks are grouped by (channel, m) so block size is `K ≈ lmax − max(2,m) + 1`. The m=0 block therefore has K=63 at lmax=64 but K=127 at lmax=128: the same rank-6 Nystrom approximation covers 9.5% of the block at lmax=64 and only 4.7% at lmax=128. Crucially, a φ coordinate at multipole L exists only for m ≤ L, so **all L<10 coordinates live exclusively in the m=0..9 blocks — the largest, least-well-approximated ones** — while high-L coordinates are spread across all m including the small, near-exactly-captured high-m blocks. This predicts precisely the observed monotonic-in-L degradation, predicts it appearing on the 64→128 scale-up, and is corroborated by the accept-rate/step-size signature above. It also predicts the *inversion* seen across the fix: pre-fix at lmax=64 the stuck bin was the **top** bin `(60,64)` (per `diagnose_phi_hessian_coupling.py`'s hardcoded `stuck_bin`), and post-fix at lmax=128 the worst bin is the **bottom** one — consistent with a correction that works well on small (high-m) blocks and poorly on large (low-m) ones.
-- This is a *different* hypothesis from the "check the same-m grouping assumption" note recorded in the block-mass-matrix entry above: that one asks whether grouping by m is the right structure; this one says the grouping may be fine and the *rank within each group* is the deficiency. They imply different fixes (restructure blocks vs. raise/scale `phi_block_n_probes`).
-- **Testable offline, without an MCMC pilot**: at a saved chain point, compute the m=0 block's true (K,K) Hessian by taking all K gradient columns (~127 gradient evals, minutes) and measure Nystrom reconstruction error and whitened condition number as a function of rank 6/16/32/64. That is a deterministic diagnostic costing hours, not a multi-day gate run.
-- Not yet attempted — reporting per the standing no-unilateral-tuning rule.
+- **Tested and FALSIFIED 2026-09-02 (pilot job 11913324, `phi_mass_matrix='block'`, $n_{\mathrm{probes}}=24$, Block 4 ON, proper prior ν=6, 600 sweeps):**
+  Raising Nystrom rank 4x ($n_{\mathrm{probes}}=6 \to 24$) did not improve mixing in target bin `[10,30)` ($\tau_{\mathrm{int}}=25.3$ vs $14.8$ for baseline `prior`) and severely degraded low-L `[2,10)` ($\tau_{\mathrm{int}}=113.7$ vs $48.3$, $\hat{R}=1.951$, drift $-2.39\sigma$) while increasing sweep time by 44%.
+  **Conclusion:** The failure of `block` preconditioning under Block 4 is not a rank artifact. The non-diagonal Nystrom mass matrix route is closed post-fix; production configuration remains diagonal `phi_mass_matrix='prior'`.
 
 **MAP-start fix validated 2026-08-30 (job 11892308, COMPLETED): the coverage-ensemble cold-start bug (below) is fixed.** Single-realization rerun at the shipped config (lmax=64, `prior` mass matrix, Block 4 ON, `n_burnin=100`) with the new `map_steps=2000` MAP pre-solve: φ-power/truth ratio 1.40-1.65 throughout the post-burn-in chain (was 1.9e3-2.5e5x), alm-vs-truth cosine flat at 0.9998 for the whole chain (was 0.24-0.91 and decreasing), `logp` plateaued (linear-fit slopes -0.20/+0.07 over the two 300-sample halves against a std of ~52, vs. monotonic drift with no plateau before). `n_burnin=100` (not the new 400 default) was sufficient — the MAP start alone already gives alm cosine 0.9999. **Full 12-chain ensemble relaunched 2026-08-30, job 11899585**, into a fresh directory `results/analysis/coverage_ensemble_lmax64_prior_cl4_mapfix/` (`scripts/submit_coverage_ensemble_lmax64_prior_cl4_mapfix.slurm`) — see `ROADMAP.md` for harvest instructions.
 
@@ -80,7 +168,7 @@ The central blocker for the whole project since lmax≈128 pilots began: the φ 
 
 ## Known limitations, still open
 
-- **🛑 The parameterisation cannot represent a general sky: `Im(a_{L,1})` is forced to zero at every multipole.** `alm_utils.py::splittosingularalm` writes `complex(real, 0)` when `m == 0 or m == 1`, so the packed vector carries 2L real dof instead of 2L+1 and one real degree of freedom per multipole is simply absent from the model. Measured unrepresentable power ≈ 1/(2L+1): ~20% of the modes at ℓ=2, 17% at ℓ=3, 0.8% at ℓ=63. **This is the largest known open defect**, and its low-ℓ concentration matches the chronic low-ℓ φ weakness seen at every scale since lmax=128 — it is now the leading candidate for the long-standing φ-power deficit (`literature.md`), ahead of every external explanation considered. Restoring the dof would also make `k_L = 2L+1` and retroactively vindicate the original `L-0.5` inverse-Gamma shape. **Not attempted because the blast radius is wide:** ~78 sites across ~28 files hardcode `n_imag = (lmax-2)(lmax-1)/2`, and the change invalidates every existing checkpoint and saved chain. Needs a planned, staged change; scope it before spending further φ compute.
+- **✅ CLOSED 2026-09-06 (restored — see the top entry of this file). The description below is kept as the record of the defect while it was open.** ~~🛑~~ **The parameterisation could not represent a general sky: `Im(a_{L,1})` was forced to zero at every multipole.** `alm_utils.py::splittosingularalm` writes `complex(real, 0)` when `m == 0 or m == 1`, so the packed vector carries 2L real dof instead of 2L+1 and one real degree of freedom per multipole is simply absent from the model. Measured unrepresentable power ≈ 1/(2L+1): ~20% of the modes at ℓ=2, 17% at ℓ=3, 0.8% at ℓ=63. **This is the largest known open defect**, and its low-ℓ concentration matches the chronic low-ℓ φ weakness seen at every scale since lmax=128 — it is now the leading candidate for the long-standing φ-power deficit (`literature.md`), ahead of every external explanation considered. Restoring the dof would also make `k_L = 2L+1` and retroactively vindicate the original `L-0.5` inverse-Gamma shape. **Not attempted because the blast radius is wide:** ~78 sites across ~28 files hardcode `n_imag = (lmax-2)(lmax-1)/2`, and the change invalidates every existing checkpoint and saved chain. Needs a planned, staged change; scope it before spending further φ compute.
 
 ## Doubling the φ trajectory length, tested and inconclusive (job 11912088, harvested 2026-09-02)
 

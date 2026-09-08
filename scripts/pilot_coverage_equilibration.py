@@ -82,6 +82,7 @@ import numpy as np
 import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, compute_sl_phi_np, lens_map_tf
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm, find_map_estimate
@@ -476,7 +477,7 @@ def main():
         raise RuntimeError("NaN/Inf in samples -- pilot FAILED before diagnostics")
 
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     ell_bins = [(lo, min(hi, lmax)) for lo, hi in

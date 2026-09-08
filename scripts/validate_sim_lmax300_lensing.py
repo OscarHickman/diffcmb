@@ -39,6 +39,7 @@ import numpy as np
 import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
 from diffcmb.power import call_CAMB_map
 from diffcmb.samplers import _alm_index_lm
@@ -181,7 +182,7 @@ def main():
     lmax_v = lmax
     n_lncl = lmax_v - 2
     n_real = lmax_v * (lmax_v + 1) // 2 - 3
-    n_imag = (lmax_v - 2) * (lmax_v - 1) // 2
+    n_imag = packed_sizes(lmax_v)[1]
     L_arr, _m_arr = _alm_index_lm(lmax_v, n_real, n_imag)
 
     alm_part = samples[:, n_lncl:]

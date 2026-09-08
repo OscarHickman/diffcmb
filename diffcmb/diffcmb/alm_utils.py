@@ -192,7 +192,7 @@ def splittosingularalm(_realalm, _imagalm, lmax):
             if L == 0 or L == 1:
                 _alm.append(complex(0, 0))
             else:
-                if m == 0 or m == 1:
+                if m == 0:
                     _alm.append(complex(_realalm[_ralmcount], 0))
                     _ralmcount = _ralmcount + 1
                 else:
@@ -209,7 +209,7 @@ def _alm_scatter_indices(lmax):
     len_alm = lmax * (lmax + 1) // 2
     real_indices = np.arange(3, len_alm, dtype=np.intp)[:, np.newaxis]
     imag_indices = np.array(
-        [L * (L + 1) // 2 + m for L in range(2, lmax) for m in range(2, L + 1)],
+        [L * (L + 1) // 2 + m for L in range(2, lmax) for m in range(1, L + 1)],
         dtype=np.intp,
     )[:, np.newaxis]
     real_indices.flags.writeable = False
@@ -272,6 +272,7 @@ def almhotmo(_hoalm, _lmax):
 
 
 def alminit(_alms, _lmax):
+    # Author (L-major) ordering counterpart of hpalminit: only m=0 is real.
     _count = 0
     for L in range(_lmax):
         for _ in range(L + 1):
@@ -281,7 +282,7 @@ def alminit(_alms, _lmax):
     _count = 0
     for L in range(_lmax):
         for m in range(L + 1):
-            if m == 0 or m == 1:
+            if m == 0:
                 _alms[_count] = complex(np.real(_alms[_count]), 0)
                 _count = _count + 1
             else:
@@ -290,6 +291,14 @@ def alminit(_alms, _lmax):
 
 
 def hpalminit(_alms, _lmax):
+    """Zero the monopole/dipole and force the m=0 coefficients real.
+
+    In healpy ordering the first `_lmax` entries are the m=0 block (L=0..lmax-1)
+    and the next `_lmax - 1` are the m=1 block. Only m=0 is real for a real
+    field, so exactly `_lmax` entries are realified here. This loop ran to
+    `2 * _lmax - 1` until the Im(a_{L,1}) restoration, which also realified the
+    m=1 block and so imposed the packing defect on the data/prior alms.
+    """
     _count = 0
     for L in range(_lmax):
         for _ in range(L + 1):
@@ -297,36 +306,41 @@ def hpalminit(_alms, _lmax):
             if _count == 1 or _count == 2 or _count == _lmax + 1:
                 _alms[_count - 1] = complex(0, 0)
     _count = 0
-    for _ in range(2 * _lmax - 1):
+    for _ in range(_lmax):
         _alms[_count] = complex(np.real(_alms[_count]), 0)
         _count = _count + 1
     return _alms
+
+
+def packed_sizes(lmax: int):
+    """(n_real, n_imag) coordinate counts for the packed alm/phi vector.
+
+    With Im(a_{L,1}) restored, n_imag carries m=1..L for each L=2..lmax-1,
+    giving sum_{L=2}^{lmax-1} L = (lmax - 2) * (lmax + 1) // 2 imaginary slots.
+    """
+    n_real = lmax * (lmax + 1) // 2 - 3
+    n_imag = (lmax - 2) * (lmax + 1) // 2
+    return n_real, n_imag
+
+
+def packed_length(lmax: int) -> int:
+    """Total length (n_real + n_imag) of the packed alm/phi vector."""
+    n_real, n_imag = packed_sizes(lmax)
+    return n_real + n_imag
 
 
 def packed_dof_per_multipole(lmax):
     """Number of REAL degrees of freedom the packed alm/phi vector carries at
     each multipole L (index 0..lmax-1; entries for L<2 are zero).
 
-    This is not 2L+1. `splittosingularalm` stores an imaginary part only for
-    m >= 2 -- `if m == 0 or m == 1` writes `complex(real, 0)` -- so
-    Im(a_{L,1}) is forced to zero at every multipole and each L carries
-    1 (m=0) + 1 (m=1) + 2*(L-1) (m=2..L) = 2L real dof.
-
-    Blocks 1 and 4 need this because their inverse-Gamma conditionals are
-    derived from the Gaussian prior's normalisation, C^{-k/2}, where k is
-    exactly this count. Assuming k = 2L+1 (as the code did until 2026-08-31)
-    puts the shape parameter half a unit off and biases E[C_L] by
-    (L-1.5)/(L-2) -- 0.8% at L=63 but 50% at L=3 and undefined at L=2.
-
-    Deriving the exponent from this function rather than hardcoding a formula
-    means the conditionals stay correct if the packing is ever changed to
-    restore the missing Im(a_{L,1}) dof (which would make k = 2L+1 and is
-    tracked in ROADMAP.md as a separate, larger fix).
+    With Im(a_{L,1}) restored for m >= 1, each multipole L >= 2 carries
+    1 (m=0 real) + 2*L (m=1..L real + imag) = 2L+1 real dof, matching
+    a general real scalar field on the sphere.
     """
     dof = np.zeros(lmax, dtype=np.int64)
     for L in range(2, lmax):
         for m in range(L + 1):
-            dof[L] += 1 if (m == 0 or m == 1) else 2
+            dof[L] += 1 if m == 0 else 2
     return dof
 
 

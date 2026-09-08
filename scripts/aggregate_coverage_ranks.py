@@ -43,7 +43,7 @@ import os
 
 import numpy as np
 
-from diffcmb.alm_utils import packed_dof_per_multipole
+from diffcmb.alm_utils import packed_dof_per_multipole, packed_sizes
 from diffcmb.lensing import compute_sl_phi_np
 from diffcmb.samplers import _alm_index_lm
 
@@ -139,7 +139,7 @@ def main():
         lmax = int(d["lmax"])
         n_lncl = lmax - 2
         n_real = lmax * (lmax + 1) // 2 - 3
-        n_imag = (lmax - 2) * (lmax - 1) // 2
+        n_imag = packed_sizes(lmax)[1]
         L_arr, _m = _alm_index_lm(lmax, n_real, n_imag)
 
         if ell_bins is None:

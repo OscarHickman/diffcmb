@@ -70,10 +70,11 @@ print("=" * 70)
 print("TEST 2: _alm_packed_to_hp adjoint = _alm_hp_to_packed")
 print("=" * 70)
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, _alm_packed_to_hp
 
 n_real = LMAX * (LMAX + 1) // 2 - 3
-n_imag = (LMAX - 2) * (LMAX - 1) // 2
+n_imag = packed_sizes(LMAX)[1]
 n_packed = n_real + n_imag
 
 packed_a = rng.standard_normal(n_packed)

@@ -39,6 +39,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.samplers import _alm_index_lm
 
 
@@ -83,7 +84,7 @@ def main():
     print(f"Loaded {phi_samples.shape[0]} posterior phi samples from {args.checkpoint}")
 
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     ell_bins = [(lo, min(lo + args.bin_width, lmax))

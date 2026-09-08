@@ -34,11 +34,12 @@ except ImportError:
     hp = None
 
 try:
-    from .alm_utils import almhotmo, almmotho, invgamma_shape_for_spectrum
+    from .alm_utils import almhotmo, almmotho, invgamma_shape_for_spectrum, packed_sizes
 except ImportError:  # pragma: no cover - alm_utils needs healpy/scipy
     almhotmo = None
     almmotho = None
     invgamma_shape_for_spectrum = None
+    packed_sizes = None
 
 try:
     import tensorflow as tf
@@ -66,7 +67,7 @@ except ImportError:
 
 def _alm_packed_to_hp(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
     """Packed real+imag → healpy complex alm (length lmax*(lmax+1)//2)."""
-    n_real = lmax * (lmax + 1) // 2 - 3
+    n_real, _ = packed_sizes(lmax)
     real_p = phi_packed[:n_real]
     imag_p = phi_packed[n_real:]
     len_alm = lmax * (lmax + 1) // 2
@@ -76,7 +77,7 @@ def _alm_packed_to_hp(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
     for L in range(2, lmax):
         for m in range(L + 1):
             mo_idx = L * (L + 1) // 2 + m
-            if m <= 1:
+            if m == 0:
                 alm_mo[mo_idx] = real_p[r_idx]
                 r_idx += 1
             else:
@@ -88,8 +89,7 @@ def _alm_packed_to_hp(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
 
 def _alm_hp_to_packed(alm_hp: np.ndarray, lmax: int) -> np.ndarray:
     """Healpy complex alm → packed real+imag float64 vector."""
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     real_p = np.zeros(n_real, dtype=np.float64)
     imag_p = np.zeros(n_imag, dtype=np.float64)
     alm_mo = almhotmo(alm_hp, lmax)
@@ -98,7 +98,7 @@ def _alm_hp_to_packed(alm_hp: np.ndarray, lmax: int) -> np.ndarray:
     for L in range(2, lmax):
         for m in range(L + 1):
             mo_idx = L * (L + 1) // 2 + m
-            if m <= 1:
+            if m == 0:
                 real_p[r_idx] = alm_mo[mo_idx].real
                 r_idx += 1
             else:
@@ -127,10 +127,10 @@ def compute_sl_phi_np(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
 
     phi_packed: 1-D numpy array, packed real+imag layout as returned by
     _alm_hp_to_packed (real parts L=2..lmax-1 m=0..L, then imaginary parts
-    L=2..lmax-1 m=2..L) -- same convention as model.py::compute_sl_np's
+    L=2..lmax-1 m=1..L) -- same convention as model.py::compute_sl_np's
     alm_flat_np argument.
     """
-    n_real = lmax * (lmax + 1) // 2 - 3
+    n_real, _ = packed_sizes(lmax)
     real_p = phi_packed[:n_real]
     imag_p = phi_packed[n_real:]
     S = np.zeros(lmax)
@@ -140,8 +140,8 @@ def compute_sl_phi_np(phi_packed: np.ndarray, lmax: int) -> np.ndarray:
         for m in range(L + 1):
             re = real_p[r_idx]
             r_idx += 1
-            im = imag_p[i_idx] if m >= 2 else 0.0
-            if m >= 2:
+            im = imag_p[i_idx] if m >= 1 else 0.0
+            if m >= 1:
                 i_idx += 1
             if m == 0:
                 S[L] += re * re
@@ -157,9 +157,8 @@ def sample_cl_phiphi_given_phi(phi_packed: np.ndarray, lmax: int, rng=None,
 
         C_L^phiphi | phi ~ InvGamma(alpha=k_L/2 - 1, beta=S_L/2)
 
-    where k_L = 2L is the number of REAL packed dof at multipole L (the
-    packing forces Im(a_{L,1}) = 0, so it is 2L and not 2L+1; this was wrong
-    until 2026-08-31 -- see alm_utils.packed_dof_per_multipole)
+    where k_L = 2L+1 is the number of REAL packed dof at multipole L (with
+    Im(a_{L,1}) restored, the packed vector carries the full 2L+1 real dof).
 
     where S_L = sum_{m=-L}^{L} |phi_{L,m}|^2 (compute_sl_phi_np). Same
     structure as model.py::sample_cl_given_alm (Block 1), applied to phi.
@@ -186,11 +185,11 @@ def sample_cl_phiphi_given_phi(phi_packed: np.ndarray, lmax: int, rng=None,
     InvGamma(alpha_0 = nu/2, beta_0 = nu*C_L^fid/2) prior on each C_L, so
 
         C_L^phiphi | phi ~ InvGamma(k_L/2 + nu/2, (S_L + nu*C_L^fid)/2)
-                         = InvGamma(L + nu/2, (S_L + nu*C_L^fid)/2).
+                         = InvGamma(L + 0.5 + nu/2, (S_L + nu*C_L^fid)/2).
 
     `nu` reads as an effective number of prior "pseudo-modes", on the same
-    footing as the k_L = 2L real modes the data supplies at multipole L -- so
-    nu is weak where the data is informative (high L) and does most of its
+    footing as the k_L = 2L+1 real modes the data supplies at multipole L --
+    so nu is weak where the data is informative (high L) and does most of its
     work at low L, which is exactly where the improper prior hurts.
 
     REQUIREMENT nu > 0, enforced. With the prior in place the marginal tail
@@ -226,9 +225,9 @@ def sample_cl_phiphi_given_phi(phi_packed: np.ndarray, lmax: int, rng=None,
         if not np.isfinite(prior_nu) or prior_nu <= 0.0:
             raise ValueError(
                 f"prior_nu must be > 0 for a proper phi marginal (got {prior_nu}); "
-                "with k_L = 2L packed dof the marginal tail goes as "
-                "r^(-1-nu), normalisable exactly for nu > 0. See this "
-                "function's docstring."
+                "the marginal tail goes as r^(-1-nu) -- k_L cancels, so the "
+                "threshold is nu > 0 for k_L = 2L+1 exactly as it was for 2L. "
+                "See this function's docstring."
             )
         if cl_phiphi_fid is None:
             raise ValueError(
@@ -317,13 +316,13 @@ def _packed_coord_multipole(lmax: int) -> np.ndarray:
     """Multipole L of every coordinate in the packed phi layout.
 
     Traverses exactly as compute_sl_phi_np does: real parts for L=2..lmax-1,
-    m=0..L, then imaginary parts for m>=2.
+    m=0..L, then imaginary parts for m>=1.
     """
     L_arr = []
     for L in range(2, lmax):
         L_arr.extend([L] * (L + 1))
     for L in range(2, lmax):
-        L_arr.extend([L] * max(L - 1, 0))
+        L_arr.extend([L] * L)
     return np.array(L_arr, dtype=np.int64)
 
 
@@ -351,19 +350,21 @@ def sample_phi_amplitude_rescale(
                         - 0.5 * sum_L [ S_L(phi)/C_L + (2L+1) ln C_L ]
 
     up to a constant -- i.e. a flat improper prior on C_L. The packed phi
-    vector holds n_L = (L+1) real + (L-1) imaginary = 2L coordinates at
-    multipole L, so the map's Jacobian is prod_L alpha_L^(2L) * alpha_L^2.
-    The invariant exponent cancels, leaving
+    vector holds n_L = (L+1) real + L imaginary = 2L+1 coordinates at multipole
+    L, so the map's Jacobian is prod_L alpha_L^(2L+1) for phi times alpha_L^2
+    for C_L. The invariant S_L/C_L exponent cancels and the C_L normalisation
+    contributes -(2L+1) ln alpha_L, leaving
 
-        log A = -[psi(phi') - psi(phi)] + sum_L ln alpha_L
+        log A = -[psi(phi') - psi(phi)]
+                + sum_L [ -(2L+1) + (2L+1) + 2 ] ln alpha_L
+              = -[psi(phi') - psi(phi)] + 2 * sum_L ln alpha_L
 
     (verified against a brute-force target evaluation in
     tests/test_phi_ancillary_move.py rather than trusted from the derivation).
 
-    Note the (2L+1) normalisation is taken from what Block 4's alpha = L - 0.5
-    implies, NOT from the packed vector's 2L coordinates. The two blocks must
-    agree on the implied density or the composite chain targets neither; the
-    Jacobian separately uses the true sampled dimension 2L.
+    Note the (2L+1) normalisation now agrees with BOTH Block 4's alpha =
+    k_L/2 - 1 = L - 0.5 and the packed vector's own 2L+1 coordinates; before
+    Im(a_{L,1}) was restored the two disagreed and the coefficient was 1, not 2.
 
     Parameters
     ----------
@@ -424,7 +425,7 @@ def sample_phi_amplitude_rescale(
     cl_new[2:lmax] = cl_phiphi_full[2:lmax] * alpha ** 2
 
     delta_psi = float(neg_log_lik_fn(phi_new)) - float(neg_log_lik_fn(phi_packed))
-    log_accept_ratio = -delta_psi + float(np.sum(log_alpha))
+    log_accept_ratio = -delta_psi + 2.0 * float(np.sum(log_alpha))
 
     # A non-finite ratio (an overflowing or NaN likelihood at the proposal)
     # rejects rather than propagating garbage into the chain.
@@ -1292,8 +1293,7 @@ def estimate_phi_diag_fisher(
 
     from .samplers import _alm_index_lm
 
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     diag_fisher_per_L = np.zeros(lmax, dtype=np.float64)
@@ -1396,8 +1396,7 @@ def estimate_phi_block_hessian(
 
     from .samplers import _alm_index_lm
 
-    n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_real, n_imag = packed_sizes(lmax)
     L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
     channel_arr = np.array(["real"] * n_real + ["imag"] * n_imag)
 

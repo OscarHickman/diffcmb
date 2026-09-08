@@ -15,6 +15,7 @@ Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/debug_messenger_masksky.py
 """
 import numpy as np
 
+from diffcmb.alm_utils import packed_sizes
 from diffcmb.model import CosmologyAdvancedSampling
 from diffcmb.samplers import (
     _build_full_sky_norm_diag,
@@ -78,7 +79,7 @@ def main():
     model = build_model()
     lmax = model.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     n_alm = n_real + n_imag
 
     print("Building dense full-sky J operator by probing A_action...")

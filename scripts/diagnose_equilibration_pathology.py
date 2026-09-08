@@ -70,6 +70,8 @@ from pilot_coverage_equilibration import (
     phi_power_traces,
 )
 
+from diffcmb.alm_utils import packed_sizes
+
 try:
     from diffcmb.samplers import _alm_index_lm
 except ImportError:
@@ -321,7 +323,7 @@ def main():
 
     lmax = args.lmax
     n_real = lmax * (lmax + 1) // 2 - 3
-    n_imag = (lmax - 2) * (lmax - 1) // 2
+    n_imag = packed_sizes(lmax)[1]
     L_arr, _m_arr = _alm_index_lm(lmax, n_real, n_imag)
 
     ell_bins = [

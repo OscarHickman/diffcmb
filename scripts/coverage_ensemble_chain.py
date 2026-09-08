@@ -66,7 +66,7 @@ import tensorflow as tf
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
 from diffcmb.power import call_CAMB_map
-from diffcmb.samplers import find_map_estimate
+from diffcmb.samplers import PACKING_VERSION, find_map_estimate
 
 LCDM_PARAMS = [67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066]
 
@@ -354,6 +354,10 @@ def main():
     phi_calibration_ok = 1e-2 < ratio < 1e2
 
     save_kwargs = {
+        # Stamp the packing so a harvest can tell which model a chain describes:
+        # k_L = 2L before the 2026-09-06 Im(a_{L,1}) restoration, 2L+1 after.
+        # Chains with no field are version 1.
+        "packing_version": PACKING_VERSION,
         "realization": r, "lmax": lmax, "nside": nside,
         "alm_samples": samples, "phi_samples": phi_samples,
         "logp": logp, "accepts": accepts,
