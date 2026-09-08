@@ -160,38 +160,22 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Job 11951115 — packing-v2 validation, launched 2026-09-06.**
-`scripts/submit_pilot_packing_v2_lmax64_nocl4.slurm` →
-`results/analysis/pilot_packing_v2_lmax64_nocl4/`. One realization at job
-11903181's exact configuration (lmax=64, nside=64, `phi_n_lfs=240`,
-`phi_mass_matrix='prior'`, Block 4 OFF, `n_burnin=100`, `n_samples=600`, MAP
-start), so the restored `Im(a_{L,1})` packing (`k_L = 2L` → `2L+1`) is the only
-difference from the headline ensemble. ~5h expected, 24h walltime, checkpoints
-every 50 sweeps.
+**Nothing.** Both the packing-v2 pilot (job 11951115) and the packing-v2
+12-chain ensemble (job 11955622) completed and were harvested 2026-09-08 —
+see "Current headline" above. `restore-im-alm-l1-dof` is merge-ready, not yet
+merged into `main`; `docs/paper/main.tex` is clear to update onto the
+confirmed 2L+1 numbers. Both are pending explicit user sign-off (`ROADMAP.md`).
 
-**Pass = the three MAP-start sanity checks** (job 11892308's, `achievements.md`),
-read off `chain_r000.npz`: φ-power/truth ratio O(1) — healthy lmax=64 pilots
-land in 0.09–2.5 and the broken-ensemble signature is 1e3–1e5; alm-vs-truth
-cosine high and *flat* across the chain (11892308: 0.9998 throughout); `logp`
-plateaued, half-chain fit slopes at noise level. The script raises after saving
-if the φ ratio fails, so a `FAILED` task with a chain on disk means that check
-tripped. **Not a pass criterion: any rank or SBC number** — one realization
-cannot produce one, and reading a single chain's rank as calibration is a
-mistake this project has already made.
+The pre-existing open question from before the dof restoration is unchanged
+and unaddressed by any of this: Block 3's conditioning in the `[10,30)` bin.
+Nothing links the restored dof to it (Step 0 of the scoping plan was
+skipped) — see the historical section below.
 
-If it passes, the next launch is the 12-chain Option 1 ensemble (Block 4 off)
-to re-establish φ 0.4688 / alm 0.5312 under the new packing — **needs user
-sign-off, do not chain it automatically.**
-
-The pre-existing open question is unchanged and unaddressed by any of this:
-Block 3's conditioning in the `[10,30)` bin. Nothing links the restored dof to
-it (Step 0 of the scoping plan was skipped).
-
-Standing harvest checklist for the next ensemble: `.err` for tracebacks (SLURM
-`COMPLETED` is not sufficient), per-realization φ/truth power ratio O(1),
-re-derive `--thin` from each run's own τ_int, and **check the Block 4 PIT's
-verdict line reports a rejected control** before quoting the aligned pass
-(`--control_lags 1,10,50`; lag-1 alone is not enough).
+Standing harvest checklist for any future ensemble: `.err` for tracebacks
+(SLURM `COMPLETED` is not sufficient), per-realization φ/truth power ratio
+O(1), re-derive `--thin` from each run's own τ_int, and **check the Block 4
+PIT's verdict line reports a rejected control** before quoting the aligned
+pass (`--control_lags 1,10,50`; lag-1 alone is not enough).
 
 ---
 
