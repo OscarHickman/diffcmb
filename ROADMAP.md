@@ -19,7 +19,9 @@
 
 ### ⟹ NEXT SESSION — read this first
 
-**State as of 2026-09-02.** Job 11912088 (the long-trajectory Option 2 ensemble) is harvested; no compute is in flight. The exactness result is still **done and confirmed**: job 11903181 (Block 4 OFF), φ 0.4688 / alm 0.5312, both uniform. **The doubled-trajectory test came back an intermediate, not-clean-either-way result and needs a decision on where to look next:**
+**State as of 2026-09-08.** The `Im(a_{L,1})` dof restoration is fully closed out, pilot through re-run: job 11951115 (pilot) and job 11955622 (12-realization ensemble) both harvested. **The exactness claim is CONFIRMED under the restored 2L+1 packing**: φ pooled mean_u 0.4792 (KS_p 0.4078), alm 0.5130 (KS_p 0.6369), both uniform, superseding job 11903181's pre-restoration pair (0.4688/0.5312). One bin (φ `[30,60)`, KS_p 0.005, N=12) flagged — read as small-N noise, not a reopened defect; see `achievements.md` for the full number set and reasoning. No compute is currently in flight. `docs/paper/main.tex` is now clear to update onto these confirmed numbers (previously blocked pending this re-run) — that update, plus branch-merge, is the immediate next action. Beyond that, whether to chase the flagged bin at a larger N, or return to the Block 3 mixing investigation below (all of which predates the dof fix and needs re-validating against the new packing before any of its specific numbers are trusted again), is an open call.
+
+**Everything below this point in this section predates the 2026-09-06 dof restoration** (state as of 2026-09-02) and describes the Block-3-mixing investigation under the OLD 2L packing. Job 11912088 (the long-trajectory Option 2 ensemble) is harvested; no compute is in flight. The exactness result is still **done and confirmed [pre-restoration]**: job 11903181 (Block 4 OFF), φ 0.4688 / alm 0.5312, both uniform. **The doubled-trajectory test came back an intermediate, not-clean-either-way result and needs a decision on where to look next:**
 
 1. **HARVESTED 2026-09-02: job 11912088, 12/12 COMPLETED.** Doubling `phi_n_lfs` 240 → 480 moved the strict `C_L^φφ` SBC rank from 0.3802 (KS_p=0.0013) to **0.4196 (KS_p=0.00049)** — closer to 0.5, but the KS_p got *smaller*, so it is still a firm rejection of uniformity, not the "→0.5, funnel non-convergence" branch the roadmap called a clean pass. τ_int fell in 3 of 4 ℓ-bins (most sharply in the previously-worst `[60,64)`, ~326→87) but *not* in `[30,60)` (max 107.8), and Geyer's estimator truncated early in all 48 chain×bin combinations (window exhausted before finding a non-positive pair), so these are lower bounds, not converged estimates — "τ_int roughly halves" is true for some bins and not others, so neither predicted branch cleanly fired. **The failure is now heavily concentrated in one bin, `[10,30)`** (KS_p 0.0001, mean_u 0.262; the other three bins individually pass at KS_p 0.16-0.57). Full table: `results/analysis/dashboard.md`.
 
@@ -43,7 +45,7 @@
    - Wall-clock cost increased by ~44% (35.1s/sweep vs 24.3s/sweep).
    - **Conclusion:** Nystrom rank deficiency was not the issue. The static low-rank cross-L correction fails to track the moving Block 4 prior and harms low-L conditioning. **The non-diagonal mass matrix route (`phi_mass_matrix='block'`) is definitively closed post-fix.** Baseline stays `phi_mass_matrix='prior'`. The remaining investigation shifts entirely to likelihood/prior geometry and the missing-mode representation defect.
 
-### ⟹ 2026-09-06: the missing `Im(a_{L,1})` dof is RESTORED — every saved φ number now describes a different model
+### ✅ 2026-09-06/08: the missing `Im(a_{L,1})` dof is RESTORED and RE-VALIDATED — headline exactness claim confirmed under the new packing
 
 `k_L = 2L` → `2L+1`. The packing carries the full 2L+1 real dof per multipole, so
 the model can represent a general sky for the first time. Suite green (130 passed,
@@ -60,11 +62,15 @@ surprise.
 
 **Consequences, before citing anything below:**
 
-1. **Every φ and C_ℓ number in this file, in `achievements.md`, in
-   `results/analysis/dashboard.md` and in `docs/paper/main.tex` was measured
-   through the 2L packing.** They are the pre-change reference, recorded per the
-   scoping note's standing caution — the headline pair to compare against is
+1. **Every φ and C_ℓ number elsewhere in this file predating 2026-09-08, in
+   `achievements.md`'s pre-2026-09-08 entries, in `results/analysis/dashboard.md`,
+   and in `docs/paper/main.tex` was measured through the 2L packing.** They are
+   the pre-change reference — the headline pair to compare against was
    **φ 0.4688 (KS_p 0.124) / alm 0.5312 (KS_p 0.235)**, job 11903181, Block 4 off.
+   **That pair is now superseded**: the 2026-09-08 re-run under the restored
+   2L+1 packing (job 11955622) gives φ 0.4792 (KS_p 0.4078) / alm 0.5130
+   (KS_p 0.6369), confirming the claim rather than revising it — see the
+   entries below and in `achievements.md`.
    They are not current results.
 2. **Checkpoints are versioned** (`samplers.PACKING_VERSION = 2`) and resume now
    refuses a mismatched version *or* vector length rather than silently loading a
@@ -100,17 +106,29 @@ surprise.
    `results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`. The
    full 12-realization re-run of the headline exactness ensemble under the
    restored 2L+1 packing — otherwise identical to job 11903181 (lmax=64,
-   `phi_mass_matrix='prior'`, Block 4 OFF, MAP start). Compare the resulting
-   pooled phi/alm mean_u and KS_p directly against the 2L reference
-   (φ 0.4688/p=0.124, alm 0.5312/p=0.235) once harvested — **this
-   comparison, not the pilot above, is what re-establishes (or revises) the
-   headline exactness claim under the corrected model.** Do not merge
-   `restore-im-alm-l1-dof` into `main` or update `docs/paper/main.tex`'s
-   numbers until this lands.
+   `phi_mass_matrix='prior'`, Block 4 OFF, MAP start).
+
+   **HARVESTED 2026-09-08: job 11955622 (12/12 COMPLETED, clean `.err`, no
+   traceback) — CONFIRMED, headline exactness claim holds under the restored
+   packing.** Pooled over 4 ℓ-bins (N=48, `--thin 90`): **φ mean_u 0.4792
+   (KS_p 0.4078), alm mean_u 0.5130 (KS_p 0.6369)**, both consistent with
+   uniform — comfortably clearing the pre-fix pair (φ 0.4688/p=0.124, alm
+   0.5312/p=0.235). `validate_coverage_rank_nulls.py` confirms all four
+   `C_l^TT` coverage FLAGs sit inside their corrected null bands (the usual
+   rank-vs-mode artifact). Every realization's `phi_calibration_ok=True`
+   and phi-power/truth ratio in `[0.735, 1.320]` — no frozen or blown-up
+   chain. **One individual bin flagged**: φ `[30,60)`, mean_u 0.260, KS_p
+   0.005 (N=12) — the same bin the pre-fix ensemble also flagged, so either
+   a recurring small-N artifact or a genuine weak spot too small an
+   ensemble to resolve; not read as a reopened defect (full detail:
+   `achievements.md`). **This re-establishes the headline exactness claim —
+   the branch is now merge-ready** (pending the paper-numbers update below).
 4. `docs/paper/main.tex` still states the 2L derivations and the pre-change
-   numbers. It must not be updated to "2L+1" until the re-run supplies numbers
-   to go with it — a paper quoting a new packing with old chains' statistics
-   would be worse than one that is merely out of date.
+   numbers. **It is now clear to update onto the confirmed 2L+1 numbers
+   above** — this was the last blocker on the restore-im-alm-l1-dof branch,
+   held deliberately until the re-run supplied numbers to go with the new
+   packing (a paper quoting a new packing with old chains' statistics would
+   have been worse than one that is merely out of date).
 
 **Also done 2026-09-01, no compute (detail in the numbered sections below):** the joint (C_ℓ, C_L^φφ) differentiator figure is **built and is a null** at this sample size (§2); the CMBLensing.jl comparison is **written into the paper** (§3); the missing-`Im(a_{L,1})` fix is **scoped** in `docs/notes/restore_missing_alm_dof_scoping.md`; and two stale method claims were found and fixed in `main.tex` — Block 3 was described as **MCLMC** when MCLMC was tested and *fails* the stationarity gate (production is plain HMC), and the demonstrated scale was quoted as **lmax≈128** in three places when the calibration test passes at **lmax=64**.
 

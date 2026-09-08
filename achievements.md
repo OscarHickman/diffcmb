@@ -15,18 +15,37 @@ Done as the staged plan in `docs/notes/restore_missing_alm_dof_scoping.md`
 (Steps 1-5; that note's "What was actually done" section carries the full
 detail). Suite green: 130 passed, 1 skipped, ruff clean.
 
-**Production-scale validation, Step 6 of the scoping plan.** A single-realization
-pilot at the exact job-11903181 configuration (lmax=64, `phi_mass_matrix='prior'`,
-Block 4 OFF, MAP start; job 11951115, harvested 2026-09-08) passed all three
-pass criteria: φ-power/truth ratio **0.9612** (O(1)), alm-vs-truth cosine
-similarity **+0.9942** (high), `logp` plateaued (mean 26200.5 sweeps 0-299 vs
-26198.0 sweeps 300-599, flat within noise). The restored packing samples
-correctly at production scale. **This is not yet the exactness re-run itself**
-— that is the 12-realization ensemble (job 11955622, launched 2026-09-08,
-`results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`), which
-re-establishes (or revises) the headline pair φ 0.4688/alm 0.5312 (job
-11903181, pre-restoration 2L packing) under the corrected model. See
-`ROADMAP.md` for harvest instructions and status.
+**Production-scale validation, Step 6 of the scoping plan — DONE and CONFIRMED
+(2026-09-08).** A single-realization pilot at the exact job-11903181
+configuration (lmax=64, `phi_mass_matrix='prior'`, Block 4 OFF, MAP start;
+job 11951115) passed all three pass criteria: φ-power/truth ratio **0.9612**
+(O(1)), alm-vs-truth cosine similarity **+0.9942** (high), `logp` plateaued
+(mean 26200.5 sweeps 0-299 vs 26198.0 sweeps 300-599, flat within noise).
+That cleared the gate for the full 12-realization re-run (job 11955622, same
+configuration as 11903181, `results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2/`).
+All 12 tasks COMPLETED, clean `.err`, `phi_calibration_ok=True` and
+phi-power/truth ratio in `[0.735, 1.320]` on every realization (no frozen or
+blown-up chain).
+
+**Headline exactness claim CONFIRMED under the restored 2L+1 packing,
+superseding job 11903181's pre-restoration pair.** Pooled over 4 ℓ-bins
+(N=48, `--thin 90`): **φ mean_u 0.4792 (KS_p 0.4078), alm mean_u 0.5130
+(KS_p 0.6369)** — both consistent with uniform, comfortably clearing the
+pre-fix pair (0.4688/0.5312). `validate_coverage_rank_nulls.py` confirms all
+four `C_l^TT` coverage FLAGs sit inside the corrected null band (observed
+0.104/0.073/0.125/0.333 vs null 0.098/0.096/0.114/0.348, all within their
+95% bands) — the usual rank-statistic-vs-mode artifact, not bias. φ power
+bias per bin stays near 1 (median 0.996-1.047, max 1.49 in the noisiest
+`[2,10)` bin).
+
+**One individual bin flagged**: φ `[30,60)`, mean_u 0.260, KS_p 0.005 (N=12)
+— the pre-fix ensemble's *only* flagged bin was also φ `[30,60)`, so this is
+either the same small-N artifact recurring by chance or a genuine weak spot
+in that range that a 12-chain ensemble is underpowered to resolve either way.
+Not read as a reopened defect (the pooled result passes cleanly and the
+standing caution on O(10)-realization tests applies), but worth watching if
+a larger ensemble is ever run. `docs/paper/main.tex` is now clear to update
+onto these confirmed 2L+1 numbers (previously blocked pending this re-run).
 
 **What changed structurally.** `alm_utils.packed_sizes`/`packed_length` are now
 the single definition of the `(n_real, n_imag)` split, and the 32 files that

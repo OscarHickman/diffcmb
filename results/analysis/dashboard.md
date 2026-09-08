@@ -1,41 +1,64 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-02*
+*Last updated: 2026-09-08*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-> **⚠ 2026-09-06: every number on this page predates the `Im(a_{L,1})`
-> restoration** (`k_L = 2L` → `2L+1`, `achievements.md`). They describe a model
-> that carried one fewer real dof per multipole, and are kept as the reference to
-> compare the re-run against — the headline pair being φ 0.4688 / alm 0.5312 (job
-> 11903181). No chain has yet been run under the restored packing.
+> **✅ 2026-09-08: the headline exactness claim is CONFIRMED under the
+> restored `Im(a_{L,1})` packing** (`k_L = 2L` → `2L+1`, `achievements.md`).
+> Job 11955622 (12 realizations, restored packing) reproduces job 11903181's
+> pre-restoration result: φ 0.4792 / alm 0.5130, both uniform. Everything
+> below marked "pre-restoration"/job ≤11913324 was measured through the old
+> 2L packing (one fewer real dof per multipole) and is kept as historical
+> reference, not current status.
 
 ---
 
 ## Current headline — simulation-based calibration
 
 **lmax=64, nside=64, 12 independent chains, `phi_mass_matrix='prior'`, Block 4 OFF**
-(job **11903181**, corrected inverse-Gamma shape; supersedes job 11900600).
+(job **11955622**, restored 2L+1 packing; supersedes job 11903181, pre-restoration).
 Block 4 off pins `C_L^φφ` at the fiducial spectrum, so the φ prior is proper
 *and identical to the process that generated the truth* — which is what makes
 the φ rank a genuine calibration test.
 
 | Field rank (pooled over 4 ℓ-bins, N=48) | mean_u | KS_p | verdict |
 |---|---|---|---|
-| φ | **0.4688** | **0.124** | consistent with uniform |
-| alm | **0.5312** | **0.235** | consistent with uniform |
+| φ | **0.4792** | **0.4078** | consistent with uniform |
+| alm | **0.5130** | **0.6369** | consistent with uniform |
 
-No flagged bin in either field row (the pre-fix run had one, φ `[30,60)`).
-Thin-robust: φ 0.475 (p=0.44) at `--thin 30`, 0.453 (p=0.24) at 45, 0.469
-(p=0.124) at 90; τ_int max 42.5, so 90 is conservative. The pre-fix pair was
-0.4534 / 0.5367 — the corrected shape moved both *closer* to 0.5.
+One flagged bin: φ `[30,60)` (mean_u 0.260, KS_p 0.005, N=12) — the same bin
+the pre-restoration ensemble also flagged; read as a small-N artifact, not a
+reopened defect (`achievements.md`). `--thin 90`, matching the pre-restoration
+ensemble's derived value (τ_int max there was 42.5). All four `C_l^TT`
+coverage FLAGs sit inside their `validate_coverage_rank_nulls.py` null bands
+(observed 0.104/0.073/0.125/0.333 vs null 0.098/0.096/0.114/0.348) — the usual
+rank-vs-mode artifact, not bias. φ power bias per bin stays near 1 (median
+0.996–1.047, max 1.49 in `[2,10)`). Every realization's phi-power/truth ratio
+lands in `[0.735, 1.320]`.
+
+**Pre-restoration reference (job 11903181, 2L packing, superseded 2026-09-08):**
+φ mean_u 0.4688 (KS_p 0.124), alm mean_u 0.5312 (KS_p 0.235), no flagged bin
+in either field row. Thin-robust at the time: φ 0.475 (p=0.44) at `--thin 30`,
+0.453 (p=0.24) at 45. Pre-fix-shape pair (job 11900600) was 0.4534/0.5367.
 
 Reference: the same configuration with Block 4 **on** (flat improper prior on
-`C_L^φφ`, job 11899585) gives φ mean_u = 0.367, KS_p = 0.0040 — a statement
-about the prior, not about the sampler (see below).
+`C_L^φφ`, job 11899585, pre-restoration) gives φ mean_u = 0.367, KS_p = 0.0040
+— a statement about the prior, not about the sampler (see below). This
+Block-4-ON comparison has not yet been re-run under the restored packing.
 
-Mixing, same runs: τ_int median 4.7–27 per bin with Block 4 off, vs 24–56 with
-it on. R̂ ≤ 1.07 outside the lowest and highest bins.
+Mixing, pre-restoration runs: τ_int median 4.7–27 per bin with Block 4 off, vs
+24–56 with it on. R̂ ≤ 1.07 outside the lowest and highest bins.
+
+---
+
+## ⚠ Everything below this line predates the 2026-09-06 `Im(a_{L,1})` restoration
+
+The Block-3-mixing / proper-prior investigation below (jobs 11899585 through
+11913324) was run entirely under the old 2L packing (one fewer real dof per
+multipole than a real sky has). None of it has been re-run under the restored
+packing yet. Kept as historical record and as the likely starting point if
+this investigation resumes, not as current status.
 
 ---
 

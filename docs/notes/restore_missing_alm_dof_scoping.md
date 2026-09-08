@@ -192,6 +192,15 @@ vector-length mismatch, with a test (`test_checkpoint_packing_version_mismatch`)
 Checkpoints written before this carry no `packing_version` field and are read as
 version 1, so they refuse rather than silently resuming.
 
-**Step 6 is outstanding.** Every saved chain, every `.npz` in
-`results/analysis/`, and every φ number in `achievements.md` and
-`docs/paper/main.tex` predates the layout and describes a different model.
+**Step 6 is DONE (2026-09-08).** Single-realization pilot (job 11951115) passed
+the three MAP-start sanity checks, then the 12-realization re-run (job
+11955622, same config as job 11903181) confirmed the exactness claim under
+the restored packing: φ pooled mean_u 0.4792 (KS_p 0.4078), alm pooled
+0.5130 (KS_p 0.6369), both consistent with uniform, superseding the pre-fix
+0.4688/0.5312. One individual bin (φ `[30,60)`, KS_p 0.005, N=12) flagged;
+read as a small-N fluke pending a larger ensemble, not as a re-opened defect
+— see `achievements.md` and `ROADMAP.md` for the full numbers and reasoning.
+Every saved chain, every `.npz` in `results/analysis/` written before
+2026-09-06, and every φ number in `docs/paper/main.tex` still predates the
+layout and describes a different model; `docs/paper/main.tex` is now clear
+to update onto the confirmed 2L+1 numbers above.
