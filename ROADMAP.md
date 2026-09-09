@@ -21,11 +21,11 @@ The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main`. R
 
 **What's still open, and predates the dof restoration:** with Block 4 ON and a proper `C_L^φφ` prior, the strict SBC rank does not clear (0.42, localised to ℓ∈[10,30)) — see `achievements.md`'s "Open sampling question" section for the full investigation (Hessian-coupling diagnosis, the falsified Nystrom-mass-matrix fix). None of that has been re-measured under the 2L+1 packing yet.
 
-No compute is currently in flight.
+**In flight (2026-09-09):** job 11965813, `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2.slurm` — 12-realization re-run of job 11903182's config (lmax=64, ν=6, `phi_n_lfs=240`, Block 4 ON) under the restored 2L+1 packing. ~5h/realization, 24h walltime. Harvest instructions in the script header; compare the strict `C_L^φφ` SBC rank against 11903182's 0.3802/KS_p=0.0013.
 
 ## Next actions
 
-1. **Re-establish the Block-4-ON proper-prior configuration under the restored packing** — rerun job 11903182's config (lmax=64, ν=6, `phi_n_lfs=240` or 480) and compare the strict `C_L^φφ` SBC rank against the pre-restoration 0.38-0.42. Needed before any further Block 3 investigation, since every existing number for this configuration is pre-restoration.
+1. **Harvest job 11965813** once complete — check `.err` per array task, confirm φ power ratio O(1), then run `validate_coverage_rank_nulls.py` and `aggregate_coverage_ranks.py` per the script header. This is the re-establishment of the Block-4-ON proper-prior configuration under the restored packing; needed before any further Block 3 investigation, since every existing number for this configuration was pre-restoration.
 2. Optionally chase the flagged φ `[30,60)` bin in the headline result (§ above) at a larger ensemble N — currently read as small-N noise, unconfirmed either way.
 3. Otherwise proceed to the priority task list below.
 
