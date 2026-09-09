@@ -21,13 +21,19 @@ The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main`. R
 
 **What's still open, and predates the dof restoration:** with Block 4 ON and a proper `C_L^φφ` prior, the strict SBC rank does not clear (0.42, localised to ℓ∈[10,30)) — see `achievements.md`'s "Open sampling question" section for the full investigation (Hessian-coupling diagnosis, the falsified Nystrom-mass-matrix fix). None of that has been re-measured under the 2L+1 packing yet.
 
-**In flight (2026-09-09):** job 11965813, `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2.slurm` — 12-realization re-run of job 11903182's config (lmax=64, ν=6, `phi_n_lfs=240`, Block 4 ON) under the restored 2L+1 packing. ~5h/realization, 24h walltime. Harvest instructions in the script header; compare the strict `C_L^φφ` SBC rank against 11903182's 0.3802/KS_p=0.0013.
+**In flight (2026-09-09):**
+- Job 11965813, `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2.slurm` — 12-realization re-run of job 11903182's config (lmax=64, ν=6, `phi_n_lfs=240`, Block 4 ON) under the restored 2L+1 packing. ~5h/realization, 24h walltime. Compare the strict `C_L^φφ` SBC rank against 11903182's 0.3802/KS_p=0.0013.
+- Job 11965828, `scripts/submit_coverage_ensemble_lmax64_prior_nocl4_packingv2_extendN.slurm` — extends the headline packing-v2 ensemble (job 11955622) from N=12 to N=24 realizations, appending into the same output dir, to chase the flagged φ `[30,60)` bin (KS_p=0.005 at N=12).
+- Job 11966631, `scripts/submit_pilot_coverage_lmax128_postfix_hmc.slurm` — the lensing-aware lmax=128 chain needed for the C_ℓ^TT bias-reduction figure, run for the first time since the 2026-08-24 alm-ordering fix and 2026-09-06 dof restoration. **Caveat:** every prior lmax=128 φ-equilibration verdict (including the "genuine, low-L-specific long-lived mode" closure in `achievements.md`) predates the ordering fix and is unconfirmed post-fix; this run is the first post-fix data point on that question, not a re-confirmation. HMC explicitly (the script's own default is the closed-NO-GO `mclmc`), `phi_mass_matrix='prior'`, `phi_n_lfs=240`, seed=0/lmax=128/nside=128/noisesig=1.0 matching `lensing_blind_baseline_lmax128.npz` for direct comparability. 72h walltime, checkpoint every 50 sweeps.
+
+Harvest instructions for all three are in their script headers.
 
 ## Next actions
 
-1. **Harvest job 11965813** once complete — check `.err` per array task, confirm φ power ratio O(1), then run `validate_coverage_rank_nulls.py` and `aggregate_coverage_ranks.py` per the script header. This is the re-establishment of the Block-4-ON proper-prior configuration under the restored packing; needed before any further Block 3 investigation, since every existing number for this configuration was pre-restoration.
-2. Optionally chase the flagged φ `[30,60)` bin in the headline result (§ above) at a larger ensemble N — currently read as small-N noise, unconfirmed either way.
-3. Otherwise proceed to the priority task list below.
+1. **Harvest job 11965813** — check `.err` per array task, confirm φ power ratio O(1), then run `validate_coverage_rank_nulls.py` and `aggregate_coverage_ranks.py`. Re-establishes the Block-4-ON proper-prior configuration under the restored packing; needed before any further Block 3 investigation, since every existing number for this configuration was pre-restoration.
+2. **Harvest job 11965828** — re-run `aggregate_coverage_ranks.py` over all 24 realizations, compare the φ `[30,60)` bin's KS_p at N=24 against the N=12 value.
+3. **Harvest job 11966631** — read the GO/NO-GO equilibration verdict as the first post-fix lmax=128 data point (not a re-confirmation of the pre-fix one), then extract posterior C_ℓ^TT and compare against `lensing_blind_baseline_lmax128.npz` for the bias-reduction figure.
+4. Otherwise proceed to the priority task list below.
 
 ## Todo, priority order
 
