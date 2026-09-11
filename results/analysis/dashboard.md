@@ -206,7 +206,14 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Job 11980570** — `scripts/submit_lensing_blind_baseline_packingv2.slurm`,
+**Job 11980637** — `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
+extending the Block-4-ON proper-prior ensemble from N=12 to N=24 (realizations
+12–23, same outdir as job 11965813, byte-identical config — not a φ-tuning
+run). Doubles the chain count for the joint (C_ℓ^TT, C_L^φφ) differentiator
+figure, whose error bar is a *chain*-level bootstrap, and tests whether the
+`[10,30)` strict-rank residual relaxes or sharpens at N=24. ~5h/realization.
+
+**Completed 2026-09-11: job 11980570** — `scripts/submit_lensing_blind_baseline_packingv2.slurm`,
 re-running the Commander-style lensing-blind `C_l^TT` baseline under the
 restored packing. Required because the existing
 `lensing_blind_baseline_lmax128.npz` (2026-08-12) is packed at the OLD 2L width
@@ -215,8 +222,9 @@ shortfall) and predates both the ordering fix and the dof restoration — it is 
 different model from the lensing-aware chain it is meant to be the reference
 for, so the bias-reduction figure could not be built from it. Same config
 (seed=0, lmax=128, nside=128, noisesig=1.0), new output path; the stale file is
-kept, not overwritten. ~3h. On harvest, confirm `alm_true_packed` is 16380 long
-before differencing against the lensing-aware chain.
+kept, not overwritten. Ran in **4 minutes**, not the ~3h the header guessed —
+with no φ block the sampler is 0.1 s/sweep. `alm_true_packed` verified at 16380.
+**The bias-reduction figure is now built and positive** — see below.
 
 **Harvested and closed 2026-09-11:** jobs 11965813 (Block-4-ON proper prior,
 above), 11965828 (N=12→24 extension, headline section) and 11966631 (lmax=128
@@ -236,6 +244,38 @@ Standing harvest checklist for any future ensemble: `.err` for tracebacks
 O(1), re-derive `--thin` from each run's own τ_int, and **check the Block 4
 PIT's verdict line reports a rejected control** before quoting the aligned
 pass (`--control_lags 1,10,50`; lag-1 alone is not enough).
+
+---
+
+## ✅ `C_l^TT` bias reduction — DEMONSTRATED, 93% (2026-09-11)
+
+`scripts/compare_cl_bias_reduction.py` →
+`results/analysis/figures/cl_bias_reduction_lmax128.png`. Lensing-aware joint
+sampler (job 11966631) vs Commander-style lensing-blind Gibbs (job 11980570),
+**identical simulation**, both packing-v2.
+
+| ℓ bin | blind/expected | aware/expected | blind pull | aware pull |
+|---|---|---|---|---|
+| `[2,10)` | 0.916 | 0.891 | −2.6 | −2.9 |
+| `[10,30)` | 0.9986 | **1.0048** | −0.9 | +2.3 |
+| `[30,60)` | 0.9914 | **1.0002** | −13.5 | +0.3 |
+| `[60,100)` | 0.9738 | **1.0005** | −71.1 | +1.4 |
+| `[100,128)` | 0.9456 | **0.9992** | −172.0 | −2.2 |
+
+Mean |fractional bias| over the four reliable bins **0.0226 → 0.0016 (93%
+reduction)**. The lensing-aware posterior is consistent with unbiased in every
+reliable bin (|pull| ≤ 2.3); the blind deficit grows monotonically with ℓ to
+−5.4% — the physically expected signature. `[2,10)` is excluded (φ not
+equilibrated at lmax=128, below).
+
+⚠ **The reference is `S_l/(k_l−4)`, the expected posterior mean — not the
+realized power and not the fiducial.** Under the flat improper prior Block 1's
+posterior mean sits high by `k_l/(k_l−4)` (+15% at ℓ~20, +2% at ℓ~110), an
+ℓ-dependent offset common to both chains that is larger than the lensing signal.
+Against the realized power this comparison reports *no* bias reduction and names
+the lensing-aware chain the more biased one; against the fiducial it adds cosmic
+variance on top (ratio 3.66 at `[2,10)`). Both wrong references reverse the
+conclusion. See `achievements.md`.
 
 ---
 

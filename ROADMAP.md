@@ -33,9 +33,12 @@ The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main` an
 
 ## Next actions
 
-1. **Harvest job 11980570** — check `.err`, confirm `alm_true_packed` is 16380 long (not 16254), then difference its `cl_samples` mean bin-by-bin against the lensing-aware chain `pilot_coverage_lmax128_postfix_hmc.npz` for the bias-reduction figure. Build the figure from the mid/high-ℓ bins; `[2,10)` is not usable from the lensing-aware side (~15 effective samples under the low-L mode).
-2. **Decide the `[10,30)` Block 3 question** — it is now cleanly isolated and is the last thing between the project and a clean exactness story. Needs a decision, not another unilateral tuning run (see standing rule). The honest alternative is to **report it**: the headline Block-4-OFF SBC passes, and the Block-4-ON proper-prior configuration carries a documented, localised, one-bin caveat.
-3. **More effective samples for the differentiator figure** — the joint (C_ℓ^TT, C_L^φφ) correlation is still a null at the current ensemble size, and resolving |r|=0.10 at 2σ needs ~2.4× the samples. Job 11965813's 12 chains are now available under the correct packing and can be pooled with any future Block-4-ON ensemble.
+1. ~~Harvest job 11980570~~ **DONE 2026-09-11** — baseline re-ran clean (4 min, not the ~3h the header guessed: no φ block is 0.1 s/sweep), `alm_true_packed` verified at 16380, and the bias-reduction figure is **built and positive** (93% reduction; see §2 below). Remaining polish: the `[2,10)` bin dominates the figure's y-scale — the paper version should drop it rather than grey it.
+
+2. **Harvest job 11980637** (launched 2026-09-11) — extends the Block-4-ON proper-prior ensemble from N=12 to N=24, the same small-N-vs-real-defect discriminator job 11965828 just applied to the Block-4-OFF `[30,60)` flag. Serves two ends at once: it doubles the chain count for the joint (C_ℓ^TT, C_L^φφ) differentiator figure (currently a null — the error bar is a *chain*-level bootstrap, so more chains is the only lever), and it tests whether the `[10,30)` strict-rank residual relaxes or sharpens at N=24. Config byte-identical to 11965813, so this is not a φ-tuning run. Harvest per the script header.
+
+3. **Decide the `[10,30)` Block 3 question** — it is now cleanly isolated and is the last thing between the project and a clean exactness story. Needs a decision, not another unilateral tuning run (see standing rule). The honest alternative is to **report it**: the headline Block-4-OFF SBC passes, and the Block-4-ON proper-prior configuration carries a documented, localised, one-bin caveat.
+
 
 ## Todo, priority order
 
@@ -48,7 +51,7 @@ The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main` an
 ### 2. Differentiator figures (what the paper is *for*)
 - [x] Joint (C_ℓ^TT, C_L^φφ) posterior correlation figure — built 2026-09-01, result is a null at current sample size (`achievements.md`). Next step is more effective samples (a dedicated long run, or pooling job 11903182 + job 11912088's post-thin draws), not a new estimator — not yet done.
 - [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
-- [~] C_ℓ^TT bias reduction vs a lensing-blind (Commander-style) analysis. Lensing-aware side **done** (job 11966631, restored packing). Lensing-blind reference was found on 2026-09-11 to be packed at the old 2L width and is **not** usable — re-run in flight as job 11980570. Build from mid/high-ℓ bins only.
+- [x] C_ℓ^TT bias reduction vs a lensing-blind (Commander-style) analysis — **DEMONSTRATED 2026-09-11: 93% bias reduction** (mean |fractional bias| 0.0226 → 0.0016 over the four reliable ℓ bins; lensing-aware consistent with unbiased everywhere, blind deficit growing to −5.4% at `[100,128)`). `scripts/compare_cl_bias_reduction.py`, figure `results/analysis/figures/cl_bias_reduction_lmax128.png`. `[2,10)` excluded (φ not equilibrated at lmax=128). Note the reference had to be the *expected posterior mean* `S_l/(k_l−4)`, not the realized power and not the fiducial — both wrong references reversed the conclusion (`achievements.md`). Both sides done under the restored packing: lensing-aware job 11966631, lensing-blind re-run job 11980570 (the 2026-08-12 baseline was old-2L-packed and unusable).
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a second, separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
 
@@ -110,6 +113,7 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - **Derive constants from the structure, don't hardcode them** — and when you do fix one, grep for every script that mirrors the same derivation (`achievements.md` — this slipped three times in one week before the lesson stuck).
 - **A control that passes makes its check vacuous** — a misalignment/mutation control must itself fail before the aligned pass counts as evidence.
 - **A saved `.npz` carries no packing version.** `PACKING_VERSION` guards checkpoints only. Before differencing or pooling any pre-2026-09-06 analysis product against a current chain, check its array widths against `packed_length(lmax)` — this caught the stale lensing-blind baseline that would otherwise have rendered a packing artifact as a physics result (`achievements.md`).
+- **An unbiased `C_l` posterior does not centre on the truth's realized power.** Under the flat improper prior Block 1's posterior *mean* is `S_l/(k_l−4)`, not `S_l/k_l` — +15% at ℓ~20. Difference any spectrum comparison against `S_l/(k_l−4)`; against the realized power (or worse, the fiducial, which adds cosmic variance) the artifact is larger than the signal and reverses conclusions (`achievements.md`).
 - **A rank/coverage statistic needs its own simulated null before any flag is read as bias** — it can ranks the truth against its conditional's mode, which is non-uniform by construction even for a perfect sampler.
 - **An intermittent test failure is a hypothesis, not a flake.**
 - **Claims hygiene**: every "first" carries scope qualifiers and nearest-prior-work citations.

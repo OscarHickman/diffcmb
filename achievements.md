@@ -18,6 +18,27 @@ Two sites the 276-site survey missed, both caught by tests: `alm_utils.hpalminit
 
 **Re-validated at production scale, 2026-09-08.** Pilot (job 11951115, 1 realization, job-11903181 config) passed all three MAP-start sanity checks (φ-power/truth ratio 0.9612, alm cosine 0.9942, `logp` flat). That cleared the gate for the 12-chain re-run (job 11955622, headline result above). Step 0 of the scoping plan (measure whether the missing mode tracks the `[10,30)` SBC residual) was skipped by decision — this was done as a correctness fix on its own merits, not as a fix for the open Block 3 question; no evidence links the two.
 
+## `C_l^TT` bias reduction vs a lensing-blind analysis — DEMONSTRATED (2026-09-11)
+
+The ROADMAP §2 differentiator figure, built from two chains on the **identical** simulation (seed=0, lmax=128, nside=128, noisesig=1.0, both packing-v2): the lensing-aware joint sampler (job 11966631) against a Commander-style lensing-blind Phase 0 Gibbs that lenses the truth sky, adds noise, then fits an *unlensed* model to it (job 11980570). `scripts/compare_cl_bias_reduction.py`, figure `results/analysis/figures/cl_bias_reduction_lmax128.png`.
+
+| ℓ bin | lensing-blind | lensing-aware | blind pull | aware pull |
+|---|---|---|---|---|
+| `[2,10)` | 0.916 | 0.891 | −2.6 | −2.9 | *(UNRELIABLE — φ not equilibrated)* |
+| `[10,30)` | 0.9986 | 1.0048 | −0.9 | +2.3 |
+| `[30,60)` | 0.9914 | 1.0002 | −13.5 | +0.3 |
+| `[60,100)` | 0.9738 | 1.0005 | −71.1 | +1.4 |
+| `[100,128)` | 0.9456 | 0.9992 | −172.0 | −2.2 |
+
+**Mean |fractional bias| over the four reliable bins: 0.0226 (blind) → 0.0016 (aware), a 93% reduction.** The lensing-aware posterior is statistically consistent with unbiased in every reliable bin (|pull| ≤ 2.3), while the blind fit's deficit grows monotonically with ℓ to −5.4% at `[100,128)` — the physically expected signature, since lensing smooths the acoustic peaks and an unlensed model absorbs that as lost small-scale power. Errors are blocking SEMs (20 blocks), honest under the chains' autocorrelation.
+
+**The statistic took two corrections to get right, and both reversed the answer** — worth knowing before anyone rebuilds this:
+
+1. *Reference must be the realized spectrum, not the fiducial `cl_true`.* Both chains analyse ONE sky; differencing against the fiducial measures cosmic variance plus bias and calls the sum bias. At `[2,10)` that put the ratio at 3.66 — pure cosmic variance. (The same trap already recorded for the coverage statistic.)
+2. *Reference must then be the expected posterior mean, not the realized spectrum.* Block 1 draws `InvGamma(k_l/2−1, S_l/2)` under the flat improper prior, whose **mean** is `S_l/(k_l−4)` while the realized power is `S_l/k_l` — so a perfectly correct sampler sits high by `k_l/(k_l−4)`: +15% at ℓ~20, +2% at ℓ~110. That offset is large, ℓ-dependent and **common to both chains**, and it buries the lensing signal. Measured against the realized spectrum the comparison reported *no bias reduction* and named the lensing-aware chain the more biased of the two — entirely an artifact of the reference. The lensing-aware chain's ratios match the `k/(k−4)` prediction to ≤0.5% in all four reliable bins, which is what exposed it.
+
+**Lesson (generalises the existing "rank-vs-mode" rule to any spectrum comparison): the flat improper prior on `C_l` means an unbiased posterior does not centre on the truth's realized power. Always difference against `S_l/(k_l−4)`, never `S_l/k_l` and never the fiducial.**
+
 ## Real bugs found and fixed
 
 - **The lensing-blind `C_l^TT` baseline was silently a different model (found 2026-09-11).** `results/analysis/lensing_blind_baseline_lmax128.npz` (written 2026-08-12) is the reference side of the bias-reduction figure and `ROADMAP.md` listed it as done. Its `alm_true_packed` is **16254** long where `packed_length(128)` is now **16380** — a shortfall of exactly `lmax-2 = 126`, the missing `Im(a_{L,1})` dof. It therefore predates *both* the 2026-08-24 ordering fix and the 2026-09-06 restoration, and comparing it against the post-fix lensing-aware chain would have produced a "bias reduction" figure whose two sides are different models — a packing artifact presented as physics. Caught by checking array widths against `packed_length` before differencing, not by any test: a saved `.npz` carries no packing version (unlike checkpoints, which `PACKING_VERSION` protects). Re-run launched to a new path (`..._packingv2.npz`, job 11980570); the stale file is kept, not overwritten. **Lesson: `PACKING_VERSION` guards checkpoints but not analysis products — check any pre-2026-09-06 `.npz` against `packed_length(lmax)` before combining it with a current chain.**
