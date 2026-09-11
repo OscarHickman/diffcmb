@@ -1,5 +1,5 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-08*
+*Last updated: 2026-09-11*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
@@ -22,14 +22,25 @@ Block 4 off pins `C_L^φφ` at the fiducial spectrum, so the φ prior is proper
 *and identical to the process that generated the truth* — which is what makes
 the φ rank a genuine calibration test.
 
-| Field rank (pooled over 4 ℓ-bins, N=48) | mean_u | KS_p | verdict |
+| Field rank, **N=24 realizations** (pooled, N=96) | mean_u | KS_p | verdict |
 |---|---|---|---|
-| φ | **0.4792** | **0.4078** | consistent with uniform |
-| alm | **0.5130** | **0.6369** | consistent with uniform |
+| φ | **0.4688** | **0.0537** | consistent with uniform |
+| alm | **0.5039** | **0.2319** | consistent with uniform |
 
-One flagged bin: φ `[30,60)` (mean_u 0.260, KS_p 0.005, N=12) — the same bin
-the pre-restoration ensemble also flagged; read as a small-N artifact, not a
-reopened defect (`achievements.md`). `--thin 90`, matching the pre-restoration
+*(N=12 stage, job 11955622 alone: φ 0.4792 / KS_p 0.4078, alm 0.5130 / KS_p 0.6369.)*
+Extended to N=24 by job **11965828** (realizations 12–23, same outdir, same
+config), harvested 2026-09-11.
+
+**The φ `[30,60)` flag was chased to N=24 and the small-N-artifact reading
+held.** It relaxed rather than sharpened (KS_p 0.005 → 0.014, mean_u 0.260 →
+0.339, i.e. toward 0.5), and a *second* bin flagged at the same weak
+significance in the **opposite** direction (φ `[2,10)`, mean_u 0.568, KS_p
+0.014). Two bins straddling 0.5 at p~0.014 across 8 tests is bin-level noise,
+not a coherent one-bin bias — which is precisely what doubling N was run to
+distinguish. Neither bin is treated as a live defect. At N=24 all four
+`C_l^TT` coverage FLAGs again sit inside their null bands (obs
+0.094/0.089/0.120/0.349 vs null 0.095/0.096/0.115/0.342), and φ power bias
+per bin has median 0.988–1.025 (one realization reaches 2.23 in `[2,10)`). `--thin 90`, matching the pre-restoration
 ensemble's derived value (τ_int max there was 42.5). All four `C_l^TT`
 coverage FLAGs sit inside their `validate_coverage_rank_nulls.py` null bands
 (observed 0.104/0.073/0.125/0.333 vs null 0.098/0.096/0.114/0.348) — the usual
@@ -49,6 +60,41 @@ Block-4-ON comparison has not yet been re-run under the restored packing.
 
 Mixing, pre-restoration runs: τ_int median 4.7–27 per bin with Block 4 off, vs
 24–56 with it on. R̂ ≤ 1.07 outside the lowest and highest bins.
+
+---
+
+## ✅ RESOLVED-AS-NOT-THE-CAUSE: the packing does not explain the `[10,30)` residual
+
+**Job 11965813, harvested 2026-09-11** — job 11903182's exact configuration
+(lmax=64, ν=6 proper `C_L^φφ` prior, Block 4 ON, `phi_n_lfs=240`) re-run under
+the restored 2L+1 packing. This was ROADMAP "Next actions" #1: every number
+for this configuration was pre-restoration, so it had to be re-established
+before any further Block 3 work.
+
+| Statistic | pre-restoration (11903182) | **restored packing (11965813)** |
+|---|---|---|
+| strict `C_L^φφ` SBC rank | 0.3802 (KS_p 0.0013) | **0.4245 (KS_p 0.00395)** |
+| worst bin | `[10,30)` = 0.292 | **`[10,30)` = 0.281 (KS_p 0.0047)** |
+| other three bins | pass individually | pass (KS_p 0.15 / 0.73 / 0.73) |
+| φ power bias in `[10,30)` | median 1.08–1.14 | median **1.162** |
+| Block 4 PIT (aligned) | 0.4999 (KS_p 0.42), genuine | **0.5001 (KS_p 0.248), genuine** |
+
+**Verdict: the residual survives the restoration, essentially unchanged in
+location, direction and size.** The rank is the best of the three measurements
+on both axes (vs 0.3802/0.0013 at the same trajectory length and 0.4196/0.00049
+at doubled length) but is still a firm rejection of uniformity, and it is still
+localised to `[10,30)` with φ over-powered in that same bin. Since the
+restoration changed *both* the alm dof (2L→2L+1) and Blocks 1/4's inverse-Gamma
+shape (L−1 → L−0.5), and moved the rank only marginally, **the packing is now
+excluded as the cause** — which retrospectively answers the Step 0 question the
+restoration scoping plan skipped: the missing dof and the `[10,30)` residual
+were not linked. Remaining candidate is unchanged: Block 3 (φ|alm,C_ℓ)
+mixing/conditioning in `[10,30)`.
+
+The Block 4 PIT control behaved as the checklist requires: lag-10 and lag-50
+rejected at KS_p=0, so the aligned pass has power. Note lag-1 alone would have
+been near-vacuous — φ lag-1 decorrelation is +0.915 (lag-10 +0.531, lag-50
++0.095). Always pass `--control_lags 1,10,50`.
 
 ---
 
@@ -160,7 +206,21 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Nothing.** Both the packing-v2 pilot (job 11951115) and the packing-v2
+**Job 11980570** — `scripts/submit_lensing_blind_baseline_packingv2.slurm`,
+re-running the Commander-style lensing-blind `C_l^TT` baseline under the
+restored packing. Required because the existing
+`lensing_blind_baseline_lmax128.npz` (2026-08-12) is packed at the OLD 2L width
+(`alm_true_packed` 16254 vs `packed_length(128)`=16380, a `lmax-2`=126
+shortfall) and predates both the ordering fix and the dof restoration — it is a
+different model from the lensing-aware chain it is meant to be the reference
+for, so the bias-reduction figure could not be built from it. Same config
+(seed=0, lmax=128, nside=128, noisesig=1.0), new output path; the stale file is
+kept, not overwritten. ~3h. On harvest, confirm `alm_true_packed` is 16380 long
+before differencing against the lensing-aware chain.
+
+**Harvested and closed 2026-09-11:** jobs 11965813 (Block-4-ON proper prior,
+above), 11965828 (N=12→24 extension, headline section) and 11966631 (lmax=128
+lensing-aware chain, below). Previously in flight: Both the packing-v2 pilot (job 11951115) and the packing-v2
 12-chain ensemble (job 11955622) completed and were harvested 2026-09-08 —
 see "Current headline" above. `restore-im-alm-l1-dof` is merge-ready, not yet
 merged into `main`; `docs/paper/main.tex` is clear to update onto the
@@ -179,12 +239,42 @@ pass (`--control_lags 1,10,50`; lag-1 alone is not enough).
 
 ---
 
+## lmax=128 lensing-aware chain — NO-GO, but informative (job 11966631)
+
+First lmax=128 run since the ordering fix and the dof restoration, so it is the
+first *confirmed* post-fix data point on the low-L φ mode (2300 sweeps,
+48.6 s/sweep, 25.7h; HMC, `phi_mass_matrix='prior'`, `phi_n_lfs=240`, seed=0).
+
+| ℓ-bin | lag-1 | lag-10 | lag-50 | first \|r\|<0.2 | drift σ |
+|---|---|---|---|---|---|
+| `[2,10)` | **0.967** | 0.854 | 0.515 | lag 150 | −0.52 |
+| `[10,30)` | 0.919 | 0.639 | 0.155 | lag 50 | −0.60 |
+| `[30,60)` | 0.801 | 0.403 | 0.180 | lag 50 | −0.25 |
+| `[60,100)` | 0.750 | 0.236 | 0.069 | lag 25 | +0.04 |
+| `[100,128)` | 0.819 | 0.195 | −0.028 | lag 10 | −0.17 |
+
+**NO-GO** on the gate (worst lag-1 0.967 ≥ 0.9), *re-confirming* the pre-fix
+"genuine, low-L-specific long-lived mode" verdict rather than overturning it —
+marginally better than the pre-fix 0.996, same bin, same character. The chain is
+healthy otherwise: φ acceptance 0.691, alm 0.744, drift ≤ 0.60σ everywhere, and
+every bin above `[2,10)` decorrelates within 10–50 lags. **So the mode is
+narrowly low-L, not a global mixing failure — and it is now the sole blocker on
+lmax=128 being ensemble-ready.** Per ROADMAP's standing rule, no further
+φ-equilibration tuning launched without sign-off.
+
+Do **not** read this as a licence to build the bias-reduction figure's low-ℓ
+bins from this chain: `[2,10)` has ~15 effective samples at best. The mid/high-ℓ
+bins, where the lensing suppression of `C_l^TT` is largest anyway, are usable.
+
+---
+
 ## Invalid output — do not aggregate or cite
 
 | Directory | Job | Why |
 |---|---|---|
 | `coverage_ensemble_lmax64/` | 11848757 | Pre-dates the 2026-08-24 alm ordering fix |
 | `coverage_ensemble_lmax64_prior_cl4/` | 11887897 | Cold-start alm; φ frozen 1e3–1e5× above truth |
+| `lensing_blind_baseline_lmax128.npz` | (2026-08-12) | Packed at the OLD 2L width (`alm_true_packed` 16254 vs 16380) — pre-ordering-fix *and* pre-dof-restoration. Superseded by `..._packingv2.npz` (job 11980570) |
 
 Both `..._prior_cl4_mapfix/` (11899585) and `..._prior_nocl4/` (11900600) are
 valid but were produced with the pre-2026-08-31 inverse-Gamma shape; their

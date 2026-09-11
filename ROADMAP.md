@@ -15,38 +15,40 @@
 
 ---
 
-## Current state (2026-09-08)
+## Current state (2026-09-11)
 
-The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main`. Re-validated at production scale (pilot job 11951115, then 12-chain ensemble job 11955622): headline SBC **CONFIRMED** under the restored packing — φ mean_u 0.4792 (KS_p 0.4078), alm 0.5130 (KS_p 0.6369), both uniform, superseding the pre-restoration pair (0.4688/0.5312). `docs/paper/main.tex` is updated onto these numbers. Full detail: `achievements.md`.
+The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main` and the headline SBC claim is confirmed under it. All three campaigns launched 2026-09-09 completed and were harvested 2026-09-11; full numbers in `achievements.md` and `results/analysis/dashboard.md`.
 
-**What's still open, and predates the dof restoration:** with Block 4 ON and a proper `C_L^φφ` prior, the strict SBC rank does not clear (0.42, localised to ℓ∈[10,30)) — see `achievements.md`'s "Open sampling question" section for the full investigation (Hessian-coupling diagnosis, the falsified Nystrom-mass-matrix fix). None of that has been re-measured under the 2L+1 packing yet.
+**What the harvest settled:**
 
-**In flight (2026-09-09):**
-- Job 11965813, `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2.slurm` — 12-realization re-run of job 11903182's config (lmax=64, ν=6, `phi_n_lfs=240`, Block 4 ON) under the restored 2L+1 packing. ~5h/realization, 24h walltime. Compare the strict `C_L^φφ` SBC rank against 11903182's 0.3802/KS_p=0.0013.
-- Job 11965828, `scripts/submit_coverage_ensemble_lmax64_prior_nocl4_packingv2_extendN.slurm` — extends the headline packing-v2 ensemble (job 11955622) from N=12 to N=24 realizations, appending into the same output dir, to chase the flagged φ `[30,60)` bin (KS_p=0.005 at N=12).
-- Job 11966631, `scripts/submit_pilot_coverage_lmax128_postfix_hmc.slurm` — the lensing-aware lmax=128 chain needed for the C_ℓ^TT bias-reduction figure, run for the first time since the 2026-08-24 alm-ordering fix and 2026-09-06 dof restoration. **Caveat:** every prior lmax=128 φ-equilibration verdict (including the "genuine, low-L-specific long-lived mode" closure in `achievements.md`) predates the ordering fix and is unconfirmed post-fix; this run is the first post-fix data point on that question, not a re-confirmation. HMC explicitly (the script's own default is the closed-NO-GO `mclmc`), `phi_mass_matrix='prior'`, `phi_n_lfs=240`, seed=0/lmax=128/nside=128/noisesig=1.0 matching `lensing_blind_baseline_lmax128.npz` for direct comparability. 72h walltime, checkpoint every 50 sweeps.
+1. **Headline SBC, now at N=24** (job 11965828 extending 11955622): φ 0.4688 (KS_p 0.0537), alm 0.5039 (KS_p 0.2319), both uniform. The lone flagged φ `[30,60)` bin was chased and **relaxed** rather than sharpening (KS_p 0.005→0.014, mean_u 0.260→0.339), with a second bin flagging weakly in the opposite direction — bin-level noise, closed as not a defect.
+2. **The packing is excluded as the cause of the `[10,30)` residual** (job 11965813): strict `C_L^φφ` SBC rank 0.4245 (KS_p 0.00395) under the restored packing vs 0.3802 (0.0013) before. Marginally better, still a rejection, and **still localised to `[10,30)`** with φ over-powered there (median 1.162). Since the restoration changed both the alm dof and Blocks 1/4's shape and moved the rank barely at all, it is not the explanation — this retrospectively answers the Step 0 question the restoration plan skipped. Block 4's own PIT is a genuine pass (lag-10/50 controls rejected).
+3. **lmax=128 is blocked solely by the low-L φ mode** (job 11966631, the first post-ordering-fix/post-restoration data point): NO-GO at worst lag-1 0.967 in `[2,10)`, *re-confirming* the pre-fix verdict rather than overturning it. Every bin above `[2,10)` decorrelates within 10–50 lags and the chain is otherwise healthy (φ accept 0.691, drift ≤0.60σ), so the failure is narrowly low-ℓ, not global.
 
-Harvest instructions for all three are in their script headers.
+**The one open defect is unchanged and now better isolated:** Block 3 (φ|alm,C_ℓ) conditioning in `ℓ∈[10,30)` under the Block-4-ON funnel. Packing, Block 4's conditional, trajectory length and the Nystrom mass matrix are all now excluded. Per the standing rule, **no further φ-equilibration tuning is launched without user sign-off** — this track has returned a negative or ambiguous result on nearly every attempt.
+
+**Also found during the harvest (a real defect, not a result):** the lensing-blind `C_l^TT` baseline the bias-reduction figure depends on was silently a *different model* — `lensing_blind_baseline_lmax128.npz` (2026-08-12) is packed at the old 2L width (16254 vs `packed_length(128)`=16380) and predates both the ordering fix and the restoration. `ROADMAP` had it marked done. Differencing it against the post-fix lensing-aware chain would have rendered a packing artifact as physics.
+
+**In flight:** job **11980570**, `scripts/submit_lensing_blind_baseline_packingv2.slurm` — re-running that baseline under the restored packing at the identical simulation (seed=0, lmax=128, nside=128, noisesig=1.0) to a new output path, ~3h. This is the remaining blocker on the `C_l^TT` bias-reduction figure.
 
 ## Next actions
 
-1. **Harvest job 11965813** — check `.err` per array task, confirm φ power ratio O(1), then run `validate_coverage_rank_nulls.py` and `aggregate_coverage_ranks.py`. Re-establishes the Block-4-ON proper-prior configuration under the restored packing; needed before any further Block 3 investigation, since every existing number for this configuration was pre-restoration.
-2. **Harvest job 11965828** — re-run `aggregate_coverage_ranks.py` over all 24 realizations, compare the φ `[30,60)` bin's KS_p at N=24 against the N=12 value.
-3. **Harvest job 11966631** — read the GO/NO-GO equilibration verdict as the first post-fix lmax=128 data point (not a re-confirmation of the pre-fix one), then extract posterior C_ℓ^TT and compare against `lensing_blind_baseline_lmax128.npz` for the bias-reduction figure.
-4. Otherwise proceed to the priority task list below.
+1. **Harvest job 11980570** — check `.err`, confirm `alm_true_packed` is 16380 long (not 16254), then difference its `cl_samples` mean bin-by-bin against the lensing-aware chain `pilot_coverage_lmax128_postfix_hmc.npz` for the bias-reduction figure. Build the figure from the mid/high-ℓ bins; `[2,10)` is not usable from the lensing-aware side (~15 effective samples under the low-L mode).
+2. **Decide the `[10,30)` Block 3 question** — it is now cleanly isolated and is the last thing between the project and a clean exactness story. Needs a decision, not another unilateral tuning run (see standing rule). The honest alternative is to **report it**: the headline Block-4-OFF SBC passes, and the Block-4-ON proper-prior configuration carries a documented, localised, one-bin caveat.
+3. **More effective samples for the differentiator figure** — the joint (C_ℓ^TT, C_L^φφ) correlation is still a null at the current ensemble size, and resolving |r|=0.10 at 2σ needs ~2.4× the samples. Job 11965813's 12 chains are now available under the correct packing and can be pooled with any future Block-4-ON ensemble.
 
 ## Todo, priority order
 
 ### 1. Exactness evidence (highest value)
 - [x] Multi-realization rank/coverage test at lmax=64 — DONE and reconfirmed under the restored packing (`achievements.md`).
 - [x] `docs/paper/main.tex` updated to the confirmed numbers (both the 2026-08-31 dof-shape fix and the 2026-09-06 packing restoration).
-- [ ] **Resolve the Block 4 ON / proper-prior `C_L^φφ` strict SBC rank** — see Next actions §1 above.
-- [ ] Optional strengthening: push to lmax≈128 only if a referee asks. Per "demonstrated beats asserted", a passing test at 64 outranks a partial one at 128.
+- [~] **Resolve the Block 4 ON / proper-prior `C_L^φφ` strict SBC rank** — re-measured under the restored packing (0.4245, KS_p 0.00395, job 11965813): the residual survives and is confirmed localised to `[10,30)`; the packing is excluded as its cause. Remaining candidate is Block 3 conditioning there. Decision needed (Next actions §2), not another tuning run.
+- [ ] Optional strengthening: push to lmax≈128 only if a referee asks — **blocked**: job 11966631 confirms the low-L φ mode post-fix (NO-GO, lag-1 0.967 in `[2,10)`). Per "demonstrated beats asserted", a passing test at 64 outranks a partial one at 128.
 
 ### 2. Differentiator figures (what the paper is *for*)
 - [x] Joint (C_ℓ^TT, C_L^φφ) posterior correlation figure — built 2026-09-01, result is a null at current sample size (`achievements.md`). Next step is more effective samples (a dedicated long run, or pooling job 11903182 + job 11912088's post-thin draws), not a new estimator — not yet done.
 - [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
-- [~] C_ℓ^TT bias reduction vs a lensing-blind (Commander-style) analysis. Lensing-blind reference chain done (`achievements.md`, `results/analysis/lensing_blind_baseline_lmax128.npz`); the lensing-aware side still needs the equilibrated joint chain.
+- [~] C_ℓ^TT bias reduction vs a lensing-blind (Commander-style) analysis. Lensing-aware side **done** (job 11966631, restored packing). Lensing-blind reference was found on 2026-09-11 to be packed at the old 2L width and is **not** usable — re-run in flight as job 11980570. Build from mid/high-ℓ bins only.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a second, separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
 
@@ -107,6 +109,7 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - **A PIT check against the sampler's own stated conditional validates the draw, not the derivation.** It passes for any shape parameter, since code and reference share the assumption. To test a derivation you need an independent generative draw, which for a spectrum block requires a proper prior.
 - **Derive constants from the structure, don't hardcode them** — and when you do fix one, grep for every script that mirrors the same derivation (`achievements.md` — this slipped three times in one week before the lesson stuck).
 - **A control that passes makes its check vacuous** — a misalignment/mutation control must itself fail before the aligned pass counts as evidence.
+- **A saved `.npz` carries no packing version.** `PACKING_VERSION` guards checkpoints only. Before differencing or pooling any pre-2026-09-06 analysis product against a current chain, check its array widths against `packed_length(lmax)` — this caught the stale lensing-blind baseline that would otherwise have rendered a packing artifact as a physics result (`achievements.md`).
 - **A rank/coverage statistic needs its own simulated null before any flag is read as bias** — it can ranks the truth against its conditional's mode, which is non-uniform by construction even for a perfect sampler.
 - **An intermittent test failure is a hypothesis, not a flake.**
 - **Claims hygiene**: every "first" carries scope qualifiers and nearest-prior-work citations.
