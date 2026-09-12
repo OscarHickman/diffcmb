@@ -132,6 +132,12 @@ def main():
     ap.add_argument("--aware", default="results/analysis/pilot_coverage_lmax128_postfix_hmc.npz")
     ap.add_argument("--lmax", type=int, default=128)
     ap.add_argument("--out", default="results/analysis/cl_bias_reduction_lmax128")
+    ap.add_argument("--exclude_unreliable", action="store_true",
+                    help="omit bins where phi is not equilibrated from the FIGURE "
+                         "entirely, instead of shading them. They dominate the "
+                         "y-scale (the [2,10) bars are ~20x the others), which "
+                         "hides the trend the figure exists to show. The printed "
+                         "table always reports every bin.")
     args = ap.parse_args()
 
     cl_blind, cl_aware, cl_realized, cl_expected = load_chains(
@@ -196,27 +202,32 @@ def main():
         print("matplotlib unavailable; numbers saved, figure skipped.")
         return
 
+    plot_rows = ([r for r in rows if (r[0], r[1]) not in UNRELIABLE]
+                 if args.exclude_unreliable else rows)
     fig, ax = plt.subplots(figsize=(7.2, 4.4))
-    x = np.arange(len(rows))
+    x = np.arange(len(plot_rows))
     w = 0.38
     for r, lab, col, off in (
             (3, "lensing-blind (Commander-style)", "#c44e52", -w / 2),
             (4, "lensing-aware (joint sampler)", "#4c72b0", +w / 2)):
-        vals = np.array([row[r] / row[2] - 1.0 for row in rows])
-        errs = np.array([row[r + 2] / row[2] for row in rows])
+        vals = np.array([row[r] / row[2] - 1.0 for row in plot_rows])
+        errs = np.array([row[r + 2] / row[2] for row in plot_rows])
         ax.bar(x + off, vals, w, yerr=errs, label=lab, color=col, capsize=3)
     ax.axhline(0.0, color="k", lw=1)
-    for i, row in enumerate(rows):
+    for i, row in enumerate(plot_rows):
         if (row[0], row[1]) in UNRELIABLE:
             ax.axvspan(i - 0.5, i + 0.5, color="0.85", zorder=0)
             ax.text(i, ax.get_ylim()[1] * 0.92, "phi not\nequilibrated",
                     ha="center", va="top", fontsize=7, color="0.35")
     ax.set_xticks(x)
-    ax.set_xticklabels([f"[{r[0]},{r[1]})" for r in rows])
+    ax.set_xticklabels([f"[{r[0]},{r[1]})" for r in plot_rows])
     ax.set_xlabel(r"$\ell$ bin")
     ax.set_ylabel(r"fractional bias in $C_\ell^{TT}$" "\n" r"(posterior $-$ correct-model expectation)/expectation")
-    ax.set_title(r"Lensing-aware joint sampling reduces $C_\ell^{TT}$ bias "
-                 f"(lmax={args.lmax}, same simulation)", fontsize=10)
+    sub = (r"$\ell_{\max}$" + f"={args.lmax}, same simulation"
+           + (r", bins with unequilibrated $\phi$ omitted"
+              if args.exclude_unreliable else ""))
+    ax.set_title(r"Lensing-aware joint sampling reduces $C_\ell^{TT}$ bias"
+                 "\n" + sub, fontsize=10)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(args.out + ".png", dpi=160)

@@ -32,6 +32,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
     --blind results/analysis/lensing_blind_baseline_lmax128_packingv2.npz \
     --aware results/analysis/pilot_coverage_lmax128_postfix_hmc.npz \
     --lmax 128 \
-    --out results/analysis/figures/cl_bias_reduction_lmax128
+    --exclude_unreliable \
+    --out results/analysis/figures/cl_bias_reduction_lmax128_paper
 
 echo "Exited with status $?"
