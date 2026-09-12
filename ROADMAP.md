@@ -81,7 +81,7 @@ strengthening if a referee pushes: add a lensed-template baseline (fit with the
 recover A_L = 1 without a template or a nuisance parameter" is far more legible
 to the CMB community than a fractional-bias table, and costs only a rewrite.
 
-### S2. The `[10,30)` residual: REPORT it, do not chase it — decided
+### S2. The `[10,30)` residual: REPORT it — decided, and N=24 has since DISSOLVED the localisation
 
 Rationale, now that the causes are enumerated: packing (excluded, job 11965813),
 Block 4's conditional (excluded — PIT is a genuine pass), trajectory length
@@ -92,6 +92,20 @@ supports a *capability* claim, not the headline, so a documented, localised,
 one-bin caveat is proportionate. The N=24 extension (job 11980637) may yet
 relax it exactly as it relaxed the `[30,60)` flag — **wait for that harvest
 before writing the caveat**, but do not launch further φ work either way.
+
+**That harvest landed 2026-09-12 and the localisation is gone.** At N=24 the
+`[10,30)` bin moved 0.2812 → 0.4219 (KS_p 0.0047 → 0.137) and **no bin rejects
+individually**; what remains is a small (~0.045) *global* downward offset whose
+pooled KS_p is computed by an explicitly anti-conservative test. The new
+joint-likelihood statistic agrees and attributes the difference to the
+*configuration*: Block-4-ON 0.4028/0.3771 vs Block-4-OFF 0.4569/0.4417, i.e.
+posterior draws fitting the data slightly better than the truth — mild
+under-dispersion from incomplete φ mixing, with Block 4's conditional itself
+exact (PIT genuine pass). **So the caveat to write is "a small global
+under-dispersion in the Block-4-ON funnel", not "a localised `[10,30)`
+defect"** — and note in the paper that the localised framing was a small-N
+artifact, since the Hessian-coupling and Nystrom work was aimed at it.
+Full numbers: `results/analysis/dashboard.md`.
 
 **Modrák et al. `2211.02383` was read 2026-09-12 and cuts the OPPOSITE way to
 the assumption recorded here.** The paper is *"SBC Checking for Bayesian

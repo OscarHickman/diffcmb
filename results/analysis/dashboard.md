@@ -63,6 +63,60 @@ Mixing, pre-restoration runs: τ_int median 4.7–27 per bin with Block 4 off, v
 
 ---
 
+## ⚠→✅ The `[10,30)` residual DISSOLVED at N=24 (2026-09-12, job 11980637)
+
+Doubling the Block-4-ON proper-prior ensemble to N=24 (realizations 12–23 of
+job 11980637 appended to job 11965813's 0–11) **removed the localisation that
+defined this issue.** Strict `C_L^φφ` SBC rank, per bin:
+
+| bin | N=12 | **N=24** |
+|---|---|---|
+| `[2,10)` | 0.4062 (KS_p 0.154) | 0.4688 (KS_p 0.137) |
+| `[10,30)` | **0.2812 (KS_p 0.0047)** ← flagged | **0.4219 (KS_p 0.137)** — not flagged |
+| `[30,60)` | 0.5417 (KS_p 0.727) | 0.5000 (KS_p 0.933) |
+| `[60,64)` | 0.4688 (KS_p 0.727) | 0.4271 (KS_p 0.137) |
+| POOLED | 0.4245 (KS_p 0.00395) | 0.4544 (KS_p 0.00090) |
+
+**No individual bin rejects at N=24.** The `[10,30)` bin relaxed from 0.281 to
+0.422 exactly as the Block-4-OFF `[30,60)` flag relaxed when chased the same
+way — so "a localised, ℓ-dependent defect in `[10,30)`", the framing this
+investigation ran on since 2026-09-01, was a small-N artifact. Every diagnosis
+built on that localisation (the cross-L Hessian-coupling story, the Nystrom
+mass-matrix attempts) was chasing a bin that no longer stands out.
+
+**What remains is smaller, global, and differently shaped:** a uniform downward
+offset of ~0.045 in mean_u across all four bins. The pooled KS_p *fell*
+(0.00395 → 0.00090) while every bin individually passed — not a contradiction:
+the pooled test is explicitly anti-conservative (bins within a realization share
+a chain and are correlated), so doubling N makes a small consistent offset
+"significant" there without any bin rejecting. Read the pooled value as
+indicative of a small global offset, not as a localised defect.
+
+**The joint-likelihood SBC agrees and localises the difference to the
+configuration, not the ℓ-range** (`scripts/sbc_joint_likelihood.py`, Modrak et
+al. test quantity):
+
+| ensemble | thin=10 | thin=30 |
+|---|---|---|
+| Block 4 **OFF** (headline) | 0.4569 (KS_p 0.738) | 0.4417 (KS_p 0.468) |
+| Block 4 **ON** (proper prior) | 0.4028 (KS_p 0.256) | 0.3771 (KS_p 0.067) |
+
+Both are "consistent with uniform" at the 1% threshold, but Block-4-ON sits
+consistently lower and drifts further down with thinning. mean_u < 0.5 means the
+posterior draws fit the data **better** than the truth does — mild overfitting,
+i.e. a slightly too-narrow posterior. That is the signature of residual
+under-mixing, and it is consistent with the φ power bias (medians 1.033–1.122,
+all mildly over-powered) and with Block 4's own conditional being exact (PIT
+aligned KS_p 0.339, lag-10/50 controls rejected at KS_p=0 — a genuine pass).
+
+**Current reading: the Block-4-ON funnel carries a small, global,
+under-dispersion consistent with incomplete φ mixing — not a wrong conditional
+and not an ℓ-localised defect.** Report it as a bounded caveat on that
+configuration; the Block-4-OFF headline is unaffected and clean on every
+statistic including the new one.
+
+---
+
 ## ✅ RESOLVED-AS-NOT-THE-CAUSE: the packing does not explain the `[10,30)` residual
 
 **Job 11965813, harvested 2026-09-11** — job 11903182's exact configuration
