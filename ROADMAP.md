@@ -6,187 +6,84 @@
 
 **Why this scope.** A competing paradigm — diffusion/score-based generative lensing reconstruction — markets uncorrelated samples in ~0.2s and discards the two things this project built: a differentiable forward model and a sampler (`literature.md`). That sets the bar:
 
-- The product is *demonstrated* exactness, not asserted exactness — a convincing coverage/rank test outranks any additional scale.
+- The product is *demonstrated* exactness, not asserted exactness — a convincing coverage/rank test outranks any additional scale. Since 2026-09-12 read "demonstrated" strictly: the honest form is a **bound** on undetected bias, stated with the test's power.
 - The differentiator is the joint (C_ℓ, C_L^φφ) posterior with propagated correlations — an object no competing method (MUSE, QE, Commander, diffusion) produces.
 - Position vs learned inference is offensive, not defensive: an exact sampler is the reference standard learned posteriors get validated against — but only as strong as the scale actually demonstrated.
 - Deprioritised: CMBLensing.jl benchmark is a citation, not a science result; lmax scaling is not the route to impact.
 
-**Positioning (decided 2026-08-06, full reasoning `literature.md`).** Broader scope, accepting scoop risk: the real-data Planck run and Phase 2b ΛCDM-parameter section are in scope, sequenced *after* the critical path below. Never lead with the differentiable machinery (Flinch made it table stakes) — lead with the joint (C_ℓ, C_L^φφ) posterior.
+**Positioning (decided 2026-08-06, full reasoning `literature.md`).** Broader scope, accepting scoop risk: the real-data Planck run and Phase 2b ΛCDM-parameter section are in scope, sequenced *after* the critical path below. Never lead with the differentiable machinery (Flinch made it table stakes). ⚠ The second half of this — "lead with the joint (C_ℓ, C_L^φφ) posterior" — is **under review as decision S1 below**, because that figure is a null while the bias reduction is a 93% effect.
 
 ---
 
-## Current state (2026-09-11)
+## Current state (2026-09-12)
 
-The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main` and the headline SBC claim is confirmed under it. All three campaigns launched 2026-09-09 completed and were harvested 2026-09-11; full numbers in `achievements.md` and `results/analysis/dashboard.md`.
+Detail and numbers live in `achievements.md` and `results/analysis/dashboard.md`; this is the one-paragraph version.
 
-**What the harvest settled:**
+**Headline:** no bias detected at lmax=64, N=24 chains, Block 4 OFF — φ mean_u 0.4688 (cal_p 0.2444), alm 0.5039 (cal_p 0.8659), no bin flagged in either field, plus the joint-likelihood test quantity passing (0.4569/0.4417, thin-robust). **State it as a bound:** at N=24 with ~8 draws/chain the test's power to see a 0.3σ posterior mean shift is 26.5% and it is effectively blind to under-dispersion, so what is demonstrated is *no detected bias above roughly a half-σ posterior mean offset*.
 
-1. **Headline SBC, now at N=24** (job 11965828 extending 11955622): φ 0.4688 (KS_p 0.0537), alm 0.5039 (KS_p 0.2319), both uniform. The lone flagged φ `[30,60)` bin was chased and **relaxed** rather than sharpening (KS_p 0.005→0.014, mean_u 0.260→0.339), with a second bin flagging weakly in the opposite direction — bin-level noise, closed as not a defect.
-2. **The packing is excluded as the cause of the `[10,30)` residual** (job 11965813): strict `C_L^φφ` SBC rank 0.4245 (KS_p 0.00395) under the restored packing vs 0.3802 (0.0013) before. Marginally better, still a rejection, and **still localised to `[10,30)`** with φ over-powered there (median 1.162). Since the restoration changed both the alm dof and Blocks 1/4's shape and moved the rank barely at all, it is not the explanation — this retrospectively answers the Step 0 question the restoration plan skipped. Block 4's own PIT is a genuine pass (lag-10/50 controls rejected).
-3. **lmax=128 is blocked solely by the low-L φ mode** (job 11966631, the first post-ordering-fix/post-restoration data point): NO-GO at worst lag-1 0.967 in `[2,10)`, *re-confirming* the pre-fix verdict rather than overturning it. Every bin above `[2,10)` decorrelates within 10–50 lags and the chain is otherwise healthy (φ accept 0.691, drift ≤0.60σ), so the failure is narrowly low-ℓ, not global.
+**Second result:** `C_ℓ^TT` bias reduction vs a lensing-blind analysis, 93% (0.0226 → 0.0016 mean |fractional bias|), lensing-aware consistent with unbiased in every reliable bin while the blind deficit grows to −5.4% at `[100,128)`.
 
-**The one open defect is unchanged and now better isolated:** Block 3 (φ|alm,C_ℓ) conditioning in `ℓ∈[10,30)` under the Block-4-ON funnel. Packing, Block 4's conditional, trajectory length and the Nystrom mass matrix are all now excluded. Per the standing rule, **no further φ-equilibration tuning is launched without user sign-off** — this track has returned a negative or ambiguous result on nearly every attempt.
+**Two long-running problems closed this week, both as artifacts rather than defects:** the Block-4-ON `[10,30)` residual (small-N plus a miscalibrated test) and the rank test itself (`ks_uniform_p` rejected a provably correct sampler 12.5% of the time at p<0.01 on the pooled row). There is now **no known open sampler defect** — only a bounded sensitivity.
 
-**Also found during the harvest (a real defect, not a result):** the lensing-blind `C_l^TT` baseline the bias-reduction figure depends on was silently a *different model* — `lensing_blind_baseline_lmax128.npz` (2026-08-12) is packed at the old 2L width (16254 vs `packed_length(128)`=16380) and predates both the ordering fix and the restoration. `ROADMAP` had it marked done. Differencing it against the post-fix lensing-aware chain would have rendered a packing artifact as physics.
+**Still genuinely open:** lmax=128 is blocked for calibration work by the low-ℓ φ mode (job 11966631, NO-GO at lag-1 0.967 in `[2,10)`, re-confirmed post-fix); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the φ `[2,10)` bin is the only field row still notable post-correction (cal_p 0.015).
 
-**In flight:** job **11980570**, `scripts/submit_lensing_blind_baseline_packingv2.slurm` — re-running that baseline under the restored packing at the identical simulation (seed=0, lmax=128, nside=128, noisesig=1.0) to a new output path, ~3h. This is the remaining blocker on the `C_l^TT` bias-reduction figure.
+**In flight:** job **11984844** (3 tasks, ~13h of ~26h as of 2026-09-12) — replicates the bias-reduction result on 3 further skies (seeds 1–3), taking it from N=1 to N=4. The matching lensing-blind baselines (job 11984845) are already complete. Harvest per `scripts/submit_bias_reduction_replicate_aware.slurm`'s header: expect each task to print NO-GO on the equilibration gate (expected, low-ℓ φ; the figure is built from `[10,30)` upward), then run `scripts/compare_cl_bias_reduction.py` per seed and report the across-seed spread rather than seed 0 alone.
 
 ## Next actions
 
-1. ~~Harvest job 11980570~~ **DONE 2026-09-11** — baseline re-ran clean (4 min, not the ~3h the header guessed: no φ block is 0.1 s/sweep), `alm_true_packed` verified at 16380, and the bias-reduction figure is **built and positive** (93% reduction; see §2 below). Remaining polish: the `[2,10)` bin dominates the figure's y-scale — the paper version should drop it rather than grey it.
+1. **Harvest job 11984844** and report the bias-reduction result as N=4 with its across-seed spread.
+2. **Raise draws per chain from ~8 to ≥60** (thin ~10 instead of 90 on existing chains — re-analysis, no new sampling). Single highest-value fix outstanding: it repairs both the rank-test calibration and its power, which more realizations do not. Use the new `sd_u` to monitor the autocorrelation this re-admits.
+3. **Re-state the paper's claims as bounds** and add the power table (below).
+4. Then the open decision below, and the remaining Todo §1–§2 items.
 
-2. **Harvest job 11980637** (launched 2026-09-11) — extends the Block-4-ON proper-prior ensemble from N=12 to N=24, the same small-N-vs-real-defect discriminator job 11965828 just applied to the Block-4-OFF `[30,60)` flag. Serves two ends at once: it doubles the chain count for the joint (C_ℓ^TT, C_L^φφ) differentiator figure (currently a null — the error bar is a *chain*-level bootstrap, so more chains is the only lever), and it tests whether the `[10,30)` strict-rank residual relaxes or sharpens at N=24. Config byte-identical to 11965813, so this is not a φ-tuning run. Harvest per the script header.
+## Open decision — needs your sign-off
 
-3. **Decide the `[10,30)` Block 3 question** — it is now cleanly isolated and is the last thing between the project and a clean exactness story. Needs a decision, not another unilateral tuning run (see standing rule). The honest alternative is to **report it**: the headline Block-4-OFF SBC passes, and the Block-4-ON proper-prior configuration carries a documented, localised, one-bin caveat.
+### S1. Lead with the bias reduction, not the (C_ℓ, C_L^φφ) correlation — RECOMMENDED
 
-
-## Impact strategy (2026-09-12) — proposed, needs your sign-off on §S1
-
-The 2026-09-11 harvest changed what the strongest evidence is, and the stated
-positioning no longer matches it. Four decisions follow; S1 is genuinely yours,
-S2–S4 I have acted on.
-
-### S1. Lead with the bias reduction, not the (C_ℓ, C_L^φφ) correlation — RECOMMENDED, your call
-
-The standing instruction is "never lead with the differentiable machinery; lead
-with the joint (C_ℓ, C_L^φφ) posterior." The evidence no longer supports that
-ordering:
+The standing instruction is "lead with the joint (C_ℓ, C_L^φφ) posterior." The evidence no longer supports that ordering:
 
 | | joint (C_ℓ, C_L^φφ) correlation | C_ℓ^TT bias reduction |
 |---|---|---|
 | status | **null** — 1/16 cells vs 0.8 expected by chance | **93%**, 172σ vs 2σ |
-| physically expected size | small *by construction* — C_ℓ^TT is the *unlensed* spectrum and couples to C_L^φφ only through the data | large and growing with ℓ |
-| cost to strengthen | ~2.4× ensemble for \|r\|=0.10, ~9.5× for 0.05 | already done; replication in flight |
-| legibility to a referee | requires explaining what the object even is | "ignoring lensing costs you 5% at ℓ~110; we remove it" |
+| expected size | small *by construction* — C_ℓ^TT is the *unlensed* spectrum, coupling only through the data | large, growing with ℓ |
+| cost to strengthen | ~2.4× ensemble for \|r\|=0.10, ~9.5× for 0.05 | done; N=4 replication in flight |
+| legibility | needs the object explained first | "ignoring lensing costs 5% at ℓ~110; we remove it" |
 
-Leading with a null because it is novel is the weaker play. **Proposed:** lead
-with the bias reduction as the demonstration of *what joint sampling buys*, and
-keep the joint (C_ℓ, C_L^φφ) posterior as a **capability claim** — "no competing
-method (MUSE, QE, Commander, diffusion) produces this object at all" — rather
-than a detection claim. That is both more honest about the null and more
-impactful. It also *decouples* the headline from the one open defect (see S2).
+Leading with a null because it is novel is the weaker play. **Proposed:** lead with the bias reduction as the demonstration of what joint sampling buys, and keep the joint posterior as a **capability claim** — "no competing method (MUSE, QE, Commander, diffusion) produces this object at all" — rather than a detection claim. More honest about the null, and more impactful.
 
-**The main vulnerability this creates, and the honest answer.** A referee will
-say: "nobody analyses lensed data with an unlensed model." Two-part response,
-both of which must be in the text: (i) Commander genuinely does not model
-lensing — this is a real, widely-used pipeline, not a strawman, so the claim is
-well-posed *against map-based Gibbs methods*; (ii) the claim must be stated
-that narrowly, and must **not** be implied against Planck's cosmological
-likelihood, which uses lensed spectra and an A_L nuisance. Optional
-strengthening if a referee pushes: add a lensed-template baseline (fit with the
-*lensed* spectrum, φ fixed) — that isolates "we propagate φ uncertainty" from
-"we know about lensing at all", which is the sharper claim.
+**The vulnerability this creates, and the answer.** A referee will say "nobody analyses lensed data with an unlensed model." Both halves must be in the text: (i) Commander genuinely does not model lensing — a real, widely-used pipeline, not a strawman — so the claim is well-posed *against map-based Gibbs methods*; (ii) it must be stated that narrowly and **not** implied against Planck's cosmological likelihood, which uses lensed spectra and an A_L nuisance. Optional strengthening if pushed: add a lensed-template baseline (fit with the *lensed* spectrum, φ fixed), which isolates "we propagate φ uncertainty" from "we know about lensing at all".
 
-**Framing bonus, cheap:** the result is an A_L statement in disguise — "we
-recover A_L = 1 without a template or a nuisance parameter" is far more legible
-to the CMB community than a fractional-bias table, and costs only a rewrite.
-
-### S2. The `[10,30)` residual: REPORT it — decided, and N=24 has since DISSOLVED the localisation
-
-Rationale, now that the causes are enumerated: packing (excluded, job 11965813),
-Block 4's conditional (excluded — PIT is a genuine pass), trajectory length
-(excluded at 240 and 480), Nystrom mass matrix (falsified at two ranks). What
-remains is Block 3 mixing, and that track has returned a negative or ambiguous
-result on nearly every attempt. Under S1 the affected configuration (Block 4 ON)
-supports a *capability* claim, not the headline, so a documented, localised,
-one-bin caveat is proportionate. The N=24 extension (job 11980637) may yet
-relax it exactly as it relaxed the `[30,60)` flag — **wait for that harvest
-before writing the caveat**, but do not launch further φ work either way.
-
-**That harvest landed 2026-09-12 and the localisation is gone.** At N=24 the
-`[10,30)` bin moved 0.2812 → 0.4219 (KS_p 0.0047 → 0.137) and **no bin rejects
-individually**; what remains is a small (~0.045) *global* downward offset whose
-pooled KS_p is computed by an explicitly anti-conservative test. The new
-joint-likelihood statistic agrees and attributes the difference to the
-*configuration*: Block-4-ON 0.4028/0.3771 vs Block-4-OFF 0.4569/0.4417, i.e.
-posterior draws fitting the data slightly better than the truth — mild
-under-dispersion from incomplete φ mixing, with Block 4's conditional itself
-exact (PIT genuine pass). **So the caveat to write is "a small global
-under-dispersion in the Block-4-ON funnel", not "a localised `[10,30)`
-defect"** — and note in the paper that the localised framing was a small-N
-artifact, since the Hessian-coupling and Nystrom work was aimed at it.
-Full numbers: `results/analysis/dashboard.md`.
-
-**Modrák et al. `2211.02383` was read 2026-09-12 and cuts the OPPOSITE way to
-the assumption recorded here.** The paper is *"SBC Checking for Bayesian
-Computation: The Choice of Test Quantities Shapes Sensitivity"* (Modrák, Moon,
-Kim, Bürkner, Huurre, Faltejsková, Gelman, Vehtari). Its thesis is that the
-choice of test quantity governs **how sensitive SBC is to problems**, *not* that
-some test quantities are non-uniform under a correct sampler. Under exact
-posterior sampling every valid test quantity ranks uniformly. So per-ℓ-bin
-φ-power is **not** excused as a "non-innocent" statistic, and the `[10,30)`
-non-uniformity should be read as what the project already concluded it is — a
-genuine, bounded, localised *computational* (mixing) deficiency, since MCMC with
-finite chains is not exact posterior sampling. Report it as such; do not explain
-it away. Delete the old "non-innocent test quantity" note — it was wrong.
-
-### S3. Adopt the joint likelihood as an SBC test quantity — DONE 2026-09-12, and it PASSES
-
-Modrák's central practical recommendation is that data-dependent test
-quantities, **the joint likelihood especially**, detect failures that
-parameter-wise ranks miss (including the posterior-equals-prior failure mode,
-which parameter ranks cannot see). **Correction to this item as first written:** I claimed the saved `logp` made
-it "a rank computation over existing files — no new sampling". That was wrong.
-`logp` is `−psi` (the alm-block log-posterior given the chain's φ), not a
-likelihood, and the truth's value is not saved; the data map is not saved
-either. It needed a new script that replays the generative path. No new
-*sampling* was required, which is what made it cheap, but it was not free.
-
-**Result: `scripts/sbc_joint_likelihood.py`, run on the headline N=24
-Block-4-OFF ensemble — consistent with uniform and thin-robust** (mean_u 0.4569,
-KS_p 0.738 at `--thin 10`; 0.4417, KS_p 0.468 at `--thin 30`). All 24 replays
-verified against the saved truth to 1e-12. Details and the CAMB
-non-reproducibility gotcha the verification exposed: `achievements.md`.
-
-Remaining: run the same statistic on the Block-4-ON ensemble once job 11980637
-lands, where it is the more interesting test — that is the configuration with
-the open `[10,30)` residual, and a data-dependent quantity is the one most
-likely to say something the φ-power ranks cannot.
-
-### S4. Spend scale on the bias reduction, not on the null — decided
-
-lmax=64 exactness / lmax=128 bias reduction against a comparison set 10²–10⁴×
-larger is the biggest referee target. The right place to spend is the
-**bias-reduction** demonstration, because (i) the effect *grows* with ℓ (−5.4%
-already at `[100,128)`), so lmax=256 makes the figure stronger, not merely
-bigger; and (ii) it needs only a converged C_ℓ marginal at mid/high ℓ, where φ
-mixes fine — it does **not** need the calibration gate that blocks lmax=128 for
-SBC. Pushing the null correlation instead buys, at best, a marginal detection of
-a quantity that is small by construction. Sequenced after the N=4 replication
-lands, since replication beats scale (standing discipline: demonstrated beats
-asserted).
+**Cheap framing win:** the result is an A_L statement in disguise. "We recover A_L = 1 without a template or a nuisance parameter" is far more legible to the CMB community and costs only a rewrite.
 
 ## Todo, priority order
 
-### 1. Exactness evidence (highest value)
-- [x] Multi-realization rank/coverage test at lmax=64 — DONE and reconfirmed under the restored packing (`achievements.md`).
-- [x] `docs/paper/main.tex` updated to the confirmed numbers (both the 2026-08-31 dof-shape fix and the 2026-09-06 packing restoration).
-- [~] **Resolve the Block 4 ON / proper-prior `C_L^φφ` strict SBC rank** — re-measured under the restored packing (0.4245, KS_p 0.00395, job 11965813): the residual survives and is confirmed localised to `[10,30)`; the packing is excluded as its cause. Remaining candidate is Block 3 conditioning there. Decision needed (Next actions §2), not another tuning run.
-- [ ] Optional strengthening: push to lmax≈128 only if a referee asks — **blocked**: job 11966631 confirms the low-L φ mode post-fix (NO-GO, lag-1 0.967 in `[2,10)`). Per "demonstrated beats asserted", a passing test at 64 outranks a partial one at 128.
+### 1. Exactness evidence
+- [ ] Raise draws/chain to ≥60 and re-score (Next actions §2; detail under Rank-test remediation) — converts the current bound into a tighter one.
+- [ ] Report the power of the validation as a table in the paper. No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
+- [ ] Re-check the φ `[2,10)` bin (cal_p 0.015, mean_u 0.568, sd_u 0.215) — the only field row still notable, and the same low-ℓ region that blocks lmax=128. Do §2 above first; no φ-tuning without sign-off (standing rule).
+- [ ] Run the joint-likelihood SBC on the Block-4-ON ensemble at ≥60 draws/chain — at thin=30 it read 0.3771, the lowest number on the board, and deserves a properly-powered look.
+- [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode.
 
 ### 2. Differentiator figures (what the paper is *for*)
-- [x] Joint (C_ℓ^TT, C_L^φφ) posterior correlation figure — built 2026-09-01, result is a null at current sample size (`achievements.md`). Next step is more effective samples (a dedicated long run, or pooling job 11903182 + job 11912088's post-thin draws), not a new estimator — not yet done.
 - [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
-- [x] C_ℓ^TT bias reduction vs a lensing-blind (Commander-style) analysis — **DEMONSTRATED 2026-09-11: 93% bias reduction** (mean |fractional bias| 0.0226 → 0.0016 over the four reliable ℓ bins; lensing-aware consistent with unbiased everywhere, blind deficit growing to −5.4% at `[100,128)`). `scripts/compare_cl_bias_reduction.py`, figure `results/analysis/figures/cl_bias_reduction_lmax128.png`. `[2,10)` excluded (φ not equilibrated at lmax=128). Note the reference had to be the *expected posterior mean* `S_l/(k_l−4)`, not the realized power and not the fiducial — both wrong references reversed the conclusion (`achievements.md`). Both sides done under the restored packing: lensing-aware job 11966631, lensing-blind re-run job 11980570 (the 2026-08-12 baseline was old-2L-packed and unusable).
+- [ ] Push the bias-reduction demonstration to lmax=256 — **decided 2026-09-12**: spend scale here, not on the null correlation. The effect *grows* with ℓ, and it needs only a converged C_ℓ marginal at mid/high ℓ — **not** the calibration gate that blocks lmax=128. Sequenced after the N=4 replication, since replication beats scale.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
-- [ ] Write the position vs **Flinch and Almanac** explicitly too — a second, separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
+- [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
+- [ ] Decide whether to chase the (C_ℓ, C_L^φφ) correlation at all. Under S1 it becomes a capability claim and needs no detection; ~2.4× the ensemble buys at best a marginal one. Recommend not chasing.
 
-### 3. Related-work obligation (not a science result)
-- [x] CMBLensing.jl comparison — written 2026-09-01 as `sec:cmblensing` in `main.tex`, from their published numbers. Costs shown side by side, not reduced to one ratio. Remaining trigger for actually installing CMBLensing.jl: a referee demanding same-realization posterior overlays. Design notes: `docs/notes/cmblensing_benchmark_notes.md`.
+## Phase 2a — real-data run (end-to-end demonstration)
 
-## 2. Real-data run — end-to-end demonstration
-
-In scope for this paper. Supporting evidence, not the headline (the A_L anomaly that originally motivated it is no longer live per Planck PR4/ACT DR6). Pitch as either an A_L post-mortem on Planck 2018 vs PR4, or the joint posterior as a lensing-consistency test for SO/LiteBIRD-class data. Sequenced after §1/§2 above.
+In scope for this paper. Supporting evidence, not the headline (the A_L anomaly that originally motivated it is no longer live per Planck PR4/ACT DR6). Pitch as either an A_L post-mortem on Planck 2018 vs PR4, or the joint posterior as a lensing-consistency test for SO/LiteBIRD-class data. Sequenced after the Todo §1/§2 items above.
 
 - [ ] Run the joint sampler on real Planck data; report the joint (C_ℓ, φ) posterior's lensing-consistency verdict.
 
-## 2b. Phase 2b — ΛCDM parameters from C_ℓ
+## Phase 2b — ΛCDM parameters from C_ℓ
 
-In scope for this paper. Routine, cheap robustness section — derive standard ΛCDM parameter constraints from the posterior C_ℓ chains once §1/§2 are done. Sequenced after those.
+In scope for this paper. Routine, cheap robustness section — derive standard ΛCDM parameter constraints from the posterior C_ℓ chains once the Todo §1/§2 items are done. Sequenced after those.
 
 - [ ] Parameter-inference pass on the posterior C_ℓ^TT chains from the lmax≈128 (and, if run, real-data) chains; report against Planck/ACT/SPT baselines.
 
-## 3. Phase 3 — polarization / LiteBIRD delensing (the science paper)
+## Phase 3 — polarization / LiteBIRD delensing (the science paper)
 
 Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensing forecast (arXiv:2507.22618, QE/iterative pipeline — a sampling-based result fills a real gap). Benchmark against `2511.21949` (~47% delensing at 30≤ℓ≤300) and `2608.06343` (A_lens^res≈0.48), not only the CMB-S4 forecast.
 
@@ -206,45 +103,32 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - [ ] Cite `2603.04535` (learned CMB-delensing sampler) in the competing-paradigm section, replacing JADE as the lead example; read its body first to confirm sky geometry. Concede `2606.12255` honestly as the counterpoint (implicit/explicit field-level inference agreeing in a neighbouring problem).
 - [ ] Cite Doeser & Jasche (`2606.10023`) in the introduction — external statement of why an exact reference posterior is needed.
 - [ ] Add `2210.13260` (masked-sphere Almanac companion) alongside `2305.16134`; correct the draft's "all-sky, noiseless" characterisation of Almanac.
-- [x] Read Modrák et al. (`2211.02383`) — **done 2026-09-12, and it falsified the premise of this item**: the paper is about test-quantity *sensitivity*, not about valid test quantities being non-uniform under a correct sampler. Per-ℓ-bin φ-power is not excused; the `[10,30)` residual stands as a real mixing deficiency (see Impact strategy §S2). Actionable consequence is §S3: adopt the joint likelihood as a test quantity.
+- [ ] Cite Modrák et al. (`2211.02383`) for the joint-likelihood test quantity, now adopted and passing (`achievements.md`). Reading it also falsified this item's original premise — it is about test-quantity *sensitivity*, not about valid quantities being non-uniform under a correct sampler.
 - [ ] Adopt nested R̂ (`2110.13017`) alongside rank-normalised split-R̂ (`1903.08008`); report τ_int as a lower bound citing `2408.13411`; cite the corrected (2017) Cook, Gelman & Rubin form.
-- [ ] State the demonstrated scale as lmax=64 everywhere, with the comparison set (MUSE/Almanac/Bayer/FLI, all 10²-10⁴× larger) and the scaling route. Never lmax≈128.
+- [ ] State the demonstrated scale precisely: **exactness at lmax=64, lensing-bias removal at lmax=128** (the bias-reduction figure is a legitimate lmax=128 result — it needs no calibration gate). Give the comparison set (MUSE/Almanac/Bayer/FLI, all 10²-10⁴× larger) and the scaling route. Never claim *exactness* at lmax≈128.
 - [ ] Add the "what the deficit is not" paragraph (not N0/N1, not mean-field, not non-Gaussian deflection, not foregrounds) — note the missing `Im(a_{ℓ,1})` dof is now *removed as a candidate* (restored 2026-09-06), not excluded by evidence.
 - [ ] Locate an arXiv/proceedings version of the SFNO CMB-delensing paper (OpenReview `I8k3wwwm9l`) or drop it — currently `[UNVERIFIED]`.
 - [ ] Still unverified before citing: author lists for `1708.06753`, `2111.07664`, `0708.2989`; Papež et al. 2018 and Huffenberger & Næss 2018 IDs; the Eriksen/Jewell/Wandelt 2004 Commander trio IDs.
 - [ ] Re-run the named-author arXiv scan (Millea, Seljak, Bayer, Loureiro) and the citation-hygiene ID grep before every submission milestone (below).
 
-## Rank-test remediation (2026-09-12) — what to do about it
+## Rank-test remediation — remaining items
 
-The rank test was found miscalibrated and underpowered (`achievements.md`).
-Fixes applied and still to do:
+The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
+already applied (`discrete_uniform_p`, `rank_spread`, both ensembles re-scored,
+suite green) are recorded in `achievements.md`. What is left:
 
-- [x] `discrete_uniform_p` (simulation-calibrated at each run's own N and rank
-      granularity) added and now drives the FLAG; `ks_uniform_p` kept only for
-      continuity with pre-2026-09-12 records.
-- [x] `rank_spread` (`sd_u`) reported — the under-dispersion diagnostic nobody
-      was looking at. Uniform is 0.2887; measured 0.215–0.314, so posteriors are
-      mildly too *wide*, not overconfident.
-- [x] Both ensembles re-scored (job 11985314). No field-rank row flags.
-- [x] Suite green (130 passed, 1 skipped) after the change.
-- [ ] **Raise draws per chain from ~8 to ≥60.** This is the single highest-value
-      remaining fix: it repairs the KS calibration *and* the power, whereas more
-      realizations buy neither. Concretely: keep 600 sweeps but thin by ~10
-      instead of 90, and use `sd_u` to monitor the autocorrelation this
-      re-admits (autocorrelation inflates rank spread without moving the mean,
-      so it is now measurable rather than guessed at). Cheap — re-analysis of
-      existing chains, no new sampling.
+- [ ] **Raise draws per chain from ~8 to ≥60.** Single highest-value remaining
+      fix: it repairs the calibration *and* the power, whereas more realizations
+      buy neither. Keep 600 sweeps but thin by ~10 instead of 90, and use `sd_u`
+      to monitor the autocorrelation this re-admits (it inflates rank spread
+      without moving the mean, so it is now measurable). Re-analysis of existing
+      chains — no new sampling.
 - [ ] Re-state every claim in `docs/paper/main.tex` as a *bound* ("no bias
       detected above ~0.5σ posterior mean offset at N=24") rather than as
-      demonstrated exactness. This is the honest form and pre-empts the referee
-      question "what would your test have caught?"
-- [ ] Add the power statement to the paper as a table. No competing method
-      reports the sensitivity of its own validation; doing so is a genuine
-      strengthening of the positioning, not a concession.
-- [ ] Re-check the `[2,10)` φ bin (cal_p 0.015, sd_u 0.215, mean_u 0.568) — the
-      only field row still notable post-correction, and the same low-ℓ region
-      that blocks lmax=128. Do this by raising draws/chain first, before any
-      φ-tuning (standing rule).
+      demonstrated exactness. Pre-empts "what would your test have caught?"
+- [ ] Add the power statement to the paper as a table (also listed under Todo §1).
+- [ ] Re-read every pre-2026-09-12 flag and pass in `dashboard.md` against
+      `cal_p` before citing any of them; `KS_p` is retained for continuity only.
 
 ## Standing discipline
 

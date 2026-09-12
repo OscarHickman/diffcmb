@@ -171,8 +171,15 @@ before any further Block 3 work.
 | φ power bias in `[10,30)` | median 1.08–1.14 | median **1.162** |
 | Block 4 PIT (aligned) | 0.4999 (KS_p 0.42), genuine | **0.5001 (KS_p 0.248), genuine** |
 
-**Verdict: the residual survives the restoration, essentially unchanged in
-location, direction and size.** The rank is the best of the three measurements
+> ⚠ **This section records the N=12 state and its "still localised to
+> `[10,30)`, still a firm rejection" verdict did NOT hold up.** At N=24 the
+> localisation dissolved and under a calibrated test the pooled rejection went
+> with it (section above). The conclusion that *the packing is not the cause*
+> stands; the framing of what it is not the cause **of** does not. Kept because
+> the packing-exclusion argument is still needed.
+
+**Verdict (N=12, superseded): the residual survives the restoration, essentially
+unchanged in location, direction and size.** The rank is the best of the three measurements
 on both axes (vs 0.3802/0.0013 at the same trajectory length and 0.4196/0.00049
 at doubled length) but is still a firm rejection of uniformity, and it is still
 localised to `[10,30)` with φ over-powered in that same bin. Since the
