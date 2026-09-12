@@ -40,6 +40,108 @@ The `Im(a_{L,1})` dof restoration (`k_L = 2L → 2L+1`) is merged into `main` an
 3. **Decide the `[10,30)` Block 3 question** — it is now cleanly isolated and is the last thing between the project and a clean exactness story. Needs a decision, not another unilateral tuning run (see standing rule). The honest alternative is to **report it**: the headline Block-4-OFF SBC passes, and the Block-4-ON proper-prior configuration carries a documented, localised, one-bin caveat.
 
 
+## Impact strategy (2026-09-12) — proposed, needs your sign-off on §S1
+
+The 2026-09-11 harvest changed what the strongest evidence is, and the stated
+positioning no longer matches it. Four decisions follow; S1 is genuinely yours,
+S2–S4 I have acted on.
+
+### S1. Lead with the bias reduction, not the (C_ℓ, C_L^φφ) correlation — RECOMMENDED, your call
+
+The standing instruction is "never lead with the differentiable machinery; lead
+with the joint (C_ℓ, C_L^φφ) posterior." The evidence no longer supports that
+ordering:
+
+| | joint (C_ℓ, C_L^φφ) correlation | C_ℓ^TT bias reduction |
+|---|---|---|
+| status | **null** — 1/16 cells vs 0.8 expected by chance | **93%**, 172σ vs 2σ |
+| physically expected size | small *by construction* — C_ℓ^TT is the *unlensed* spectrum and couples to C_L^φφ only through the data | large and growing with ℓ |
+| cost to strengthen | ~2.4× ensemble for \|r\|=0.10, ~9.5× for 0.05 | already done; replication in flight |
+| legibility to a referee | requires explaining what the object even is | "ignoring lensing costs you 5% at ℓ~110; we remove it" |
+
+Leading with a null because it is novel is the weaker play. **Proposed:** lead
+with the bias reduction as the demonstration of *what joint sampling buys*, and
+keep the joint (C_ℓ, C_L^φφ) posterior as a **capability claim** — "no competing
+method (MUSE, QE, Commander, diffusion) produces this object at all" — rather
+than a detection claim. That is both more honest about the null and more
+impactful. It also *decouples* the headline from the one open defect (see S2).
+
+**The main vulnerability this creates, and the honest answer.** A referee will
+say: "nobody analyses lensed data with an unlensed model." Two-part response,
+both of which must be in the text: (i) Commander genuinely does not model
+lensing — this is a real, widely-used pipeline, not a strawman, so the claim is
+well-posed *against map-based Gibbs methods*; (ii) the claim must be stated
+that narrowly, and must **not** be implied against Planck's cosmological
+likelihood, which uses lensed spectra and an A_L nuisance. Optional
+strengthening if a referee pushes: add a lensed-template baseline (fit with the
+*lensed* spectrum, φ fixed) — that isolates "we propagate φ uncertainty" from
+"we know about lensing at all", which is the sharper claim.
+
+**Framing bonus, cheap:** the result is an A_L statement in disguise — "we
+recover A_L = 1 without a template or a nuisance parameter" is far more legible
+to the CMB community than a fractional-bias table, and costs only a rewrite.
+
+### S2. The `[10,30)` residual: REPORT it, do not chase it — decided
+
+Rationale, now that the causes are enumerated: packing (excluded, job 11965813),
+Block 4's conditional (excluded — PIT is a genuine pass), trajectory length
+(excluded at 240 and 480), Nystrom mass matrix (falsified at two ranks). What
+remains is Block 3 mixing, and that track has returned a negative or ambiguous
+result on nearly every attempt. Under S1 the affected configuration (Block 4 ON)
+supports a *capability* claim, not the headline, so a documented, localised,
+one-bin caveat is proportionate. The N=24 extension (job 11980637) may yet
+relax it exactly as it relaxed the `[30,60)` flag — **wait for that harvest
+before writing the caveat**, but do not launch further φ work either way.
+
+**Modrák et al. `2211.02383` was read 2026-09-12 and cuts the OPPOSITE way to
+the assumption recorded here.** The paper is *"SBC Checking for Bayesian
+Computation: The Choice of Test Quantities Shapes Sensitivity"* (Modrák, Moon,
+Kim, Bürkner, Huurre, Faltejsková, Gelman, Vehtari). Its thesis is that the
+choice of test quantity governs **how sensitive SBC is to problems**, *not* that
+some test quantities are non-uniform under a correct sampler. Under exact
+posterior sampling every valid test quantity ranks uniformly. So per-ℓ-bin
+φ-power is **not** excused as a "non-innocent" statistic, and the `[10,30)`
+non-uniformity should be read as what the project already concluded it is — a
+genuine, bounded, localised *computational* (mixing) deficiency, since MCMC with
+finite chains is not exact posterior sampling. Report it as such; do not explain
+it away. Delete the old "non-innocent test quantity" note — it was wrong.
+
+### S3. Adopt the joint likelihood as an SBC test quantity — DONE 2026-09-12, and it PASSES
+
+Modrák's central practical recommendation is that data-dependent test
+quantities, **the joint likelihood especially**, detect failures that
+parameter-wise ranks miss (including the posterior-equals-prior failure mode,
+which parameter ranks cannot see). **Correction to this item as first written:** I claimed the saved `logp` made
+it "a rank computation over existing files — no new sampling". That was wrong.
+`logp` is `−psi` (the alm-block log-posterior given the chain's φ), not a
+likelihood, and the truth's value is not saved; the data map is not saved
+either. It needed a new script that replays the generative path. No new
+*sampling* was required, which is what made it cheap, but it was not free.
+
+**Result: `scripts/sbc_joint_likelihood.py`, run on the headline N=24
+Block-4-OFF ensemble — consistent with uniform and thin-robust** (mean_u 0.4569,
+KS_p 0.738 at `--thin 10`; 0.4417, KS_p 0.468 at `--thin 30`). All 24 replays
+verified against the saved truth to 1e-12. Details and the CAMB
+non-reproducibility gotcha the verification exposed: `achievements.md`.
+
+Remaining: run the same statistic on the Block-4-ON ensemble once job 11980637
+lands, where it is the more interesting test — that is the configuration with
+the open `[10,30)` residual, and a data-dependent quantity is the one most
+likely to say something the φ-power ranks cannot.
+
+### S4. Spend scale on the bias reduction, not on the null — decided
+
+lmax=64 exactness / lmax=128 bias reduction against a comparison set 10²–10⁴×
+larger is the biggest referee target. The right place to spend is the
+**bias-reduction** demonstration, because (i) the effect *grows* with ℓ (−5.4%
+already at `[100,128)`), so lmax=256 makes the figure stronger, not merely
+bigger; and (ii) it needs only a converged C_ℓ marginal at mid/high ℓ, where φ
+mixes fine — it does **not** need the calibration gate that blocks lmax=128 for
+SBC. Pushing the null correlation instead buys, at best, a marginal detection of
+a quantity that is small by construction. Sequenced after the N=4 replication
+lands, since replication beats scale (standing discipline: demonstrated beats
+asserted).
+
 ## Todo, priority order
 
 ### 1. Exactness evidence (highest value)
@@ -90,7 +192,7 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - [ ] Cite `2603.04535` (learned CMB-delensing sampler) in the competing-paradigm section, replacing JADE as the lead example; read its body first to confirm sky geometry. Concede `2606.12255` honestly as the counterpoint (implicit/explicit field-level inference agreeing in a neighbouring problem).
 - [ ] Cite Doeser & Jasche (`2606.10023`) in the introduction — external statement of why an exact reference posterior is needed.
 - [ ] Add `2210.13260` (masked-sphere Almanac companion) alongside `2305.16134`; correct the draft's "all-sky, noiseless" characterisation of Almanac.
-- [ ] Read Modrák et al. (`2211.02383`) before finalising the coverage-test design — per-ℓ-bin φ-power is a non-innocent test quantity and the residual is localised to one bin.
+- [x] Read Modrák et al. (`2211.02383`) — **done 2026-09-12, and it falsified the premise of this item**: the paper is about test-quantity *sensitivity*, not about valid test quantities being non-uniform under a correct sampler. Per-ℓ-bin φ-power is not excused; the `[10,30)` residual stands as a real mixing deficiency (see Impact strategy §S2). Actionable consequence is §S3: adopt the joint likelihood as a test quantity.
 - [ ] Adopt nested R̂ (`2110.13017`) alongside rank-normalised split-R̂ (`1903.08008`); report τ_int as a lower bound citing `2408.13411`; cite the corrected (2017) Cook, Gelman & Rubin form.
 - [ ] State the demonstrated scale as lmax=64 everywhere, with the comparison set (MUSE/Almanac/Bayer/FLI, all 10²-10⁴× larger) and the scaling route. Never lmax≈128.
 - [ ] Add the "what the deficit is not" paragraph (not N0/N1, not mean-field, not non-Gaussian deflection, not foregrounds) — note the missing `Im(a_{ℓ,1})` dof is now *removed as a candidate* (restored 2026-09-06), not excluded by evidence.
