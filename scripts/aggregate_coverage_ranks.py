@@ -68,9 +68,70 @@ def ks_uniform_p(ranks, n_max):
         return np.nan
     if len(ranks) < 5:
         return np.nan
-    # Map integer ranks to (0,1) mid-points so the continuous KS test applies.
+    # Map integer ranks to (0,1) mid-points. NOTE: this does NOT make the
+    # continuous KS test valid -- see discrete_uniform_p below, and prefer it.
     u = (np.asarray(ranks, dtype=np.float64) + 0.5) / (n_max + 1.0)
     return float(stats.kstest(u, "uniform").pvalue)
+
+
+def discrete_uniform_p(ranks, n_max, n_rep=20000, seed=12345):
+    """Simulation-calibrated p-value of `ranks` against Uniform{0..n_max}.
+
+    USE THIS, NOT `ks_uniform_p`. The rank of a truth among L independent exact
+    posterior draws is DISCRETE-uniform on {0..L} for any model (the SBC
+    theorem), but `ks_uniform_p` compares it to a CONTINUOUS uniform. Mid-point
+    mapping does not repair that, and the resulting test over-rejects badly at
+    the granularity this project runs at. Fed *exact* discrete-uniform ranks --
+    i.e. a provably correct sampler -- `ks_uniform_p` rejects at:
+
+        setting                      p<0.05    p<0.01     (nominal: 5%, 1%)
+        per-bin  N=12, ranks 0..7      6.6%      1.3%
+        per-bin  N=24, ranks 0..7     15.1%      1.6%
+        pooled   N=48, ranks 0..7     13.9%      3.0%
+        pooled   N=96, ranks 0..7     30.3%     12.5%   <-- the pooled row
+        pooled   N=96, ranks 0..59     5.7%      1.4%   <-- fine with 60 draws
+
+    Two consequences worth keeping in view. (1) The miscalibration GROWS with N
+    at fixed granularity, because KS gains power to detect the discreteness
+    itself -- so doubling realizations while keeping ~8 draws/chain makes the
+    pooled p-value look more significant without any change in the sampler.
+    (2) It is cured by more draws PER CHAIN, not by more chains: at 60 draws
+    the test is well calibrated. Thin less, or run longer chains.
+
+    The null here assumes draws independent within a chain. Real chains are
+    autocorrelated, which inflates the spread of the ranks (a U-shape) without
+    moving their mean, so this null is if anything too narrow -- making the
+    p-value it returns conservative in the safe direction.
+
+    Statistic is the chi-square of the rank histogram, calibrated by drawing
+    exact discrete-uniform ranks at the same (N, n_max).
+    """
+    r = np.asarray(ranks, dtype=np.int64)
+    if len(r) < 5:
+        return np.nan
+    n_cat, n = n_max + 1, len(r)
+    expected = n / n_cat
+
+    def chi2(x):
+        cnt = np.bincount(x, minlength=n_cat)[:n_cat]
+        return float(((cnt - expected) ** 2 / expected).sum())
+
+    rng = np.random.default_rng(seed)
+    obs = chi2(r)
+    null = np.array([chi2(rng.integers(0, n_cat, size=n)) for _ in range(n_rep)])
+    return float(np.mean(null >= obs))
+
+
+def rank_spread(ranks, n_max):
+    """sd of the ranks mapped to (0,1). Uniform gives 1/sqrt(12) = 0.2887.
+
+    Reported because it is the ONLY one of these summaries sensitive to
+    under-dispersion of the posterior: a posterior that is too narrow, or a
+    chain that is autocorrelated, leaves mean_u at ~0.5 and shows up here as
+    excess spread (U-shaped ranks). A mean-only read is blind to it.
+    """
+    u = (np.asarray(ranks, dtype=np.float64) + 0.5) / (n_max + 1.0)
+    return float(np.std(u))
 
 
 def binned_power(coeffs, L_arr, lo, hi):
@@ -219,7 +280,7 @@ def main():
             print("  (not present in any input chain -- block disabled; skipped)")
             continue
         print(f"\n--- {labels[q]} ---")
-        print("  l-bin          N   mean_u   KS_p    ranks")
+        print("  l-bin          N   mean_u    sd_u    KS_p   cal_p    ranks")
         pooled_u = []
         for lo, hi in ell_bins:
             entries = records.get((q, lo, hi))
@@ -230,13 +291,19 @@ def main():
             u = (ranks + 0.5) / (n_max + 1.0)
             pooled_u.extend(u.tolist())
             ks_p = ks_uniform_p(ranks, n_max)
+            cal_p = discrete_uniform_p(ranks.astype(np.int64), n_max)
+            sd_u = rank_spread(ranks, n_max)
+            # FLAG on the CALIBRATED p-value; ks_p over-rejects on discrete
+            # ranks (see discrete_uniform_p) and is kept only for continuity
+            # with results recorded before 2026-09-12.
             flag = ""
-            if np.isfinite(ks_p) and ks_p < KS_FLAG_P:
+            if np.isfinite(cal_p) and cal_p < KS_FLAG_P:
                 flag = "  <-- FLAG"
             rank_str = " ".join(f"{int(r)}" for r in ranks[:12])
             print(f"  [{lo:4d},{hi:4d})  {len(ranks):3d}   {u.mean():6.3f}  "
-                  f"{ks_p:6.3f}   {rank_str}{flag}")
-            summary_rows.append((q, lo, hi, len(ranks), float(u.mean()), ks_p))
+                  f"{sd_u:6.3f}  {ks_p:6.3f}  {cal_p:6.3f}   {rank_str}{flag}")
+            summary_rows.append((q, lo, hi, len(ranks), float(u.mean()), ks_p,
+                                 cal_p, sd_u))
 
         if pooled_u:
             pooled_u = np.array(pooled_u)
@@ -250,12 +317,30 @@ def main():
             # realization, so this band is optimistic -- stated, not hidden.
             m = len(pooled_u)
             band = 1.0 / np.sqrt(12.0 * m)
+            pooled_ranks = np.concatenate(
+                [np.array([e[0] for e in records[(q, lo, hi)]], dtype=np.int64)
+                 for lo, hi in ell_bins if records.get((q, lo, hi))]
+            )
+            pooled_cal = discrete_uniform_p(pooled_ranks, n_max)
             print(f"  POOLED: N={m}  mean_u={pooled_u.mean():.4f} "
                   f"(uniform expects 0.500 +/- {band:.4f}, optimistic band)  "
-                  f"KS_p={pooled_p:.4f}")
+                  f"sd_u={np.std(pooled_u):.4f}  KS_p={pooled_p:.4f}  "
+                  f"cal_p={pooled_cal:.4f}")
 
     print("\n=== How to read this ===")
-    print("  A correct sampler gives mean_u ~ 0.5 and no small KS_p. mean_u -> 0")
+    print("  READ cal_p, NOT KS_p. KS_p compares discrete ranks to a CONTINUOUS")
+    print("  uniform and over-rejects badly here -- fed ranks from a provably")
+    print("  correct sampler it returns p<0.01 12.5% of the time on the pooled")
+    print("  N=96/8-draw row (see discrete_uniform_p). cal_p is calibrated by")
+    print("  simulation at this run's own (N, n_max). It is cured by more draws")
+    print("  PER CHAIN, not more chains: at 60 draws KS_p is fine.")
+    print("  sd_u is the under-dispersion diagnostic: uniform gives 0.2887, and")
+    print("  a too-narrow posterior or an autocorrelated chain shows up as")
+    print("  EXCESS spread while leaving mean_u at ~0.5. Note also that")
+    print("  under-dispersion does NOT shift mean_u -- only a posterior mean")
+    print("  offset does, and it shifts it OPPOSITE in sign (a posterior biased")
+    print("  HIGH vs the truth drives mean_u BELOW 0.5).")
+    print("  A correct sampler gives mean_u ~ 0.5 and no small cal_p. mean_u -> 0")
     print("  means the truth sits below the whole posterior (posterior biased high);")
     print("  mean_u -> 1 the reverse. A U-shaped rank spread means the posterior is")
     print("  too narrow (overconfident); a central clump means too wide.")

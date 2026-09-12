@@ -214,6 +214,38 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - [ ] Still unverified before citing: author lists for `1708.06753`, `2111.07664`, `0708.2989`; Papež et al. 2018 and Huffenberger & Næss 2018 IDs; the Eriksen/Jewell/Wandelt 2004 Commander trio IDs.
 - [ ] Re-run the named-author arXiv scan (Millea, Seljak, Bayer, Loureiro) and the citation-hygiene ID grep before every submission milestone (below).
 
+## Rank-test remediation (2026-09-12) — what to do about it
+
+The rank test was found miscalibrated and underpowered (`achievements.md`).
+Fixes applied and still to do:
+
+- [x] `discrete_uniform_p` (simulation-calibrated at each run's own N and rank
+      granularity) added and now drives the FLAG; `ks_uniform_p` kept only for
+      continuity with pre-2026-09-12 records.
+- [x] `rank_spread` (`sd_u`) reported — the under-dispersion diagnostic nobody
+      was looking at. Uniform is 0.2887; measured 0.215–0.314, so posteriors are
+      mildly too *wide*, not overconfident.
+- [x] Both ensembles re-scored (job 11985314). No field-rank row flags.
+- [x] Suite green (130 passed, 1 skipped) after the change.
+- [ ] **Raise draws per chain from ~8 to ≥60.** This is the single highest-value
+      remaining fix: it repairs the KS calibration *and* the power, whereas more
+      realizations buy neither. Concretely: keep 600 sweeps but thin by ~10
+      instead of 90, and use `sd_u` to monitor the autocorrelation this
+      re-admits (autocorrelation inflates rank spread without moving the mean,
+      so it is now measurable rather than guessed at). Cheap — re-analysis of
+      existing chains, no new sampling.
+- [ ] Re-state every claim in `docs/paper/main.tex` as a *bound* ("no bias
+      detected above ~0.5σ posterior mean offset at N=24") rather than as
+      demonstrated exactness. This is the honest form and pre-empts the referee
+      question "what would your test have caught?"
+- [ ] Add the power statement to the paper as a table. No competing method
+      reports the sensitivity of its own validation; doing so is a genuine
+      strengthening of the positioning, not a concession.
+- [ ] Re-check the `[2,10)` φ bin (cal_p 0.015, sd_u 0.215, mean_u 0.568) — the
+      only field row still notable post-correction, and the same low-ℓ region
+      that blocks lmax=128. Do this by raising draws/chain first, before any
+      φ-tuning (standing rule).
+
 ## Standing discipline
 
 - **One critical path**: Phase 2 gates ✓ → coverage/rank test → joint-posterior differentiator figures → paper. Anything not on this waits. The manuscript runs in parallel rather than at the end.
@@ -230,6 +262,7 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 - **A control that passes makes its check vacuous** — a misalignment/mutation control must itself fail before the aligned pass counts as evidence.
 - **A saved `.npz` carries no packing version.** `PACKING_VERSION` guards checkpoints only. Before differencing or pooling any pre-2026-09-06 analysis product against a current chain, check its array widths against `packed_length(lmax)` — this caught the stale lensing-blind baseline that would otherwise have rendered a packing artifact as a physics result (`achievements.md`).
 - **An unbiased `C_l` posterior does not centre on the truth's realized power.** Under the flat improper prior Block 1's posterior *mean* is `S_l/(k_l−4)`, not `S_l/k_l` — +15% at ℓ~20. Difference any spectrum comparison against `S_l/(k_l−4)`; against the realized power (or worse, the fiducial, which adds cosmic variance) the artifact is larger than the signal and reverses conclusions (`achievements.md`).
+- **Calibrate a goodness-of-fit test at the granularity you use it at, by feeding it output from a provably correct sampler and measuring the false-positive rate — before trusting either a flag OR a pass.** A continuous KS test on discrete ranks rejected a correct sampler 12.5% of the time at p<0.01 and drove a two-week investigation into a defect that was largely the test (`achievements.md`). And always report the POWER a pass carries: at N=24 ours could not see a 0.3σ posterior mean shift 3 times in 4, so a pass is a bound, not a proof.
 - **A rank/coverage statistic needs its own simulated null before any flag is read as bias** — it can ranks the truth against its conditional's mode, which is non-uniform by construction even for a perfect sampler.
 - **An intermittent test failure is a hypothesis, not a flake.**
 - **Claims hygiene**: every "first" carries scope qualifiers and nearest-prior-work citations.

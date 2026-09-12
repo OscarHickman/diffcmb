@@ -14,6 +14,37 @@ results and the bug record: `achievements.md`.
 
 ---
 
+## ⚠⚠ READ FIRST (2026-09-12): the rank test was miscalibrated; scores below are re-derived
+
+Two corrections that touch almost every number on this page. Full account:
+`achievements.md`.
+
+1. **`ks_uniform_p` over-rejects.** It compared *discrete* ranks to a
+   *continuous* uniform. Fed ranks from a provably correct sampler it returns
+   p<0.01 **12.5%** of the time on the pooled N=96 / 8-draw row, and p<0.05
+   **30.3%** of the time. The inflation **grows with N** at fixed granularity,
+   so doubling realizations made pooled p-values look more significant with no
+   change in the sampler. Use the new `cal_p` column (simulation-calibrated at
+   each run's own N and rank granularity), never `KS_p`. The cure is more draws
+   **per chain**, not more chains — at 60 draws/chain `KS_p` is fine.
+2. **A "pass" here is a bound, not a proof.** Calibrated power at N=24 with ~8
+   draws/chain: a posterior mean shift of 0.1/0.2/0.3/0.5σ is detected
+   7.5/14.3/26.5/**57.5%** of the time, and under-dispersion essentially never
+   (≤10.7% even at sd×0.5). **Our non-rejections exclude only defects larger
+   than roughly a half-σ posterior mean offset.** Say that, not "exact".
+
+**Net effect: the sampler looks BETTER, and the open defect largely evaporates.**
+Re-scored, **no field-rank row in either ensemble is flagged**. Headline φ pooled
+KS_p 0.0537 → **cal_p 0.2444**; alm 0.2319 → **0.8659**. The Block-4-ON strict
+`C_L^φφ` pooled p, the basis of the "open sampling question" since 2026-09-01,
+moves **0.0009 → ~0.04** (and that row is separately anti-conservative). The φ
+`[30,60)` bin chased for two weeks relaxes to cal_p 0.052; only φ `[2,10)`
+remains notable at 0.015. `C_l^TT` coverage rows still flag and are still the
+documented rank-vs-mode artifact — read them against
+`validate_coverage_rank_nulls.py`, not against uniform.
+
+---
+
 ## Current headline — simulation-based calibration
 
 **lmax=64, nside=64, 12 independent chains, `phi_mass_matrix='prior'`, Block 4 OFF**
@@ -101,13 +132,20 @@ al. test quantity):
 | Block 4 **OFF** (headline) | 0.4569 (KS_p 0.738) | 0.4417 (KS_p 0.468) |
 | Block 4 **ON** (proper prior) | 0.4028 (KS_p 0.256) | 0.3771 (KS_p 0.067) |
 
-Both are "consistent with uniform" at the 1% threshold, but Block-4-ON sits
-consistently lower and drifts further down with thinning. mean_u < 0.5 means the
-posterior draws fit the data **better** than the truth does — mild overfitting,
-i.e. a slightly too-narrow posterior. That is the signature of residual
-under-mixing, and it is consistent with the φ power bias (medians 1.033–1.122,
-all mildly over-powered) and with Block 4's own conditional being exact (PIT
-aligned KS_p 0.339, lag-10/50 controls rejected at KS_p=0 — a genuine pass).
+Both are "consistent with uniform", with Block-4-ON sitting lower.
+
+⚠ **The gloss first written here — "mean_u < 0.5 means the draws fit the data
+better than the truth, i.e. a too-narrow posterior" — was wrong on both counts
+and is corrected 2026-09-12.** Simulation (`scripts/validate_sbc_statistic_power.py`)
+shows **under-dispersion does not move mean_u at all** (posterior sd ×0.5 leaves
+it at 0.499; it shows up as rank *spread* instead), and a posterior mean biased
+*low* pushes mean_u **above** 0.5. A sub-0.5 mean therefore means the posterior
+sits **high** relative to the truth — consistent with the measured φ over-power
+(medians 1.033–1.122) — and says nothing about width. Width lives in `sd_u`,
+now reported: measured at 0.215–0.314 against uniform's 0.2887, i.e. the
+posteriors are mildly too **wide** (conservative), not overconfident.
+Block 4's own conditional remains exact (PIT aligned KS_p 0.339, lag-10/50
+controls rejected at KS_p=0 — a genuine pass).
 
 **Current reading: the Block-4-ON funnel carries a small, global,
 under-dispersion consistent with incomplete φ mixing — not a wrong conditional
