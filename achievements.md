@@ -73,6 +73,51 @@ Two consequences. The miscalibration **grows with N** at fixed granularity, beca
 
 **Lessons.** (i) A goodness-of-fit test must be calibrated at the granularity it is used at — feed it output from a provably correct sampler and check the false-positive rate before trusting either a flag or a pass. (ii) Report the power a "pass" carries, or the pass is uninterpretable. (iii) For SBC, draws **per chain** control both calibration and power; realizations alone buy neither. (iv) `mean_u` and `sd_u` answer different questions and the mean alone hides under-dispersion entirely.
 
+## Re-scored at 60 draws/chain — the last open defect closes (2026-09-13)
+
+Acting on the remediation item: thin by 10 instead of 90, taking each chain from ~6–8 rank draws to ~60, and re-score. Pure re-analysis of existing chains (jobs 11986716, 11986722) — no new sampling. At 60 draws the rank test is properly calibrated (FPR 5.7% / 1.4% vs **30.3% / 12.5%** at 8 draws), so this is the first properly-powered look at every statistic on the board.
+
+**The strict `C_L^φφ` SBC rank — the number the "open sampling question" was built on — is now consistent with uniform.**
+
+| | thin=90 (~8 draws) | **thin=10 (~60 draws)** |
+|---|---|---|
+| pooled mean_u | 0.4544 | **0.4518** |
+| pooled KS_p | **0.0009** | **0.0567** |
+| worst bin | `[10,30)` 0.2812 (KS_p 0.0047) | `[60,64)` 0.4173 (KS_p 0.1401) |
+| bins rejecting | — | **none** |
+
+The mean barely moved (0.4544 → 0.4518) while the p-value moved by a factor of 60. That is the signature of a *measurement* artifact, not a sampler change: the deficit was always within what an under-resolved rank statistic produces. Per-bin KS_p is now 0.58 / 0.39 / 0.71 / 0.14, and the pooled 0.0567 is itself from a test known to be anti-conservative (bins within a realization share a chain), so the true figure is weaker still. Block 4's own PIT remains a genuine pass (aligned KS_p 0.339; lag-10/50 controls rejected at KS_p=0).
+
+**Everything else improves or holds, and KS_p and cal_p now agree** — the direct confirmation that the discreteness was the whole problem:
+
+| statistic | thin=90 | thin=10 |
+|---|---|---|
+| Block-4-OFF φ field | 0.4688, KS_p 0.0537, cal_p 0.2444 | 0.4585, **KS_p 0.2766**, cal_p 0.4038 |
+| Block-4-OFF alm field | 0.5039, KS_p 0.2319, cal_p 0.8659 | 0.4956, **KS_p 0.9987**, cal_p 0.7150 |
+| Block-4-ON φ field | 0.4661, KS_p 0.0913, cal_p 0.4741 | 0.4488, KS_p 0.1355, cal_p 0.1985 |
+| Block-4-ON alm field | 0.4896, KS_p 0.3460, cal_p 0.8928 | 0.4995, **KS_p 0.8439**, cal_p 0.5464 |
+
+**The autocorrelation cost did not materialise.** `--thin 90` was chosen against a measured τ_int up to 42.5, so thin=10 was expected to re-admit autocorrelation and inflate the rank spread (a U-shape). `sd_u` says it did not: 0.2756 / 0.2874 / 0.3104 / 0.2935 against uniform's 0.2887. So the finer granularity is bought essentially for free, and `--thin 10` should be the default for rank scoring from here. This is only measurable because `sd_u` was added — previously it would have been an untested assumption either way.
+
+**Joint-likelihood SBC at ~120 draws/chain** (thin=5): Block-4-OFF 0.4587 (KS_p 0.738), Block-4-ON **0.4219 (KS_p 0.468)**. The Block-4-ON value — 0.3771 at thin=30, the lowest number on the board and the one flagged as deserving a powered look — rises toward 0.5 as draws increase, consistent with the low reading having been small-sample.
+
+**Net: there is no known open sampler defect.** What remains is a sensitivity bound, now tighter than before, and the low-ℓ φ mode that blocks lmax=128 (a mixing limitation, not a correctness one). The `C_l^TT` and `C_L^φφ` *coverage* rows still flag against uniform and still must be read against `validate_coverage_rank_nulls.py`'s simulated null — that is the documented rank-vs-mode artifact, unchanged.
+
+## `C_l^TT` bias reduction replicated across skies (2026-09-13)
+
+Jobs 11984844 / 11984845, seeds 1 and 3 complete (seed 2 still running at time of writing), compared per-sky against their own matched lensing-blind baselines and summarised by `scripts/aggregate_bias_reduction_seeds.py`. **The result is far more reproducible than a single-sim result had any right to be:**
+
+| sky | blind | aware | reduction |
+|---|---|---|---|
+| seed 0 | 0.0226 | 0.0016 | 93.0% |
+| seed 1 | 0.0223 | 0.0010 | 95.6% |
+| seed 3 | 0.0219 | 0.0012 | 94.4% |
+| **across skies** | **0.0223** | **0.0013** | **94.3%** (sd 1.3%, sem 0.8%) |
+
+Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / −5.26 / −5.32% at `[100,128)` — and **deepens monotonically with ℓ on 3/3 skies**, while the lensing-aware posterior stays within ±0.12% of unbiased in every reliable bin on every sky. Aware beats blind on 3/3.
+
+That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered.
+
 ## Real bugs found and fixed
 
 - **The lensing-blind `C_l^TT` baseline was silently a different model (found 2026-09-11).** `results/analysis/lensing_blind_baseline_lmax128.npz` (written 2026-08-12) is the reference side of the bias-reduction figure and `ROADMAP.md` listed it as done. Its `alm_true_packed` is **16254** long where `packed_length(128)` is now **16380** — a shortfall of exactly `lmax-2 = 126`, the missing `Im(a_{L,1})` dof. It therefore predates *both* the 2026-08-24 ordering fix and the 2026-09-06 restoration, and comparing it against the post-fix lensing-aware chain would have produced a "bias reduction" figure whose two sides are different models — a packing artifact presented as physics. Caught by checking array widths against `packed_length` before differencing, not by any test: a saved `.npz` carries no packing version (unlike checkpoints, which `PACKING_VERSION` protects). Re-run launched to a new path (`..._packingv2.npz`, job 11980570); the stale file is kept, not overwritten. **Lesson: `PACKING_VERSION` guards checkpoints but not analysis products — check any pre-2026-09-06 `.npz` against `packed_length(lmax)` before combining it with a current chain.**

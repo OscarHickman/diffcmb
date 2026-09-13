@@ -15,26 +15,26 @@
 
 ---
 
-## Current state (2026-09-12)
+## Current state (2026-09-13)
 
-Detail and numbers live in `achievements.md` and `results/analysis/dashboard.md`; this is the one-paragraph version.
+Detail and numbers in `achievements.md` and `results/analysis/dashboard.md`.
 
-**Headline:** no bias detected at lmax=64, N=24 chains, Block 4 OFF — φ mean_u 0.4688 (cal_p 0.2444), alm 0.5039 (cal_p 0.8659), no bin flagged in either field, plus the joint-likelihood test quantity passing (0.4569/0.4417, thin-robust). **State it as a bound:** at N=24 with ~8 draws/chain the test's power to see a 0.3σ posterior mean shift is 26.5% and it is effectively blind to under-dispersion, so what is demonstrated is *no detected bias above roughly a half-σ posterior mean offset*.
+**Headline:** no bias detected at lmax=64, N=24 chains, now scored at **~60 rank draws/chain** where the test is properly calibrated — φ 0.4585 (KS_p 0.2766, cal_p 0.4038), alm 0.4956 (KS_p 0.9987, cal_p 0.7150), no bin flagged, joint-likelihood 0.4587 (KS_p 0.738). `KS_p` and `cal_p` now agree, which confirms the discreteness was the whole calibration problem. Still state it as a **bound**, not exactness — but a tighter one than before.
 
-**Second result:** `C_ℓ^TT` bias reduction vs a lensing-blind analysis, 93% (0.0226 → 0.0016 mean |fractional bias|), lensing-aware consistent with unbiased in every reliable bin while the blind deficit grows to −5.4% at `[100,128)`.
+**Second result, now replicated:** `C_ℓ^TT` bias reduction **94.3% across 3 independent skies** (sd 1.3%), blind deficit −5.3±0.1% at `[100,128)` and monotone in ℓ on 3/3, aware within ±0.12% of unbiased everywhere. Seed 2 outstanding.
 
-**Two long-running problems closed this week, both as artifacts rather than defects:** the Block-4-ON `[10,30)` residual (small-N plus a miscalibrated test) and the rank test itself (`ks_uniform_p` rejected a provably correct sampler 12.5% of the time at p<0.01 on the pooled row). There is now **no known open sampler defect** — only a bounded sensitivity.
+**There is no known open sampler defect.** The last one closed 2026-09-13: the strict `C_L^φφ` SBC rank went **KS_p 0.0009 → 0.0567** purely from resolving the rank at 60 draws instead of 8, with the mean essentially unchanged (0.4544 → 0.4518) and no bin rejecting. Together with the earlier N=24 and calibration findings, the "open sampling question" is closed as a measurement artifact.
 
-**Still genuinely open:** lmax=128 is blocked for calibration work by the low-ℓ φ mode (job 11966631, NO-GO at lag-1 0.967 in `[2,10)`, re-confirmed post-fix); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the φ `[2,10)` bin is the only field row still notable post-correction (cal_p 0.015).
+**Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mode (a mixing limitation, not a correctness one — re-confirmed on all 3 replication skies, worst lag-1 0.964–0.975); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the paper has not been updated for any of the last week's findings.
 
-**In flight:** job **11984844** (3 tasks, ~13h of ~26h as of 2026-09-12) — replicates the bias-reduction result on 3 further skies (seeds 1–3), taking it from N=1 to N=4. The matching lensing-blind baselines (job 11984845) are already complete. Harvest per `scripts/submit_bias_reduction_replicate_aware.slurm`'s header: expect each task to print NO-GO on the equilibration gate (expected, low-ℓ φ; the figure is built from `[10,30)` upward), then run `scripts/compare_cl_bias_reduction.py` per seed and report the across-seed spread rather than seed 0 alone.
+**In flight:** job **11984844_2** — the last bias-reduction replication sky (seed 2), ~30h elapsed of a 72h cap. On landing, re-run `scripts/submit_bias_reduction_seeds.slurm` (it skips absent seeds and reports how many it found) to publish the result as N=4.
 
 ## Next actions
 
-1. **Harvest job 11984844** and report the bias-reduction result as N=4 with its across-seed spread.
-2. **Raise draws per chain from ~8 to ≥60** (thin ~10 instead of 90 on existing chains — re-analysis, no new sampling). Single highest-value fix outstanding: it repairs both the rank-test calibration and its power, which more realizations do not. Use the new `sd_u` to monitor the autocorrelation this re-admits.
-3. **Re-state the paper's claims as bounds** and add the power table (below).
-4. Then the open decision below, and the remaining Todo §1–§2 items.
+1. **Harvest seed 2** and re-run the across-sky summary for the N=4 number.
+2. **Update `docs/paper/main.tex`** — now the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication. See "Rank-test remediation" below.
+3. **Decide S1** (below) — which result leads.
+4. Then Todo §1–§2.
 
 ## Open decision — needs your sign-off
 
@@ -58,10 +58,10 @@ Leading with a null because it is novel is the weaker play. **Proposed:** lead w
 ## Todo, priority order
 
 ### 1. Exactness evidence
-- [ ] Raise draws/chain to ≥60 and re-score (Next actions §2; detail under Rank-test remediation) — converts the current bound into a tighter one.
+- [x] Raise draws/chain to ~60 and re-score — done 2026-09-13; tightened the bound and closed the strict `C_L^φφ` question (`achievements.md`).
 - [ ] Report the power of the validation as a table in the paper. No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
-- [ ] Re-check the φ `[2,10)` bin (cal_p 0.015, mean_u 0.568, sd_u 0.215) — the only field row still notable, and the same low-ℓ region that blocks lmax=128. Do §2 above first; no φ-tuning without sign-off (standing rule).
-- [ ] Run the joint-likelihood SBC on the Block-4-ON ensemble at ≥60 draws/chain — at thin=30 it read 0.3771, the lowest number on the board, and deserves a properly-powered look.
+- [ ] Re-check the φ `[2,10)` bin at thin=10 — it was the only field row still notable at thin=90 (cal_p 0.015). Read its per-bin score from job 11986716's thin=10 block before deciding whether anything remains; no φ-tuning without sign-off (standing rule).
+- [x] Joint-likelihood SBC on the Block-4-ON ensemble at ~120 draws/chain — done 2026-09-13: 0.4219 (KS_p 0.468), up from 0.3771 at thin=30, consistent with the low reading having been small-sample.
 - [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode.
 
 ### 2. Differentiator figures (what the paper is *for*)
@@ -117,12 +117,10 @@ The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
 already applied (`discrete_uniform_p`, `rank_spread`, both ensembles re-scored,
 suite green) are recorded in `achievements.md`. What is left:
 
-- [ ] **Raise draws per chain from ~8 to ≥60.** Single highest-value remaining
-      fix: it repairs the calibration *and* the power, whereas more realizations
-      buy neither. Keep 600 sweeps but thin by ~10 instead of 90, and use `sd_u`
-      to monitor the autocorrelation this re-admits (it inflates rank spread
-      without moving the mean, so it is now measurable). Re-analysis of existing
-      chains — no new sampling.
+- [x] **Raise draws per chain from ~8 to ~60** — done 2026-09-13 (jobs 11986716,
+      11986722). Closed the last open defect; `sd_u` 0.276–0.310 vs uniform's
+      0.2887 shows the expected autocorrelation cost did **not** materialise, so
+      `--thin 10` is the default for rank scoring from here (`achievements.md`).
 - [ ] Re-state every claim in `docs/paper/main.tex` as a *bound* ("no bias
       detected above ~0.5σ posterior mean offset at N=24") rather than as
       demonstrated exactness. Pre-empts "what would your test have caught?"
