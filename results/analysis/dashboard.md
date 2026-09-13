@@ -14,6 +14,42 @@ results and the bug record: `achievements.md`.
 
 ---
 
+## ✅ STATUS 2026-09-13: re-scored at ~60 draws/chain — no known open defect
+
+Supersedes the scores throughout this page, which were taken at ~6–8 rank
+draws/chain where the test is badly miscalibrated. Jobs 11986716 / 11986722.
+Full account: `achievements.md`.
+
+| statistic | thin=90 (~8 draws) | **thin=10 (~60 draws)** |
+|---|---|---|
+| φ field, Block 4 OFF | 0.4688, KS_p 0.0537, cal_p 0.2444 | 0.4585, **KS_p 0.2766**, cal_p 0.4038 |
+| alm field, Block 4 OFF | 0.5039, KS_p 0.2319, cal_p 0.8659 | 0.4956, **KS_p 0.9987**, cal_p 0.7150 |
+| φ field, Block 4 ON | 0.4661, KS_p 0.0913, cal_p 0.4741 | 0.4488, KS_p 0.1355, cal_p 0.1985 |
+| alm field, Block 4 ON | 0.4896, KS_p 0.3460, cal_p 0.8928 | 0.4995, **KS_p 0.8439**, cal_p 0.5464 |
+| **strict `C_L^φφ` SBC** | 0.4544, **KS_p 0.0009** | **0.4518, KS_p 0.0567, no bin rejects** |
+| joint likelihood, B4 OFF | 0.4569 (thin 10) | 0.4587 (thin 5, KS_p 0.738) |
+| joint likelihood, B4 ON | 0.3771 (thin 30) | **0.4219** (thin 5, KS_p 0.468) |
+
+**`KS_p` and `cal_p` now agree** — the confirmation that rank discreteness was
+the entire calibration problem. **The strict `C_L^φφ` p-value moved 60× while
+its mean barely moved** (0.4544 → 0.4518): a measurement artifact, not a sampler
+change. The "open sampling question" is closed.
+
+**The autocorrelation cost of thinning less did not materialise** — `sd_u`
+0.276–0.310 against uniform's 0.2887, despite τ_int up to 42.5 having motivated
+thin=90. **Use `--thin 10` for rank scoring from here.**
+
+**No field bin is a live defect.** The last notable one migrated: φ `[2,10)`
+cleared (cal_p 0.015 → 0.401) and φ `[30,60)` took its place (0.052 → 0.011).
+A real ℓ-localised defect persists under re-scoring; one that hops does not.
+
+Unchanged: the `C_l^TT` / `C_L^φφ` **coverage** rows still flag against uniform
+and still must be read against `validate_coverage_rank_nulls.py`'s simulated
+null — the documented rank-vs-mode artifact. And a pass remains a **bound**, not
+a proof of exactness, though a tighter bound than at 8 draws.
+
+---
+
 ## ⚠⚠ READ FIRST (2026-09-12): the rank test was miscalibrated; scores below are re-derived
 
 Two corrections that touch almost every number on this page. Full account:

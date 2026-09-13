@@ -103,6 +103,8 @@ The mean barely moved (0.4544 → 0.4518) while the p-value moved by a factor of
 
 **Net: there is no known open sampler defect.** What remains is a sensitivity bound, now tighter than before, and the low-ℓ φ mode that blocks lmax=128 (a mixing limitation, not a correctness one). The `C_l^TT` and `C_L^φφ` *coverage* rows still flag against uniform and still must be read against `validate_coverage_rank_nulls.py`'s simulated null — that is the documented rank-vs-mode artifact, unchanged.
 
+**The last "notable" bin migrated, which settles it as noise.** At thin=90 the only field row still flagged was φ `[2,10)` (cal_p 0.015). At thin=10 that bin **clears** (0.540, cal_p 0.401) and φ `[30,60)` takes its place (0.376, cal_p 0.011) — which had itself been 0.052 at thin=90. A genuine ℓ-localised defect persists under re-scoring; one that hops between bins when the rank resolution changes does not. With 8 field-row tests per ensemble, P(at least one below 0.011 by chance) ≈ 8%, so a single such bin is expected. **No field bin is treated as a live defect.** This is the third time on this project that a "localised anomaly" dissolved when tested harder (φ `[30,60)` at N=12→24, the Block-4-ON `[10,30)`, and now this) — the pattern is now a standing rule.
+
 ## `C_l^TT` bias reduction replicated across skies (2026-09-13)
 
 Jobs 11984844 / 11984845, seeds 1 and 3 complete (seed 2 still running at time of writing), compared per-sky against their own matched lensing-blind baselines and summarised by `scripts/aggregate_bias_reduction_seeds.py`. **The result is far more reproducible than a single-sim result had any right to be:**
