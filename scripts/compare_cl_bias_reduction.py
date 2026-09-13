@@ -61,7 +61,19 @@ from diffcmb.alm_utils import packed_dof_per_multipole, packed_length  # noqa: E
 
 # Bins follow the equilibration diagnostics in job 11966631 so the reliability
 # verdict per bin maps one-to-one onto a bin here.
-BINS = [(2, 10), (10, 30), (30, 60), (60, 100), (100, 128)]
+BINS_128 = [(2, 10), (10, 30), (30, 60), (60, 100), (100, 128)]
+
+
+def bins_for(lmax):
+    """lmax=128 keeps its original bins exactly (so recorded results reproduce);
+    higher lmax appends 32-wide bins above 128, truncated at lmax."""
+    if lmax <= 128:
+        return [(lo, min(hi, lmax)) for lo, hi in BINS_128 if lo < lmax]
+    extra, lo = [], 128
+    while lo < lmax:
+        extra.append((lo, min(lo + 32, lmax)))
+        lo += 32
+    return BINS_128 + extra
 UNRELIABLE = {(2, 10)}  # phi does not equilibrate here at lmax=128
 
 
@@ -150,7 +162,7 @@ def main():
     rows = []
     print(f"{'bin':>12} {'blind/exp':>11} {'aware/exp':>11} "
           f"{'blind pull':>11} {'aware pull':>11}   verdict")
-    for lo, hi in BINS:
+    for lo, hi in bins_for(args.lmax):
         m = (ell >= lo) & (ell < hi)
         # Reference = expected posterior mean under a correct unlensed model,
         # NOT the realized power (see module docstring).

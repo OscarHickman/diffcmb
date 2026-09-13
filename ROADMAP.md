@@ -27,7 +27,9 @@ Detail and numbers in `achievements.md` and `results/analysis/dashboard.md`.
 
 **Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mode (a mixing limitation, not a correctness one — re-confirmed on all 3 replication skies, worst lag-1 0.964–0.975); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the paper has not been updated for any of the last week's findings.
 
-**In flight:** job **11984844_2** — the last bias-reduction replication sky (seed 2), ~30h elapsed of a 72h cap. On landing, re-run `scripts/submit_bias_reduction_seeds.slurm` (it skips absent seeds and reports how many it found) to publish the result as N=4.
+**In flight (2026-09-13 evening):**
+- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). Sized from pilot job 11986726: **100 s/sweep** (~2× lmax=128, cheaper than the lmax³ estimate), MAP start healthy (alm cosine +0.982, φ ratio 1.037). 400+1500 sweeps ≈ 53h. The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
+- job **11984844_2** — the last bias-reduction replication sky (seed 2), ~30h elapsed of a 72h cap. On landing, re-run `scripts/submit_bias_reduction_seeds.slurm` (it skips absent seeds and reports how many it found) to publish the result as N=4.
 
 ## Next actions
 
@@ -66,7 +68,7 @@ Leading with a null because it is novel is the weaker play. **Proposed:** lead w
 
 ### 2. Differentiator figures (what the paper is *for*)
 - [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
-- [ ] Push the bias-reduction demonstration to lmax=256 — **decided 2026-09-12**: spend scale here, not on the null correlation. The effect *grows* with ℓ, and it needs only a converged C_ℓ marginal at mid/high ℓ — **not** the calibration gate that blocks lmax=128. Sequenced after the N=4 replication, since replication beats scale.
+- [~] Push the bias-reduction demonstration to higher lmax — **decided 2026-09-12**; running at **lmax=192** (job 11987444) rather than 256, because 256 would exceed the 72h cap several times over. Revisit 256 only with chained resumes if 192 lands cleanly. The effect *grows* with ℓ, and it needs only a converged C_ℓ marginal at mid/high ℓ — **not** the calibration gate that blocks lmax=128. Sequenced after the N=4 replication, since replication beats scale.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
 - [ ] Decide whether to chase the (C_ℓ, C_L^φφ) correlation at all. Under S1 it becomes a capability claim and needs no detection; ~2.4× the ensemble buys at best a marginal one. Recommend not chasing.
