@@ -15,27 +15,26 @@
 
 ---
 
-## Current state (2026-09-13)
+## Current state (2026-09-14)
 
-Detail and numbers in `achievements.md` and `results/analysis/dashboard.md`.
+Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md` — this section is a pointer, not a restatement.
 
-**Headline:** no bias detected at lmax=64, N=24 chains, now scored at **~60 rank draws/chain** where the test is properly calibrated — φ 0.4585 (KS_p 0.2766, cal_p 0.4038), alm 0.4956 (KS_p 0.9987, cal_p 0.7150), no bin flagged, joint-likelihood 0.4587 (KS_p 0.738). `KS_p` and `cal_p` now agree, which confirms the discreteness was the whole calibration problem. Still state it as a **bound**, not exactness — but a tighter one than before.
+**Headline exactness:** no bias detected at lmax=64, N=24 chains, properly calibrated at ~60 rank draws/chain — stated as a **bound**, not exactness (`achievements.md`).
 
-**Second result, now replicated at N=4:** `C_ℓ^TT` bias reduction **93.7% ± 1.8% (sd) across 4 independent skies** (job 11991514, 2026-09-14) — aware beats blind on 4/4 skies, blind deficit monotone in ℓ on 4/4, aware within ±0.12% of unbiased everywhere. Per-sky: 93.0%, 95.6%, 91.6%, 94.4%. Seed 2 landed 2026-09-14 07:44 (job 11984844_2).
+**Headline effect, replicated at N=4:** `C_ℓ^TT` lensing-bias reduction **93.7% ± 1.8% across 4 independent skies** (job 11991514, 2026-09-14) — aware beats blind 4/4, deficit deepens monotonically with ℓ 4/4 (`achievements.md`).
 
-**There is no known open sampler defect.** The last one closed 2026-09-13: the strict `C_L^φφ` SBC rank went **KS_p 0.0009 → 0.0567** purely from resolving the rank at 60 draws instead of 8, with the mean essentially unchanged (0.4544 → 0.4518) and no bin rejecting. Together with the earlier N=24 and calibration findings, the "open sampling question" is closed as a measurement artifact.
+**No known open sampler defect** — the last one (strict `C_L^φφ` SBC rank) closed 2026-09-13 as a measurement-resolution artifact, not a sampler bug.
 
-**Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mode (a mixing limitation, not a correctness one — re-confirmed on all 3 replication skies, worst lag-1 0.964–0.975); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the paper has not been updated for any of the last week's findings.
+**Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mixing mode (not a correctness issue); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; the paper has not been updated for the last two weeks' findings.
 
 **In flight (2026-09-14):**
 - job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). ~17.5h into an estimated 400+1500-sweep ≈ 53h run as of 2026-09-14 morning. The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest on landing: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
 
 ## Next actions
 
-1. ~~Harvest seed 2~~ — **done 2026-09-14**, N=4 result above (job 11991514).
-2. **Update `docs/paper/main.tex`** — now the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication (now N=4). See "Rank-test remediation" below.
-3. **Decide S1** (below) — which result leads. Needs user sign-off before the paper rewrite in #2 can finalize its framing.
-4. Then Todo §1–§2. Once job 11987444 lands, harvest the lmax=192 bias-reduction figure (§2 second item).
+1. **Update `docs/paper/main.tex`** — the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication (now N=4).
+2. **Decide S1** (below) — which result leads. Needs user sign-off before the paper rewrite in #1 can finalize its framing.
+3. Then Todo §1–§2. Once job 11987444 lands, harvest the lmax=192 bias-reduction figure (§2 second item).
 
 ## Open decision — needs your sign-off
 
@@ -59,10 +58,7 @@ Leading with a null because it is novel is the weaker play. **Proposed:** lead w
 ## Todo, priority order
 
 ### 1. Exactness evidence
-- [x] Raise draws/chain to ~60 and re-score — done 2026-09-13; tightened the bound and closed the strict `C_L^φφ` question (`achievements.md`).
 - [ ] Report the power of the validation as a table in the paper. No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
-- [x] Re-check the φ `[2,10)` bin at thin=10 — done: it **clears** (cal_p 0.015 → 0.401) and φ `[30,60)` takes its place (0.052 → 0.011). The flagged bin migrates with rank resolution, so neither is a live defect (`achievements.md`).
-- [x] Joint-likelihood SBC on the Block-4-ON ensemble at ~120 draws/chain — done 2026-09-13: 0.4219 (KS_p 0.468), up from 0.3771 at thin=30, consistent with the low reading having been small-sample.
 - [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode.
 
 ### 2. Differentiator figures (what the paper is *for*)
@@ -115,13 +111,9 @@ Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensi
 ## Rank-test remediation — remaining items
 
 The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
-already applied (`discrete_uniform_p`, `rank_spread`, both ensembles re-scored,
-suite green) are recorded in `achievements.md`. What is left:
+(`discrete_uniform_p`, `rank_spread`, raising draws/chain to ~60, both ensembles
+re-scored) are done and recorded in `achievements.md`. What is left:
 
-- [x] **Raise draws per chain from ~8 to ~60** — done 2026-09-13 (jobs 11986716,
-      11986722). Closed the last open defect; `sd_u` 0.276–0.310 vs uniform's
-      0.2887 shows the expected autocorrelation cost did **not** materialise, so
-      `--thin 10` is the default for rank scoring from here (`achievements.md`).
 - [ ] Re-state every claim in `docs/paper/main.tex` as a *bound* ("no bias
       detected above ~0.5σ posterior mean offset at N=24") rather than as
       demonstrated exactness. Pre-empts "what would your test have caught?"
