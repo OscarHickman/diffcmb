@@ -105,20 +105,21 @@ The mean barely moved (0.4544 → 0.4518) while the p-value moved by a factor of
 
 **The last "notable" bin migrated, which settles it as noise.** At thin=90 the only field row still flagged was φ `[2,10)` (cal_p 0.015). At thin=10 that bin **clears** (0.540, cal_p 0.401) and φ `[30,60)` takes its place (0.376, cal_p 0.011) — which had itself been 0.052 at thin=90. A genuine ℓ-localised defect persists under re-scoring; one that hops between bins when the rank resolution changes does not. With 8 field-row tests per ensemble, P(at least one below 0.011 by chance) ≈ 8%, so a single such bin is expected. **No field bin is treated as a live defect.** This is the third time on this project that a "localised anomaly" dissolved when tested harder (φ `[30,60)` at N=12→24, the Block-4-ON `[10,30)`, and now this) — the pattern is now a standing rule.
 
-## `C_l^TT` bias reduction replicated across skies (2026-09-13)
+## `C_l^TT` bias reduction replicated across skies — N=4 (2026-09-13 → 2026-09-14)
 
-Jobs 11984844 / 11984845, seeds 1 and 3 complete (seed 2 still running at time of writing), compared per-sky against their own matched lensing-blind baselines and summarised by `scripts/aggregate_bias_reduction_seeds.py`. **The result is far more reproducible than a single-sim result had any right to be:**
+Jobs 11984844/11984845 (seeds 1-3) plus the original seed 0 pair, compared per-sky against their own matched lensing-blind baselines and summarised by `scripts/aggregate_bias_reduction_seeds.py`. Seed 2 (job 11984844_2) landed 2026-09-14 07:44; harvest re-run as job 11991514 to complete the N=4 set. **The result is far more reproducible than a single-sim result had any right to be:**
 
 | sky | blind | aware | reduction |
 |---|---|---|---|
 | seed 0 | 0.0226 | 0.0016 | 93.0% |
 | seed 1 | 0.0223 | 0.0010 | 95.6% |
+| seed 2 | 0.0214 | 0.0018 | 91.6% |
 | seed 3 | 0.0219 | 0.0012 | 94.4% |
-| **across skies** | **0.0223** | **0.0013** | **94.3%** (sd 1.3%, sem 0.8%) |
+| **across skies (N=4)** | **0.0221** | **0.0014** | **93.7%** (sd 1.8%, sem 0.9%) |
 
-Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / −5.26 / −5.32% at `[100,128)` — and **deepens monotonically with ℓ on 3/3 skies**, while the lensing-aware posterior stays within ±0.12% of unbiased in every reliable bin on every sky. Aware beats blind on 3/3.
+Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / −5.26 / −5.08 / −5.32% at `[100,128)` — and **deepens monotonically with ℓ on 4/4 skies**, while the lensing-aware posterior stays within ±0.12% of unbiased in every reliable bin on every sky. Aware beats blind on 4/4.
 
-That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered.
+That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered. **This closes the N=4 replication item in `ROADMAP.md`'s Next actions; remaining critical-path items are the `main.tex` rewrite and the S1 lead-result decision.**
 
 ## Real bugs found and fixed
 

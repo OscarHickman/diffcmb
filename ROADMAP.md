@@ -21,22 +21,21 @@ Detail and numbers in `achievements.md` and `results/analysis/dashboard.md`.
 
 **Headline:** no bias detected at lmax=64, N=24 chains, now scored at **~60 rank draws/chain** where the test is properly calibrated — φ 0.4585 (KS_p 0.2766, cal_p 0.4038), alm 0.4956 (KS_p 0.9987, cal_p 0.7150), no bin flagged, joint-likelihood 0.4587 (KS_p 0.738). `KS_p` and `cal_p` now agree, which confirms the discreteness was the whole calibration problem. Still state it as a **bound**, not exactness — but a tighter one than before.
 
-**Second result, now replicated:** `C_ℓ^TT` bias reduction **94.3% across 3 independent skies** (sd 1.3%), blind deficit −5.3±0.1% at `[100,128)` and monotone in ℓ on 3/3, aware within ±0.12% of unbiased everywhere. Seed 2 outstanding.
+**Second result, now replicated at N=4:** `C_ℓ^TT` bias reduction **93.7% ± 1.8% (sd) across 4 independent skies** (job 11991514, 2026-09-14) — aware beats blind on 4/4 skies, blind deficit monotone in ℓ on 4/4, aware within ±0.12% of unbiased everywhere. Per-sky: 93.0%, 95.6%, 91.6%, 94.4%. Seed 2 landed 2026-09-14 07:44 (job 11984844_2).
 
 **There is no known open sampler defect.** The last one closed 2026-09-13: the strict `C_L^φφ` SBC rank went **KS_p 0.0009 → 0.0567** purely from resolving the rank at 60 draws instead of 8, with the mean essentially unchanged (0.4544 → 0.4518) and no bin rejecting. Together with the earlier N=24 and calibration findings, the "open sampling question" is closed as a measurement artifact.
 
 **Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mode (a mixing limitation, not a correctness one — re-confirmed on all 3 replication skies, worst lag-1 0.964–0.975); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; and the paper has not been updated for any of the last week's findings.
 
-**In flight (2026-09-13 evening):**
-- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). Sized from pilot job 11986726: **100 s/sweep** (~2× lmax=128, cheaper than the lmax³ estimate), MAP start healthy (alm cosine +0.982, φ ratio 1.037). 400+1500 sweeps ≈ 53h. The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
-- job **11984844_2** — the last bias-reduction replication sky (seed 2), ~30h elapsed of a 72h cap. On landing, re-run `scripts/submit_bias_reduction_seeds.slurm` (it skips absent seeds and reports how many it found) to publish the result as N=4.
+**In flight (2026-09-14):**
+- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). ~17.5h into an estimated 400+1500-sweep ≈ 53h run as of 2026-09-14 morning. The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest on landing: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
 
 ## Next actions
 
-1. **Harvest seed 2** and re-run the across-sky summary for the N=4 number.
-2. **Update `docs/paper/main.tex`** — now the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication. See "Rank-test remediation" below.
-3. **Decide S1** (below) — which result leads.
-4. Then Todo §1–§2.
+1. ~~Harvest seed 2~~ — **done 2026-09-14**, N=4 result above (job 11991514).
+2. **Update `docs/paper/main.tex`** — now the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication (now N=4). See "Rank-test remediation" below.
+3. **Decide S1** (below) — which result leads. Needs user sign-off before the paper rewrite in #2 can finalize its framing.
+4. Then Todo §1–§2. Once job 11987444 lands, harvest the lmax=192 bias-reduction figure (§2 second item).
 
 ## Open decision — needs your sign-off
 
