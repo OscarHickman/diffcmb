@@ -27,8 +27,21 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 
 **Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mixing mode (not a correctness issue); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; the paper has not been updated for the last two weeks' findings.
 
-**In flight (2026-09-14):**
-- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). ~17.5h into an estimated 400+1500-sweep ≈ 53h run as of 2026-09-14 morning. The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest on landing: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
+**In flight:**
+- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). Launched 2026-09-13, ~1900 sweeps (400 burn-in + 1500 sampling) targeted, ~50% through as of 2026-09-15 morning (checkpoint `results/analysis/aware192_ckpt.npz`, 750/1500 samples written). The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest on landing: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
+
+**S1 decided (2026-09-14): dual lead, undecided ordering.** Build both storylines at full strength (done — see the figure-sequence checkpoint below); defer the final lead/support ordering to the content-writing stage rather than deciding it now.
+
+## Figure-sequence checkpoint (2026-09-14/15) — this is the safe revert point if Phase 2a below stalls
+
+`papers/7_DiffCMB/plots/` now holds the paper's scoped figure sequence, one PDF panel per subplot, built from already-validated analysis code (imported, not reimplemented — see `plots/STORY.md` for the full per-figure verdicts and the packing-version trap caught while building figure1). **Tagged in both repos as the known-good methods-paper state, safe to revert to if the Phase 2a real-data extension (below) turns out too large or contaminates anything:**
+
+- `diffcmb` repo: tag `methods-paper-v1` (commit adding `scripts/paper/fig{1,2,4}_*.py`)
+- `papers/7_DiffCMB` repo: tag `methods-paper-v1` (commit adding `plots/`)
+
+Built: figure1 (validation — SBC rank histograms + power curve), figure2 (headline bias-reduction, N=4 skies), figure4 (joint posterior, honestly framed as a capability claim / null). **Not built**: figure3 (per-mode uncertainty propagation vs QE) — no script exists, deliberately not fabricated; see `plots/STORY.md`'s figure3 entry for exactly what it needs.
+
+**Why this matters for what comes next.** The Phase 2a real-data run (pulled forward per the 2026-09-15 discussion, to give the paper an actual science-bearing hook rather than resting on simulation + a capability-claim null) touches real Planck data, real foregrounds, real masking — none of which the validated simulation pipeline has been checked against. **Do Phase 2a work on a branch or worktree, never directly on `main`**, so that a stalled or contaminating attempt can be abandoned with `git worktree remove` / branch deletion and `main` (== the `methods-paper-v1` tag) is untouched. If Phase 2a succeeds, merge it in as an addition; if it doesn't, the fallback is "submit the methods paper as scoped in this checkpoint" — no further recovery work required, because nothing about this checkpoint depends on Phase 2a landing.
 
 ## Next actions
 
