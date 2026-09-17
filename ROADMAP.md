@@ -29,16 +29,17 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 
 **No known open sampler defect** — the last one (strict `C_L^φφ` SBC rank) closed 2026-09-13 as a measurement-resolution artifact.
 
-**In flight: nothing.** Job 11987444 (lmax=192) completed 2026-09-15T22:25; the queue holds no diffcmb jobs.
+**In flight: nothing.** The last diffcmb jobs were 12015488 (lmax=192 harvest, 2026-09-17) and 12015546 (QE noise validation, 2026-09-18); both completed and the queue holds no diffcmb jobs.
 
 **Still genuinely open:**
-- The paper (`docs/paper/main.tex`) has not been touched since **2026-09-08** and predates the entire rank-test recalibration. This is the critical path.
+- The paper (`docs/paper/main.tex`) has not been touched since **2026-09-08**, predates the entire rank-test recalibration, and **references none of the ten panel PDFs that now exist**. This is the critical path and it is now the *only* thing on it.
 - lmax=128 *and* lmax=192 are blocked for **calibration** work by the low-ℓ φ mixing mode (a mixing limit, not a correctness one). At 192 the gate returned **NO-GO** at lag-1 0.976 — so **no exactness claim above lmax=64 is available**, and none should be attempted.
 - The joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; per S1 this is now accepted, not a gap to close.
+- Figure 3's QE baseline is measured in a regime where the QE is uninformative (`N_L/C_L` up to 1539). The claim is honest and quantified as stated, but the strongest form needs a lower-noise ensemble — Todo §2b.
 
 ## Figure state
 
-`papers/7_DiffCMB/plots/` holds the figure sequence, tagged **`methods-paper-v1`** in both repos — the known-good methods-paper state and the revert point if Phase 2a stalls. **All four figures are now built and at publication standard (2026-09-18)**, on a shared `scripts/paper/paper_style.py`. Per-figure detail, captions-to-write and standing rules are in `plots/STORY.md`; what was *defective* rather than merely unpolished is in `achievements.md`.
+`papers/7_DiffCMB/plots/` holds the figure sequence. ⚠ **The `methods-paper-v1` tag is now STALE**: it points at `d9979b7`, the pre-2026-09-18 sequence, so it is no longer the revert point it is documented to be (Next action 5). **All four figures are built and at publication standard (2026-09-18)**, on a shared `scripts/paper/paper_style.py`. Per-figure detail, captions-to-write and standing rules are in `plots/STORY.md`; what was *defective* rather than merely unpolished is in `achievements.md`.
 
 - **figure1** (validation) — now certifies all four blocks: a third panel carries the strict `C_L^φφ` SBC rank, closing a real hole where the figure certified two of the four blocks the title claims. Rank histograms now carry a simulated discrete-uniform band. Bound quantified: **50% power at 0.42σ**.
 - **figure2** (bias reduction) — third panel added at ℓmax=192 (98.4%, deficit to −8.0%). Scales never mixed within a panel.
@@ -47,29 +48,53 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 
 ⚠ **A false statement had been shipped inside figure 1** (a burnt-in "Block 4 OFF" footer on a Block-4-ON ensemble). Prose inside panels is now banned by `paper_style.py`; it belongs in the LaTeX caption where it can be reviewed. Treat any burnt-in text in a future figure as a defect.
 
-**Phase 2a discipline:** the real-data run touches real Planck data, foregrounds and masking, none of which the validated simulation pipeline has been checked against. **Do it on a branch or worktree, never on `main`**, so a stalled attempt is abandoned with `git worktree remove` and `main` (== `methods-paper-v1`) is untouched. Fallback if it fails: submit the methods paper as scoped — nothing in the checkpoint depends on Phase 2a landing.
+**Phase 2a discipline:** the real-data run touches real Planck data, foregrounds and masking, none of which the validated simulation pipeline has been checked against. **Do it on a branch or worktree, never on `main`**, so a stalled attempt is abandoned with `git worktree remove` and `main` is untouched. (`main` is no longer `== methods-paper-v1` — re-tag first, Next action 5.) Fallback if it fails: submit the methods paper as scoped — nothing in the checkpoint depends on Phase 2a landing.
 
 ## Next actions — in order
 
-1. **Rewrite `docs/paper/main.tex`** — the critical path, now unblocked (S1 is decided). Four things, in this order:
-   - a. Recast every exactness statement as a **bound** ("no bias detected above ~0.5σ posterior mean offset at N=24"), not as demonstrated exactness.
-   - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title.
+**The only thing between here and a submittable methods paper is the manuscript.** All four figures are built and validated; nothing in the critical path is now waiting on compute.
+
+1. **Rewrite `docs/paper/main.tex`** — the critical path, unblocked. In this order:
+   - a. Recast every exactness statement as a **bound**. The number is now measured: **50% detection power at 0.42σ posterior-mean shift** at N=24, 60 draws/chain (fig1 panel c). Quote that, not "~0.5σ".
+   - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title. Figure 1 now certifies all four blocks, so the figure and the title finally agree — say so.
    - c. Replace the miscalibrated `KS_p` values with the thin=10 / `cal_p` numbers.
    - d. Carry the N=4 bias-reduction replication, framed per S1 as validation + the A_L framing.
-   - e. Write the four figure captions. `plots/STORY.md` lists, per figure, the points a caption **must** carry — the pointwise-not-simultaneous band in fig1, the never-mixed ℓmax scales in fig2, the QE⊕prior framing and the above-1 high-L ratio in fig3, the null-vs-physics distinction in fig4. These are not optional polish; each one is a referee objection pre-empted.
-2. **Add the power table** to the paper (§1 below). No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
-3. Then the literature/citation actions below, then Phase 2a on a branch.
+   - e. Add the figure-3 result: the joint posterior is **0.953 ± 0.010** of the QE⊕prior width at 10≤L<20. This is the paper's only *positive* argument for the method — do not bury it in the validation section.
+2. **Write the four figure captions.** `plots/STORY.md` lists, per figure, the points a caption **must** carry; each is a referee objection pre-empted, not polish:
+   - fig1: the uniform band is **pointwise, not simultaneous** (φ's first bin is above the 95% band; expected ~0.5×/10 bins, pooled cal_p=0.18 does not reject).
+   - fig2: panels (a)/(b) are ℓmax=128 and (c) is ℓmax=192; **scales are not mixed and the 4-sky replication exists only at 128**. Panel (c) is bias-reduction only, **not** an exactness claim.
+   - fig3: the comparison is against **QE⊕prior, never raw N_L**; the ratio rising above 1 at high L is Block 4 honestly marginalising over an unknown `C_L^φφ`, not a defect; the QE's own response is 0.88 here.
+   - fig4: the null-vs-physics distinction — `C_ℓ^TT` is the *unlensed* spectrum, so a small correlation is physically expected. Capability claim, not detection.
+3. **Assemble the panels into LaTeX `figure*` environments.** Ten panel PDFs now exist across four figures; `main.tex` references none of them. One `figure*` per figure with several `\includegraphics`, (a)/(b)/(c) lettering in the caption prose per the panel convention. **Do not rescale beyond the column width** — panels are saved at final printed size, so `\includegraphics[width=...]` past that silently changes every type size.
+4. **Add the power table** (§1 below).
+5. **Re-tag `methods-paper-v1`.** Both repos carry that tag but it points at the *pre-2026-09-18* figures, so the documented "revert point" no longer matches what is on disk. Either re-tag to the current state or rename the old one; leaving it stale defeats its purpose as a Phase-2a fallback.
+6. Then the literature/citation actions below, then Phase 2a on a branch.
 
 ## Todo, priority order
 
 ### 1. Exactness evidence
-- [ ] Report the power of the validation as a table in the paper — **this is Next action 3**; kept here so the section is self-contained.
+- [ ] Report the power of the validation as a table in the paper — **this is Next action 4**; kept here so the section is self-contained. The measured curve is fig1's `validation_power.pdf`; the table is the same information in numbers.
 - [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode, and now confirmed blocked at lmax=192 too (gate NO-GO, lag-1 0.976, job 11987444). Treat "exactness at lmax=64" as the demonstrated scale and say so; do not attempt to raise it for this paper.
 
 ### 2. Differentiator figures (what the paper is *for*)
-- [x] ~~Per-mode uncertainty-propagation figure~~ — **DONE 2026-09-18**, see Figure state above and `achievements.md`.
+- [x] ~~Per-mode uncertainty-propagation figure~~ — **DONE 2026-09-18**; see Figure state above and `achievements.md`.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
+
+### 2b. Figure-3 / QE follow-ups (from the 2026-09-18 build)
+
+The figure is honest and quantified as it stands; these are the things a referee could reasonably push on, in descending order of likelihood.
+
+- [ ] **Re-run figure 3 at a configuration where the QE is competitive.** At ℓmax=64 / nside=64 / σ_pix=1.0, `N_L/C_L` runs from 3.3 at L=5 to **1539** at L=60 — the QE alone is essentially uninformative, so the comparison is made in a regime no QE user would work in. This needs a **new production ensemble at lower noise**, not a re-analysis: new chains, then re-run `validate_qe_noise.py` at the matching configuration, then rebuild. Nothing else in the paper depends on it, and the current claim stands without it — but this is the most likely "your baseline is a strawman" objection. **Costed as: one coverage-ensemble campaign + one 10-minute validation job.**
+- [ ] **Understand the QE response of 0.883.** The validated estimator recovers ~12% less than the input φ (0.57 in `[60,64)`, where the band limit truncates the l1,l2 sum). Band-edge truncation explains the last bin; the ~10% in the body is more likely the standard gradient-vs-lensed-spectrum subtlety in `f^TT` (the coupling should use the *gradient* spectrum, not the lensed one, for an unbiased response). Does **not** affect `N_L` — the noise test is independent and passes at 0.992 — so this is a caption caveat today and a correctness item only if figure 3 is ever restated as a response-level claim.
+- [ ] **`N_L` is validated only at (lmax=64, nside=64, σ_pix=1.0).** `fig3` now refuses to run on a mismatch, but the *coverage* of the validation is one configuration. Any new configuration needs its own validation run before the curve may be plotted — the standing "must not be fabricated" rule applies to a re-used curve as much as to an invented one.
+- [ ] Optional: extend `tests/test_qe.py` with a small-lmax regression on `N_L` itself (currently the unit tests cover the coupling's structure and scaling, while `N_L`'s absolute normalisation is covered only by the SLURM Monte Carlo). A frozen 5-value array at lmax=16 would catch an accidental factor change without needing the cluster.
+
+### 2c. Figure infrastructure
+
+- [ ] **Check every panel at final printed size, on paper or at 100% zoom.** Panels are saved at column width with 7-8pt type; they have only been inspected as upscaled PNGs. Tick-label collisions and over-long legends do not show up at 200 dpi preview.
+- [ ] `paper_style.py` uses **DejaVu Serif**, not the target journal's font. Once a journal is chosen, set `font.serif` to match (or switch to `text.usetex`) so panel type matches the body text rather than merely being serif.
+- [ ] Consider a `make figures` target. The four scripts have differing default arguments (fig4 needs `--indir`/`--thin` explicitly) and the correct invocations currently live only in `plots/STORY.md`'s header.
 
 *Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO), its bias-reduction harvest (2026-09-17, 98.4%), the figure-3 build with its validated QE machinery (2026-09-18) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
 
@@ -120,9 +145,9 @@ The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
 re-scored) are done and recorded in `achievements.md`. What is left:
 
 - [→] Re-state every claim in `docs/paper/main.tex` as a *bound* rather than as
-      demonstrated exactness — **now Next action 2a**; pre-empts "what would your
+      demonstrated exactness — **now Next action 1a**; pre-empts "what would your
       test have caught?"
-- [→] Add the power statement to the paper as a table — **now Next action 3**.
+- [→] Add the power statement to the paper as a table — **now Next action 4**.
 - [ ] Re-read every pre-2026-09-12 flag and pass in `dashboard.md` against
       `cal_p` before citing any of them; `KS_p` is retained for continuity only.
 
@@ -148,6 +173,13 @@ re-scored) are done and recorded in `achievements.md`. What is left:
 - **Calibrate a goodness-of-fit test at the granularity you use it at, by feeding it output from a provably correct sampler and measuring the false-positive rate — before trusting either a flag OR a pass.** A continuous KS test on discrete ranks rejected a correct sampler 12.5% of the time at p<0.01 and drove a two-week investigation into a defect that was largely the test (`achievements.md`). And always report the POWER a pass carries: at N=24 ours could not see a 0.3σ posterior mean shift 3 times in 4, so a pass is a bound, not a proof.
 - **A rank/coverage statistic needs its own simulated null before any flag is read as bias** — it can ranks the truth against its conditional's mode, which is non-uniform by construction even for a perfect sampler.
 - **An intermittent test failure is a hypothesis, not a flake.**
+- **No prose inside a figure panel.** A burnt-in footer in figure 1 asserted "Block 4 OFF" while the script loaded the Block-4-ON ensemble, and shipped that way because a picture of a sentence is unreachable by every test, linter and review the project has. Explanatory text belongs in the LaTeX caption. `paper_style.py` enforces this; treat burnt-in text in any new figure as a defect, not a style preference.
+- **A figure must cover the object the title claims.** Figure 1 certified two of the four blocks for weeks while the title claimed four — the `C_L^φφ` evidence existed and was simply never plotted. Before a figure is called done, check it against the *claim*, not against its own caption.
+- **A statistic needs its null drawn, not just computed.** A rank histogram against a bare line at 1.0, or a regression line with no null cone, cannot be read by a referee — the eye cannot separate a 1σ wobble from a detection, and a fitted slope reads as a result however the caption hedges. If a panel's point is "this is consistent with chance", the range chance produces has to be *visible* in the panel.
+- **A colour scale is an analysis choice.** Figure 4's heatmap was misleading on a fixed ±0.6 scale (everything white: "no data") and misleading rescaled to the largest null (everything saturated: "strong correlations"). Encode significance — value relative to each cell's own null — when significance is the claim.
+- **Two independent routes to "the same quantity" may not be the same quantity.** `N_L^φφ` was first validated against `estimate_phi_diag_fisher` on the reasoning that both are the φ Fisher. They are not: one conditions on a known CMB, the other marginalises over an unknown one. The test failed at a ratio of 132 and the *test* was wrong, not the code. Before trusting a cross-check, state what each side conditions on.
+- **Compare like with like, or the win is an artefact.** The joint posterior looked 14× tighter than the QE until the comparison was made against QE⊕prior — the posterior carries a prior and a quadratic estimator does not. A baseline that cannot use the information you gave yourself is a strawman, and a referee will say so.
+- **A validated curve is validated at a configuration, not in general.** `N_L` depends on lmax, nside and noise level; re-using a validated curve at a new configuration is the same error as fabricating one. `fig3` checks this rather than assuming it, the same way every script checks packing width.
 - **Claims hygiene**: every "first" carries scope qualifiers and nearest-prior-work citations.
 - **R-hat on C_ℓ alone is not convergence** — check the alm block and tail-ESS trends too.
 - **No further φ-equilibration tuning without user sign-off** — this track has produced a negative or ambiguous result on almost every attempt (`achievements.md`); report and wait rather than launching the next idea unilaterally.

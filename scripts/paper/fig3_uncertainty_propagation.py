@@ -144,7 +144,7 @@ def posterior_sigma_per_L(files, thin):
     return np.sqrt(var_acc / n_chain), lmax_seen, np.asarray(per_chain)
 
 
-def load_validated_qe(validation_npz):
+def load_validated_qe(validation_npz, lmax, nside, noisesig):
     """N_L from the validation artifact, so the figure and the check agree.
 
     Reading N_L back out of the validation run's own output (rather than
@@ -163,6 +163,20 @@ def load_validated_qe(validation_npz):
             f"{validation_npz} records a FAILED validation -- the QE curve must "
             "not be plotted. Fix qe.py or the test, re-run the validation, and "
             "only then rebuild this figure.")
+    # N_L depends on lmax, nside AND the noise level; a validation run at one
+    # configuration says nothing about another. Checked rather than assumed,
+    # for the same reason every script here checks packing width: a silently
+    # mismatched N_L would put a wrong curve in a figure with no visible
+    # symptom.
+    got = (int(v["lmax"]), int(v["nside"]), float(v["noisesig"]))
+    want = (int(lmax), int(nside), float(noisesig))
+    if got != want:
+        raise SystemExit(
+            f"{validation_npz} was validated at (lmax, nside, noisesig)={got}, "
+            f"but the chains are {want}. N_L is configuration-specific -- "
+            "re-run scripts/submit_validate_qe_noise.slurm with matching "
+            "arguments rather than reusing this curve.")
+
     noise = float(v["median_ratio"])
     resp = float(v["median_response"])
     print(f"QE validation PASSED: noise ratio {noise:.3f}, response {resp:.3f} "
@@ -266,6 +280,9 @@ def main():
         "--indir",
         default="results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2")
     ap.add_argument("--thin", type=int, default=10)
+    ap.add_argument("--noisesig", type=float, default=1.0,
+                    help="per-pixel noise sigma the chains were run at; must "
+                         "match the QE validation run (checked, not assumed)")
     ap.add_argument("--validation",
                     default="results/analysis/qe_noise_validation.npz")
     ap.add_argument(
@@ -274,13 +291,14 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    nl_qe, _med, _slope = load_validated_qe(args.validation)
 
     files = chain_files(args.indir)
     sigma_post, lmax, per_chain_var = posterior_sigma_per_L(files, args.thin)
     print(f"{len(files)} chains, lmax={lmax}, thin={args.thin}")
 
     d0 = np.load(files[0], allow_pickle=True)
+    nl_qe, _noise, _resp = load_validated_qe(
+        args.validation, lmax, int(d0["nside"]), args.noisesig)
     cl_pp = np.asarray(d0["cl_phiphi_fid"], dtype=np.float64)[:lmax]
     nl_qe = np.asarray(nl_qe, dtype=np.float64)[:lmax]
     L = np.arange(lmax)
