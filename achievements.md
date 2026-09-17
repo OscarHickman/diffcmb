@@ -141,6 +141,37 @@ Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / 
 
 That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered. **This closes the N=4 replication item in `ROADMAP.md`'s Next actions; remaining critical-path items are the `main.tex` rewrite and the S1 lead-result decision.**
 
+## `C_l^TT` bias reduction at lmax=192 — 98.4%, deficit extends to ℓ=192 (2026-09-17)
+
+Job 12015488, `scripts/compare_cl_bias_reduction.py --lmax 192` on the two chains already on disk
+(`pilot_coverage_lmax192_hmc.npz`, 1500 draws, job 11987444; `lensing_blind_baseline_lmax192.npz`, 3000 draws).
+This is the harvest `ROADMAP.md` carried as Next action 1 — it cost one 1-minute analysis job and it **strengthens
+figure2**, so it is kept rather than dropped.
+
+| bin | blind/exp | aware/exp | blind pull | aware pull |
+|---|---|---|---|---|
+| `[2,10)` | 0.9406 | 0.8929 | −2.81 | −5.72 | *(UNRELIABLE)* |
+| `[10,30)` | 0.9998 | 0.9981 | −0.15 | −0.88 | *(UNRELIABLE)* |
+| `[30,60)` | 0.9960 | 0.9996 | −7.58 | −0.65 |
+| `[60,100)` | 0.9841 | 0.9994 | −54.91 | −1.32 |
+| `[100,128)` | 0.9660 | 1.0012 | −133.13 | 2.58 |
+| `[128,160)` | 0.9480 | 1.0000 | −221.07 | 0.16 |
+| `[160,192)` | 0.9196 | 1.0007 | −284.07 | 1.76 |
+
+Mean |fractional bias| over the five reliable bins: blind **0.0373**, aware **0.0006** → **98.4% reduction**.
+
+Why it is worth more than the lmax=128 number despite being one sky: the lensing-blind deficit **keeps deepening
+monotonically all the way to ℓ=192** (−0.4% → −8.0% across the five reliable bins), while the lensing-aware
+posterior stays within 0.12% of unbiased in every one of them. The two extra bins `[128,160)`/`[160,192)` are where
+the blind fit is worst, so the figure's trend is now demonstrated over a 6× range in ℓ rather than 4×.
+
+⚠ **This is a bias-reduction number only — not an exactness claim.** The lmax=192 φ block failed its equilibration
+gate (below), so no exactness statement above lmax=64 is available and none is made here. The unreliable-bin set is
+lmax-aware for exactly this reason: `compare_cl_bias_reduction.py::unreliable_for` marks `[2,10)` **and** `[10,30)`
+at lmax>128 (lag-1 0.928 at `[10,30)`), where it marked only `[2,10)` at 128. It was a hardcoded `UNRELIABLE = {(2,10)}`
+until this harvest — a harvest at one scale would have silently inherited another scale's reliability verdict, and the
+`[10,30)` aware pull of −0.88 would have been read as a real (if small) residual rather than an unequilibrated bin.
+
 ## lmax=192 scale-up — chain landed, φ equilibration gate NO-GO (2026-09-15)
 
 Job **11987444** (`aware192`, cosma5/m5005, 2d03h33m, COMPLETED exit 0:0, ended 2026-09-15T22:25) ran the full

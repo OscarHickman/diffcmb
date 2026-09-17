@@ -74,7 +74,18 @@ def bins_for(lmax):
         extra.append((lo, min(lo + 32, lmax)))
         lo += 32
     return BINS_128 + extra
-UNRELIABLE = {(2, 10)}  # phi does not equilibrate here at lmax=128
+
+
+def unreliable_for(lmax):
+    """Bins where the phi block has not equilibrated, so the C_l posterior there
+    carries very few effective samples. lmax=128: [2,10) only (job 11966631,
+    worst lag-1 0.967). lmax=192: the mode extends up to [10,30) as well
+    (job 11987444 gate NO-GO, lag-1 0.928, decorrelation lag 200) -- see
+    ROADMAP.md Next action 1. Keyed off lmax rather than hardcoded so a harvest
+    at one scale cannot silently inherit another scale's reliability verdict."""
+    if lmax <= 128:
+        return {(2, 10)}
+    return {(2, 10), (10, 30)}
 
 
 def _blocked_sem(x, n_blocks=20):
@@ -151,6 +162,7 @@ def main():
                          "hides the trend the figure exists to show. The printed "
                          "table always reports every bin.")
     args = ap.parse_args()
+    unreliable = unreliable_for(args.lmax)
 
     cl_blind, cl_aware, cl_realized, cl_expected = load_chains(
         args.blind, args.aware, args.lmax)
@@ -175,7 +187,7 @@ def main():
         # the truth. This is the bias statement; the ratio alone hides whether
         # an offset is significant.
         b_pull, a_pull = (b - t) / b_sem, (a - t) / a_sem
-        tag = "UNRELIABLE (phi not equilibrated)" if (lo, hi) in UNRELIABLE else ""
+        tag = "UNRELIABLE (phi not equilibrated)" if (lo, hi) in unreliable else ""
         print(f"  [{lo:>3},{hi:>4}) {b/t:>11.4f} {a/t:>11.4f} "
               f"{b_pull:>11.2f} {a_pull:>11.2f}   {tag}")
         rows.append((lo, hi, t, b, a, b_sem, a_sem, b_pull, a_pull))
@@ -183,7 +195,7 @@ def main():
     print("\n  blind/exp and aware/exp are each posterior's bin-mean divided by the\n"
           "  expected posterior mean of a CORRECT unlensed model. 1.0 = unbiased.\n"
           "  A lensing-blind fit to lensed data should fall BELOW 1, further as l grows.")
-    rel = [r for r in rows if (r[0], r[1]) not in UNRELIABLE]
+    rel = [r for r in rows if (r[0], r[1]) not in unreliable]
     mb = float(np.mean([abs(r[3] / r[2] - 1.0) for r in rel]))
     ma = float(np.mean([abs(r[4] / r[2] - 1.0) for r in rel]))
     print(f"\nMean |fractional bias| over the reliable bins "
@@ -214,7 +226,7 @@ def main():
         print("matplotlib unavailable; numbers saved, figure skipped.")
         return
 
-    plot_rows = ([r for r in rows if (r[0], r[1]) not in UNRELIABLE]
+    plot_rows = ([r for r in rows if (r[0], r[1]) not in unreliable]
                  if args.exclude_unreliable else rows)
     fig, ax = plt.subplots(figsize=(7.2, 4.4))
     x = np.arange(len(plot_rows))
@@ -227,7 +239,7 @@ def main():
         ax.bar(x + off, vals, w, yerr=errs, label=lab, color=col, capsize=3)
     ax.axhline(0.0, color="k", lw=1)
     for i, row in enumerate(plot_rows):
-        if (row[0], row[1]) in UNRELIABLE:
+        if (row[0], row[1]) in unreliable:
             ax.axvspan(i - 0.5, i + 0.5, color="0.85", zorder=0)
             ax.text(i, ax.get_ylim()[1] * 0.92, "phi not\nequilibrated",
                     ha="center", va="top", fontsize=7, color="0.35")

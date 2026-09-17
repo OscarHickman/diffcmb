@@ -15,13 +15,15 @@
 
 ---
 
-## Current state (2026-09-16)
+## Current state (2026-09-17)
 
 Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md` — this section is a pointer, not a restatement.
 
 **Headline exactness (3-block core):** no bias detected at lmax=64, N=24 chains, 60 rank draws/chain — stated as a **bound**, not exactness (`achievements.md`). This is the **Block-4-OFF** ensemble (jobs 11955622 + 11965828): it certifies (a_ℓm, C_ℓ, φ) only.
 
 **Headline exactness (the title's object):** the full (a_ℓm, C_ℓ, φ, **C_L^φφ**) sampler is certified separately by the **Block-4-ON**, ν=6 proper-prior N=24 ensemble (jobs 11965813 + 11980637) — no bin rejects, pooled strict rank 0.4518 (KS_p 0.0567) at `--thin 10`. ⚠ **The paper must cite this one for any joint-sampler claim, not the Block-4-OFF numbers** — see `achievements.md`'s "Which configuration this certifies".
+
+**Headline effect, extended to lmax=192:** the same comparison at lmax=192 (job 12015488, 2026-09-17) gives a **98.4% bias reduction** over five reliable bins, with the lensing-blind deficit deepening monotonically to −8.0% at `[160,192)`. Bias reduction only — **not** an exactness claim at that scale (the φ gate is NO-GO there). `achievements.md`.
 
 **Headline effect, replicated at N=4:** `C_ℓ^TT` lensing-bias reduction **93.7% ± 1.8% across 4 independent skies** (job 11991514) — aware beats blind 4/4, deficit deepens monotonically with ℓ 4/4. Per S1 this is presented as **validation**, not as the discovery.
 
@@ -32,7 +34,6 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 **Still genuinely open:**
 - The paper (`docs/paper/main.tex`) has not been touched since **2026-09-08** and predates the entire rank-test recalibration. This is the critical path.
 - lmax=128 *and* lmax=192 are blocked for **calibration** work by the low-ℓ φ mixing mode (a mixing limit, not a correctness one). At 192 the gate returned **NO-GO** at lag-1 0.976 — so **no exactness claim above lmax=64 is available**, and none should be attempted.
-- The lmax=192 **bias-reduction** harvest has not been run (below) — it is the one piece of unclaimed value sitting on disk.
 - The joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; per S1 this is now accepted, not a gap to close.
 
 ## Figure state
@@ -43,14 +44,13 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 
 ## Next actions — in order
 
-1. **Harvest the lmax=192 bias-reduction figure.** `compare_cl_bias_reduction.py --lmax 192` against `results/analysis/pilot_coverage_lmax192_hmc.npz` and `lensing_blind_baseline_lmax192.npz`; bins extend to `[128,160)`, `[160,192)`. Cheap (both chains are on disk) and either strengthens figure2 or is dropped. **Read it with the low-ℓ caveat: `[2,10)` is UNRELIABLE as at 128, and at 192 that now extends to `[10,30)`** (lag-1 0.928, decorrelation lag 200). Do not present any lmax=192 *exactness* number.
-2. **Rewrite `docs/paper/main.tex`** — the critical path, now unblocked (S1 is decided). Four things, in this order:
+1. **Rewrite `docs/paper/main.tex`** — the critical path, now unblocked (S1 is decided). Four things, in this order:
    - a. Recast every exactness statement as a **bound** ("no bias detected above ~0.5σ posterior mean offset at N=24"), not as demonstrated exactness.
    - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title.
    - c. Replace the miscalibrated `KS_p` values with the thin=10 / `cal_p` numbers.
    - d. Carry the N=4 bias-reduction replication, framed per S1 as validation + the A_L framing.
-3. **Add the power table** to the paper (§1 below). No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
-4. Then the literature/citation actions below, then Phase 2a on a branch.
+2. **Add the power table** to the paper (§1 below). No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
+3. Then the literature/citation actions below, then Phase 2a on a branch.
 
 ## Todo, priority order
 
@@ -63,7 +63,7 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
 
-*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO — harvest is Next action 1) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
+*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO) and its bias-reduction harvest (2026-09-17, 98.4%) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
 
 ## Phase 2a — real-data run (end-to-end demonstration)
 
