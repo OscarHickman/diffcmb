@@ -34,13 +34,15 @@ import argparse
 import os
 import sys
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import paper_style as ps  # noqa: E402
+
+ps.apply()  # installs Agg + paper rcParams before pyplot is touched
+import matplotlib.pyplot as plt  # noqa: E402
 from plot_joint_cl_clpp_posterior import (  # noqa: E402
     CL_BINS,
     CLPP_BINS,
@@ -53,56 +55,83 @@ from plot_joint_cl_clpp_posterior import (  # noqa: E402
 
 
 def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
-    fig, ax = plt.subplots(figsize=(5.8, 4.6))
+    """The strongest bin pair, with the null it fails to clear drawn in.
+
+    The regression line alone reads as a detection to the eye even when the
+    caption says otherwise, so the 95% permutation-null cone is drawn behind
+    it: the reader sees the fitted slope sitting inside the range of slopes
+    the null itself produces. That is the honest presentation of a capability
+    claim whose correlation is currently consistent with zero.
+    """
+    fig, ax = plt.subplots(figsize=ps.FIG_1COL_TALL)
     i, j = np.unravel_index(np.argmax(np.abs(corr) / null_abs95), corr.shape)
     x = np.concatenate([standardise(cl)[:, i] for cl, _, _ in pairs])
     y = np.concatenate([standardise(pp)[:, j] for _, pp, _ in pairs])
-    ax.scatter(x, y, s=14, alpha=0.45, edgecolor="none", color="#1f4e79")
-    fit = np.polyfit(x, y, 1)
+    ax.scatter(x, y, s=4, alpha=0.35, edgecolor="none", color=ps.COL_AWARE,
+               rasterized=True)
+
     xs = np.linspace(x.min(), x.max(), 2)
-    detected = abs(corr[i, j]) > null_abs95[i, j]
-    ax.plot(xs, np.polyval(fit, xs), color="#c00000", lw=1.6,
-            label=(f"r = {corr[i, j]:+.3f}  "
-                   f"(95% null $|r|$ < {null_abs95[i, j]:.2f})"))
-    ax.axhline(0, color="0.7", lw=0.6)
-    ax.axvline(0, color="0.7", lw=0.6)
+    # The null cone: slopes corresponding to +/- the 95% null |r|. With both
+    # axes standardised, the slope of a correlation r is just r.
+    r_null = null_abs95[i, j]
+    ax.fill_between(xs, r_null * xs, -r_null * xs, color=ps.COL_NULL,
+                    alpha=0.55, lw=0, zorder=1,
+                    label=rf"95% null, $|r|<{r_null:.2f}$")
+    fit = np.polyfit(x, y, 1)
+    ax.plot(xs, np.polyval(fit, xs), color=ps.COL_BLIND, lw=1.4, zorder=3,
+            label=rf"measured, $r={corr[i, j]:+.3f}$")
+
+    ax.axhline(0, color="0.8", lw=0.5, zorder=0)
+    ax.axvline(0, color="0.8", lw=0.5, zorder=0)
     cl_lo, cl_hi = CL_BINS[i]
     pp_lo, pp_hi = CLPP_BINS[j]
-    ax.set_xlabel(rf"$C_\ell^{{TT}}$, $\ell \in [{cl_lo},{cl_hi})$  "
-                  "(standardised per chain)")
-    ax.set_ylabel(rf"$C_L^{{\phi\phi}}$, $L \in [{pp_lo},{pp_hi})$  (standardised)")
-    ax.set_title("Strongest bin pair"
-                 + ("" if detected else " -- still within the null"), fontsize=10)
-    ax.legend(frameon=False, loc="upper left", fontsize=8)
-    fig.text(0.5, -0.06, caveat, ha="center", va="top", fontsize=7.5,
-             wrap=True, color="0.25")
+    ax.set_xlabel(rf"$C_\ell^{{TT}}$, $\ell \in [{cl_lo},{cl_hi})$ (standardised)")
+    ax.set_ylabel(rf"$C_L^{{\phi\phi}}$, $L \in [{pp_lo},{pp_hi})$ (standardised)")
+    ax.legend(loc="upper left")
+    ps.stat_box(ax, "strongest bin pair" "\n" "consistent with zero",
+                loc="lower right")
     fig.tight_layout()
-    fig.savefig(outpath, bbox_inches="tight")
-    print(f"wrote {outpath}")
+    ps.save(fig, outpath)
 
 
 def plot_heatmap(corr, null_abs95, outpath, caveat):
-    fig, ax = plt.subplots(figsize=(5.8, 4.6))
-    im = ax.imshow(corr, cmap="RdBu_r", vmin=-0.6, vmax=0.6)
+    """All bin pairs. COLOUR ENCODES r / (that cell's own 95% null), not r.
+
+    Two earlier encodings were both misleading, in opposite directions. On a
+    fixed +/-0.6 scale every cell rendered near-white and the panel looked like
+    an absence of data rather than a measured null. Rescaled to the largest
+    null amplitude, the same cells looked like strong correlations, which
+    overstates a result where nothing clears its null.
+
+    Normalising each cell by its OWN null makes the colour mean one thing
+    everywhere: |value| = 1 is exactly the 95% significance boundary. A cell
+    that does not reach full saturation has not cleared chance, which is the
+    claim this panel exists to support, and the printed annotation still gives
+    the raw r so nothing is hidden by the transformation. The nulls differ
+    cell to cell (the bins carry different numbers of effective draws), which
+    is precisely why a single shared scale cannot encode significance.
+    """
+    ratio = corr / null_abs95
+    fig, ax = plt.subplots(figsize=ps.FIG_1COL_TALL)
+    im = ax.imshow(ratio, cmap="RdBu_r", vmin=-1.0, vmax=1.0)
     ax.set_xticks(range(len(CLPP_BINS)))
-    ax.set_xticklabels([f"[{a},{b})" for a, b in CLPP_BINS], fontsize=8)
+    ax.set_xticklabels([f"[{a},{b})" for a, b in CLPP_BINS])
     ax.set_yticks(range(len(CL_BINS)))
-    ax.set_yticklabels([f"[{a},{b})" for a, b in CL_BINS], fontsize=8)
+    ax.set_yticklabels([f"[{a},{b})" for a, b in CL_BINS])
     ax.set_xlabel(r"$C_L^{\phi\phi}$ bin")
     ax.set_ylabel(r"$C_\ell^{TT}$ bin")
-    ax.set_title("Within-posterior correlation, all bin pairs", fontsize=10)
+    ax.tick_params(top=False, right=False)
     for i in range(len(CL_BINS)):
         for j in range(len(CLPP_BINS)):
             sig = "*" if abs(corr[i, j]) > null_abs95[i, j] else ""
             ax.text(j, i, f"{corr[i, j]:+.2f}{sig}", ha="center", va="center",
-                    fontsize=8,
-                    color="white" if abs(corr[i, j]) > 0.35 else "black")
-    fig.colorbar(im, ax=ax, fraction=0.046)
-    fig.text(0.5, -0.06, caveat, ha="center", va="top", fontsize=7.5,
-             wrap=True, color="0.25")
+                    fontsize=6.5,
+                    color="white" if abs(ratio[i, j]) > 0.7 else "black")
+    cb = fig.colorbar(im, ax=ax, fraction=0.046, ticks=[-1, -0.5, 0, 0.5, 1])
+    cb.set_label("$r$ / 95% null  (|1| = significant)", fontsize=6.5)
+    cb.ax.tick_params(labelsize=6.5)
     fig.tight_layout()
-    fig.savefig(outpath, bbox_inches="tight")
-    print(f"wrote {outpath}")
+    ps.save(fig, outpath)
 
 
 def main():
@@ -138,12 +167,17 @@ def main():
              "excess over chance; inspect the pattern."))
 
     os.makedirs(args.outdir, exist_ok=True)
+    # Printed, NOT drawn: this is caption material. paper_style forbids prose
+    # inside panels (see its docstring for why -- a stale burnt-in sentence is
+    # unreachable by any test).
     caveat = (
         f"Source: {os.path.basename(args.indir.rstrip('/'))}, {len(files)} chains, "
         f"thin={args.thin} ({n_eff} pooled draws), proper C_L^phiphi prior nu={nu:g}. "
         "Capability claim, not a detection: no competing method produces this "
         "object at all. * marks entries outside the 95% permutation null."
     )
+    print("\n  CAPTION TEXT (paste into main.tex, do not draw on the panel):\n"
+          f"    {caveat}\n")
     plot_scatter(pairs, corr, null_abs95,
                 os.path.join(args.outdir, "joint_posterior_scatter.pdf"), caveat)
     plot_heatmap(corr, null_abs95,

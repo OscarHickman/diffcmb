@@ -15,7 +15,7 @@
 
 ---
 
-## Current state (2026-09-17)
+## Current state (2026-09-18)
 
 Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md` — this section is a pointer, not a restatement.
 
@@ -38,7 +38,14 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 
 ## Figure state
 
-`papers/7_DiffCMB/plots/` holds the scoped figure sequence, tagged **`methods-paper-v1`** in both repos — the known-good methods-paper state and the revert point if Phase 2a stalls. Built: figure1 (validation), figure2 (bias reduction, N=4), figure4 (joint posterior / capability claim). **Not built: figure3** (per-mode uncertainty propagation vs QE) — deliberately not fabricated; `plots/STORY.md` says what it needs. Details in `achievements.md` → Paper deliverables.
+`papers/7_DiffCMB/plots/` holds the figure sequence, tagged **`methods-paper-v1`** in both repos — the known-good methods-paper state and the revert point if Phase 2a stalls. **All four figures are now built and at publication standard (2026-09-18)**, on a shared `scripts/paper/paper_style.py`. Per-figure detail, captions-to-write and standing rules are in `plots/STORY.md`; what was *defective* rather than merely unpolished is in `achievements.md`.
+
+- **figure1** (validation) — now certifies all four blocks: a third panel carries the strict `C_L^φφ` SBC rank, closing a real hole where the figure certified two of the four blocks the title claims. Rank histograms now carry a simulated discrete-uniform band. Bound quantified: **50% power at 0.42σ**.
+- **figure2** (bias reduction) — third panel added at ℓmax=192 (98.4%, deficit to −8.0%). Scales never mixed within a panel.
+- **figure3** (uncertainty propagation) — **BUILT**, was the last unbuilt figure. The joint posterior is **0.953 ± 0.010** of the QE⊕prior width at 10≤L<20. Needed new validated machinery: `diffcmb/qe.py` + `scripts/validate_qe_noise.py` (N_L validated to 0.992 by Monte Carlo against the estimator's own definition, job 12015546).
+- **figure4** (joint posterior) — null now drawn rather than asserted; heatmap rescaled to per-cell significance.
+
+⚠ **A false statement had been shipped inside figure 1** (a burnt-in "Block 4 OFF" footer on a Block-4-ON ensemble). Prose inside panels is now banned by `paper_style.py`; it belongs in the LaTeX caption where it can be reviewed. Treat any burnt-in text in a future figure as a defect.
 
 **Phase 2a discipline:** the real-data run touches real Planck data, foregrounds and masking, none of which the validated simulation pipeline has been checked against. **Do it on a branch or worktree, never on `main`**, so a stalled attempt is abandoned with `git worktree remove` and `main` (== `methods-paper-v1`) is untouched. Fallback if it fails: submit the methods paper as scoped — nothing in the checkpoint depends on Phase 2a landing.
 
@@ -49,6 +56,7 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
    - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title.
    - c. Replace the miscalibrated `KS_p` values with the thin=10 / `cal_p` numbers.
    - d. Carry the N=4 bias-reduction replication, framed per S1 as validation + the A_L framing.
+   - e. Write the four figure captions. `plots/STORY.md` lists, per figure, the points a caption **must** carry — the pointwise-not-simultaneous band in fig1, the never-mixed ℓmax scales in fig2, the QE⊕prior framing and the above-1 high-L ratio in fig3, the null-vs-physics distinction in fig4. These are not optional polish; each one is a referee objection pre-empted.
 2. **Add the power table** to the paper (§1 below). No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
 3. Then the literature/citation actions below, then Phase 2a on a branch.
 
@@ -59,11 +67,11 @@ Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md`
 - [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode, and now confirmed blocked at lmax=192 too (gate NO-GO, lag-1 0.976, job 11987444). Treat "exactness at lmax=64" as the demonstrated scale and say so; do not attempt to raise it for this paper.
 
 ### 2. Differentiator figures (what the paper is *for*)
-- [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
+- [x] ~~Per-mode uncertainty-propagation figure~~ — **DONE 2026-09-18**, see Figure state above and `achievements.md`.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
 
-*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO) and its bias-reduction harvest (2026-09-17, 98.4%) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
+*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO), its bias-reduction harvest (2026-09-17, 98.4%), the figure-3 build with its validated QE machinery (2026-09-18) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
 
 ## Phase 2a — real-data run (end-to-end demonstration)
 

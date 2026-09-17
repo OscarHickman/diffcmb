@@ -141,6 +141,34 @@ Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / 
 
 That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered. **This closes the N=4 replication item in `ROADMAP.md`'s Next actions; remaining critical-path items are the `main.tex` rewrite and the S1 lead-result decision.**
 
+## Paper figure sequence brought to publication standard; figure 3 built (2026-09-18)
+
+All four figures rebuilt against a new shared `scripts/paper/paper_style.py`. Full per-figure detail in `papers/7_DiffCMB/plots/STORY.md`; the items worth recording here are the ones that were *defects*, not polish.
+
+**A false statement was shipped inside a figure.** `fig1_validation.py` carried a burnt-in footer reading "Block 4 OFF" while its default `--indir` loaded `..._properprior_packingv2`, which is Block-4-**ON** (nu=6, `cl_phiphi_samples` present, 24 chains). No test could reach it: it was a picture of a sentence. All explanatory prose is now banned from panels by `paper_style.py` and lives in the LaTeX caption; the text fig4 needs is *printed* by the script for the caption writer instead of drawn.
+
+**Figure 1 certified two of the four blocks while the title claims four.** It ranked phi and alm field power only. `C_L^phiphi` -- the fourth block, named in the title -- was never ranked in any figure. Closed by adding a third panel carrying the strict `C_L^phiphi` SBC rank (ū=0.4518, KS_p=0.0567, nu=6), which needs no null simulation because with a proper prior the truth is drawn from the prior the sampler targets. Reproduces `achievements.md`'s recorded numbers exactly.
+
+**Rank histograms had no uniform band**, so a reader could not tell a 1-sigma wobble from a detection. Now carry the simulated central 68/95% of bin heights under the exact discrete-uniform null. With it drawn, phi's first bin is visibly just above the 95% band -- expected ~0.5 times in 10 bins by chance, and pooled cal_p=0.18 does not reject, but the caption must state the band is **pointwise, not simultaneous** rather than let a referee find it.
+
+**Quantified the validation bound**: 50% detection power at **0.42 sigma** posterior-mean shift at N=24, 60 draws/chain. That is the number the paper should quote as its bound.
+
+## Figure 3 built: the joint posterior beats the quadratic estimator (2026-09-18)
+
+`ROADMAP.md` Todo §2's per-mode uncertainty-propagation figure -- open since the sequence was scoped, and the paper's only *positive* argument for sampling jointly (figure 2 is validation, figure 4 an honest null). Required new machinery, all validated before use:
+
+- **`diffcmb/qe.py`** (new): curved-sky TT quadratic-estimator noise `N_L^phiphi`, from the Hu & Okamoto coupling. The derivation is written out in the module docstring rather than cited, so it is checkable. Wigner 3j symbols come from `ducc0.misc.wigner3j_int` and are checked against sympy's exact rationals; 9 unit tests in `tests/test_qe.py` (symmetry in l1<->l2, vanishing on parity-forbidden and non-triangular triads, monotonicity in noise, 1/Cl^2 scaling).
+- **`scripts/validate_qe_noise.py`** (new): validates `N_L` by Monte Carlo against the estimator's **own definition**, running the estimator on 64 sims. Two tests that must pass together -- response (on lensed skies with known phi) and noise (variance of the normalised estimator on unlensed skies) -- because a scale error anywhere multiplies them by `c` and `1/c^2`, so no constant makes both pass. **Result (job 12015546): noise ratio 0.992, response 0.883.** `N_L` is validated at the 1% level.
+
+**The result**: the joint posterior's phi width is **0.953 ± 0.010** of the QE-plus-prior width at 10≤L<20 and 0.972 ± 0.013 at 20≤L<30 -- the sampler extracts more about phi than the quadratic estimator at the same prior. Above L≈30 the ratio rises above 1 (1.107 ± 0.015 at L~55), which is expected rather than a defect: Block 4 marginalises over an *unknown* `C_L^phiphi`, so where the data say nothing the posterior is wider than a fixed-prior calculation. That extra width is honesty about the spectrum.
+
+**Two traps recorded so they are not re-entered:**
+
+1. **The first validation design was invalid and is not to be retried.** `N_L` was first compared against `lensing.estimate_phi_diag_fisher`, on the reasoning that the QE Fisher is `1/N_L` and the two routes are independent. They are independent but they are not the same quantity: that function is the curvature at **fixed alm** -- the information about phi when the CMB is known exactly -- whereas `N_L` is the noise when the CMB is unknown and averaged over. Knowing the true CMB is worth far more, and the comparison came out at median ratio **132** with a +0.66 trend in ln L (job 12015538). Not a bug in either piece of code: a category error in the test. This is also why `estimate_phi_diag_fisher` is *not* usable as figure 3's comparison curve, contrary to the option `STORY.md` had listed.
+2. **The QE must be compared as QE⊕prior, never as raw `N_L`.** The posterior carries a prior and the QE does not; against raw `sqrt(N_L)` the ratio is ~0.07, which is not a 14x improvement but an artefact. Related and worth stating in the paper: at this configuration `N_L/C_L` runs from 3.3 at L=5 to **1539** at L=60, so the QE alone is essentially uninformative here. The honest claim is bounded accordingly, and a referee may reasonably ask for the comparison at a realistic noise level -- which needs a new production ensemble, not a re-analysis (noted in `STORY.md` → Still open).
+
+Also fixed: the ℓmax=192 bias-reduction panel added to figure 2 as its own panel (scales never mixed within a panel, since the 4-sky replication exists only at ℓmax=128); figure 2's 4-sky panel recoloured to encode method rather than sky; figure 4's scatter gained the 95% permutation-null cone behind the fit, and its heatmap now encodes `r` relative to each cell's own null (|1| = the significance boundary) after two earlier colour scales proved misleading in opposite directions.
+
 ## `C_l^TT` bias reduction at lmax=192 — 98.4%, deficit extends to ℓ=192 (2026-09-17)
 
 Job 12015488, `scripts/compare_cl_bias_reduction.py --lmax 192` on the two chains already on disk
