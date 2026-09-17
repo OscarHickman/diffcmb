@@ -1,5 +1,5 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-11*
+*Last updated: 2026-09-16*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
@@ -11,6 +11,20 @@ results and the bug record: `achievements.md`.
 > below marked "pre-restoration"/job ≤11913324 was measured through the old
 > 2L packing (one fewer real dof per multipole) and is kept as historical
 > reference, not current status.
+
+> **⚠ 2026-09-16 — WHICH BLOCKS WERE SAMPLED. Read before citing any row on
+> this page.** Rows labelled "Block 4 OFF" pin `C_L^φφ` at the fiducial and
+> certify (a_ℓm, C_ℓ, φ) **only** — they are *not* evidence for the paper's
+> four-block joint claim. The title's object is certified by the **Block-4-ON,
+> ν=6 proper-prior N=24 ensemble (jobs 11965813 + 11980637)**: no bin rejects,
+> pooled strict rank 0.4518 (KS_p 0.0567) at `--thin 10`. See
+> `achievements.md` → "Which configuration this certifies".
+
+> **2026-09-15 — lmax=192 (job 11987444): chain landed, gate NO-GO.** 1900
+> sweeps, COMPLETED exit 0:0, but worst φ lag-1 **0.976** (floor 0.9) in
+> `[2,10)`. **No exactness claim is available above lmax=64.** The
+> bias-reduction harvest at 192 is still open (`ROADMAP.md` Next action 1) and
+> must carry the low-ℓ caveat out to `[10,30)` at this lmax.
 
 ---
 
@@ -123,7 +137,11 @@ in either field row. Thin-robust at the time: φ 0.475 (p=0.44) at `--thin 30`,
 Reference: the same configuration with Block 4 **on** (flat improper prior on
 `C_L^φφ`, job 11899585, pre-restoration) gives φ mean_u = 0.367, KS_p = 0.0040
 — a statement about the prior, not about the sampler (see below). This
-Block-4-ON comparison has not yet been re-run under the restored packing.
+*flat-improper-prior* Block-4-ON comparison has not been re-run under the
+restored packing and remains pre-restoration. The **proper-prior** (ν=6)
+Block-4-ON ensemble *has* been re-run under the restored packing and is the
+certification of the paper's four-block claim — jobs 11965813 + 11980637,
+see the banner at the top of this page.
 
 Mixing, pre-restoration runs: τ_int median 4.7–27 per bin with Block 4 off, vs
 24–56 with it on. R̂ ≤ 1.07 outside the lowest and highest bins.

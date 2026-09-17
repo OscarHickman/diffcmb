@@ -6,6 +6,26 @@
 
 **No bias detected at lmax=64 under the restored 2L+1 packing, N=24 chains — the project's headline exactness evidence (jobs 11955622 + 11965828).** 24 independent chains, `phi_mass_matrix='prior'`, Block 4 OFF (so `C_L^φφ` is pinned at the fiducial and the φ prior is proper and identical to the generative process). Pooled over 4 ℓ-bins, **now at N=24 realizations** (job 11965828 extended 11955622; N=96 pooled, `--thin 90`): **φ mean_u 0.4688, alm mean_u 0.5039** — and under the *calibrated* test that replaced the miscalibrated KS (see the rank-test entry below) **cal_p 0.2444 and 0.8659 respectively, with no bin flagged in either field**. Both are cleaner than the KS values originally recorded (0.0537 / 0.2319). ⚠ **State this as a bound, not as exactness**: at N=24 with ~8 draws/chain the test's power to detect a posterior mean shift of 0.3σ is 26.5%, and it is effectively blind to under-dispersion — so what is demonstrated is *no detected bias above roughly a half-σ posterior mean offset*. The N=12 stage read φ 0.4792 / alm 0.5130. At the N=12 stage one bin flagged (φ `[30,60)`, KS_p 0.005) — it relaxed at N=24 and relaxes further under the calibrated test (cal_p 0.052), so it was a small-N artifact, not a defect. **Extended to N=24 (job 11965828, harvested 2026-09-11) and the artifact reading holds:** pooled φ 0.4688 (KS_p 0.0537), alm **0.5039 (KS_p 0.2319)**, both still consistent with uniform. The `[30,60)` flag neither cleared nor sharpened into a defect — it relaxed in significance (KS_p 0.005→0.014) while its mean_u moved toward 0.5 (0.260→0.339), and a *second* bin flagged at the same weak significance in the opposite direction (φ `[2,10)`, 0.568, KS_p 0.014). Two bins straddling 0.5 at p~0.014 across 8 tests is the signature of bin-level noise, not a coherent one-bin bias, which is what doubling N was run to distinguish. All four `C_l^TT` coverage FLAGs again sit inside their null bands at N=24 (obs 0.094/0.089/0.120/0.349 vs null 0.095/0.096/0.115/0.342). φ power bias median 0.988–1.025 per bin. `validate_coverage_rank_nulls.py` confirms all four `C_l^TT` coverage FLAGs sit inside their null bands (rank-vs-mode artifact, not bias). Recorded in `docs/paper/main.tex`. Same config with Block 4 **on** (flat improper prior) gives φ mean_u 0.367 — a statement about the prior, not the sampler (below). Caveat carried forward: the `[2,10)` bin shows R̂ up to 1.50 in every configuration — low-ℓ φ remains the weak spot.
 
+### ⚠ Which configuration this certifies — read before citing it in the paper (2026-09-16)
+
+The paper's claim is a joint sampler over (a_ℓm, C_ℓ, φ, **C_L^φφ**). The row labelled "headline" above is the
+**Block 4 OFF** ensemble, which pins `C_L^φφ` at the fiducial and therefore does *not* sample the fourth block —
+it certifies (a_ℓm, C_ℓ, φ) only. The title's object is certified by a **different** N=24 ensemble:
+
+| ensemble | jobs | Block 4 | certifies |
+|---|---|---|---|
+| labelled "headline" above | 11955622 + 11965828 | **OFF** (`C_L^φφ` pinned at fiducial) | (a_ℓm, C_ℓ, φ) |
+| the N=24 strict-`C_L^φφ` run | 11965813 + **11980637** | **ON**, ν=6 proper conjugate prior | the full (a_ℓm, C_ℓ, φ, C_L^φφ) object |
+
+**The Block-4-ON object is certified, at the same strength and with the same caveat**: at N=24 and 60 draws/chain
+no bin rejects (per-bin cal_p 0.10 / 0.60 / 0.58 / 0.25; strict rank pooled 0.4518, KS_p 0.0567 at `--thin 10`),
+and the field rows are 0.4488 (φ) / 0.4995 (alm). What remains in the pooled row is a small *global* ~0.045 mean_u
+offset, not a localised defect, and the pooled statistic is separately known to be anti-conservative.
+
+**Do not write "we certify the joint sampler" and cite only the Block-4-OFF numbers.** Both ensembles belong in the
+paper: Block-4-OFF is the cleaner and more powerful statement about the three-block core, Block-4-ON is the one that
+matches the title. State each as a bound with its power, and say which is which.
+
 Pre-restoration reference (job 11903181, 2026-08-31, 2L packing): φ 0.4688 (p=0.124) / alm 0.5312 (p=0.235). Superseded, not contradicted — the re-run confirms rather than revises the claim.
 
 ## The missing `Im(a_{L,1})` degree of freedom — found, restored, re-validated (2026-08-31 → 2026-09-08)
@@ -121,6 +141,31 @@ Per-bin, the lensing-blind deficit is almost identical sky to sky — −5.44 / 
 
 That tightness is itself informative: the lensing bias at these scales is a near-deterministic property of the lensing operation, not a realization-dependent fluctuation, so the per-sky scatter (sd 0.0004 on the blind headline) is small. The "is this one realization?" objection is answered. **This closes the N=4 replication item in `ROADMAP.md`'s Next actions; remaining critical-path items are the `main.tex` rewrite and the S1 lead-result decision.**
 
+## lmax=192 scale-up — chain landed, φ equilibration gate NO-GO (2026-09-15)
+
+Job **11987444** (`aware192`, cosma5/m5005, 2d03h33m, COMPLETED exit 0:0, ended 2026-09-15T22:25) ran the full
+lensing-aware chain at lmax=192, 1900 sweeps (400 burn-in + 1500 sampling). Chain saved to
+`results/analysis/pilot_coverage_lmax192_hmc.npz` (+ `aware192_ckpt.npz`). The matched lensing-blind baseline
+`lensing_blind_baseline_lmax192.npz` was already done (job 11986725, 13 min).
+
+**Verdict printed by the script: NO-GO** — worst φ lag-1 autocorrelation **0.976** (gate floor 0.9) in `[2,10)`.
+φ has not equilibrated in 1900 sweeps at lmax=192. Per-bin lag-1: 0.976 / 0.928 / 0.845 / 0.739 / 0.587 across
+`[2,10)`…`[100,150)`; first lag with |r|<0.2 is >200 at `[2,10)`, 200 at `[10,30)`, 50 / 50 / 10 above that.
+φ accept rate 0.7347 (healthy — this is a mixing-time limit, not a broken block). **This is the same low-ℓ φ mode
+that blocks lmax=128 for calibration work, reappearing at 192 and worse, exactly as ROADMAP predicted.**
+
+**What the NO-GO does and does not kill.** The gate is the *prerequisite for a coverage/rank ensemble* — it says a
+rank test on this configuration would produce confidently wrong uniformity plots, so **no lmax=192 exactness claim
+is available**. It does **not** by itself kill the bias-reduction figure, which needs only a converged `C_ℓ`
+marginal at mid/high ℓ. The harvest (`compare_cl_bias_reduction.py --lmax 192`, bins extending to `[128,160)`,
+`[160,192)`) has **not been run** and is the open action. Read any result from it with the low-ℓ caveat already
+carried at lmax=128 — the `[2,10)` row is UNRELIABLE, and at 192 that caveat now also covers `[10,30)`
+(lag-1 0.928, decorrelation lag 200).
+
+**Do not spend more φ-equilibration effort on lmax=192 without sign-off** (standing rule). The options the script
+itself lists — drop lmax, lengthen the window, raise `phi_n_lfs` — are the same three that have produced a negative
+or ambiguous result on nearly every previous attempt.
+
 ## Real bugs found and fixed
 
 - **The lensing-blind `C_l^TT` baseline was silently a different model (found 2026-09-11).** `results/analysis/lensing_blind_baseline_lmax128.npz` (written 2026-08-12) is the reference side of the bias-reduction figure and `ROADMAP.md` listed it as done. Its `alm_true_packed` is **16254** long where `packed_length(128)` is now **16380** — a shortfall of exactly `lmax-2 = 126`, the missing `Im(a_{L,1})` dof. It therefore predates *both* the 2026-08-24 ordering fix and the 2026-09-06 restoration, and comparing it against the post-fix lensing-aware chain would have produced a "bias reduction" figure whose two sides are different models — a packing artifact presented as physics. Caught by checking array widths against `packed_length` before differencing, not by any test: a saved `.npz` carries no packing version (unlike checkpoints, which `PACKING_VERSION` protects). Re-run launched to a new path (`..._packingv2.npz`, job 11980570); the stale file is kept, not overwritten. **Lesson: `PACKING_VERSION` guards checkpoints but not analysis products — check any pre-2026-09-06 `.npz` against `packed_length(lmax)` before combining it with a current chain.**
@@ -164,6 +209,14 @@ Follow-up diagnostics (job 11913268, harvested 2026-09-02): cross-L Hessian coup
 
 - **CMBLensing.jl comparison — written 2026-09-01 as `sec:cmblensing` in `docs/paper/main.tex`**, from their published numbers, with costs shown side by side rather than reduced to a single ratio. This discharges the related-work obligation; it is a citation, not a science result. The only trigger for actually installing CMBLensing.jl would be a referee demanding same-realization posterior overlays. Design notes: `docs/notes/cmblensing_benchmark_notes.md`.
 - **`main.tex` brought onto the confirmed packing and numbers** — the 2026-08-31 inverse-Gamma dof-shape fix and the 2026-09-06 `Im(a_{L,1})` packing restoration (commit 3378141). ⚠ It has **not** been updated for the 2026-09-12 rank-test recalibration: its exactness statements still read as demonstrated exactness rather than as a bound with stated power, and its p-values are the miscalibrated `KS_p`. That rewrite is an open `ROADMAP.md` item.
+- **Paper figure sequence built and tagged `methods-paper-v1` in both repos (2026-09-14/15).** `papers/7_DiffCMB/plots/`
+  holds one PDF panel per subplot, built by `scripts/paper/fig{1,2,4}_*.py` from already-validated analysis code
+  (imported, not reimplemented — a packing-version trap was caught while building figure1). Built: **figure1**
+  (validation — SBC rank histograms + power curve), **figure2** (bias reduction, N=4 skies), **figure4** (joint
+  posterior, framed as a capability claim / null). **Not built: figure3** (per-mode uncertainty propagation vs QE) —
+  no script exists and it was deliberately not fabricated; `plots/STORY.md`'s figure3 entry states what it needs.
+  **This tag is the known-good methods-paper state and the revert point** if the Phase 2a real-data extension stalls
+  or contaminates anything — nothing in it depends on Phase 2a landing.
 - **Differentiator figure built** (`scripts/plot_joint_cl_clpp_posterior.py`) and honestly reported as a null — see the entry below.
 
 ## Validated foundations
@@ -192,6 +245,25 @@ Follow-up diagnostics (job 11913268, harvested 2026-09-02): cross-L Hessian coup
 
 ## Positioning (settled)
 
+- **S1 RESOLVED 2026-09-16 — the bias reduction leads as *validation*; the joint posterior carries the *novelty* as a
+  capability claim.** The standing 2026-08-06 instruction was "lead with the joint (C_ℓ, C_L^φφ) posterior"; 2026-09-14
+  softened it to "dual lead, ordering deferred". Settled now, because the two results do different jobs and neither can
+  do the other's:
+  - The **93.7% ± 1.8% bias reduction on 4 skies at lmax=64/128 is what a *correct* lensing-aware sampler should
+    produce.** A referee will read it as a validation, not a discovery — so present it as one: the demonstration that
+    the machinery works, placed in the validation section, not sold as the finding.
+  - The **joint (C_ℓ, C_L^φφ) correlation is a null** (1/16 cells vs 0.8 by chance; ~2.4× the ensemble buys at best
+    |r|=0.10). Its strength is not the measurement but that **no competing method — MUSE, QE, Commander, diffusion —
+    produces the object at all.** State it as a capability claim with an honestly-reported null, never as a detection.
+    `plots/STORY.md` already frames figure4 this way. **Do not chase the correlation** (closes the ROADMAP §2 item).
+  - Unchanged: never lead with the differentiable machinery (Flinch made it table stakes).
+  - Carried forward into the rewrite: the "nobody analyses lensed data with an unlensed model" objection needs both
+    halves in the text — (i) Commander genuinely does not model lensing, so the claim is well-posed *against map-based
+    Gibbs methods*; (ii) state it that narrowly and **not** against Planck's cosmological likelihood, which uses lensed
+    spectra and an A_L nuisance. Optional strengthening if pushed: a lensed-template baseline (fit with the *lensed*
+    spectrum, φ fixed) isolates "we propagate φ uncertainty" from "we know about lensing at all". **Cheap framing win:**
+    the result is an A_L statement in disguise — "we recover A_L = 1 without a template or a nuisance parameter" is far
+    more legible to the CMB community and costs only a rewrite.
 - **Novelty claim**: the first full-sky, curved-sky (HEALPix), differentiable joint Gibbs sampler over (alm_unlensed, C_ℓ, φ[, C_L^φφ]). CMBLensing.jl owns flat-sky joint sampling; Commander is full-sky but lensing-blind; MUSE is marginal, not a sampler. Whether to widen the headline claim to include C_L^φφ is an open drafting-time call.
 - **2026-08-06 literature rescan (full reasoning `literature.md`): confirmed no curved-sky joint sampler and no curved-sky MUSE exist.** Found Flinch (differentiable curved-sky (map,C_ℓ), no φ block — differentiable machinery is table stakes, not a differentiator) and Almanac (all-sky HMC (map,C_ℓ)). Adopted re-pitch: lead with the joint (C_ℓ, C_L^φφ) posterior, present differentiable infrastructure as enabling machinery, position the exact sampler as the reference standard learned posteriors get validated against. Scope: broader, accepting scoop risk — real-data Planck run and Phase 2b ΛCDM section in scope, sequenced after the critical path.
 

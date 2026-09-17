@@ -2,7 +2,7 @@
 
 *Forward-looking plan only. Completed/closed-out work is in `achievements.md`; positioning/novelty argument is in `literature.md`; full detail in git history.*
 
-**The claim:** the first full-sky, curved-sky (HEALPix), differentiable joint Gibbs sampler over (alm_unlensed, C_ℓ, φ). Flat-sky joint sampling exists (CMBLensing.jl); full-sky methods are point-estimate or marginal (MUSE, QE). The window is finite (curved-sky MUSE could appear at any time) — the coverage test and the differentiator figures are the critical path; everything else waits.
+**The claim:** the first full-sky, curved-sky (HEALPix), differentiable joint Gibbs sampler over (alm_unlensed, C_ℓ, φ, C_L^φφ). ⚠ The fourth block is in the claim, so it must be in the evidence — cite the Block-4-**ON** ensemble, not the Block-4-OFF one (see Current state). Flat-sky joint sampling exists (CMBLensing.jl); full-sky methods are point-estimate or marginal (MUSE, QE). The window is finite (curved-sky MUSE could appear at any time) — the coverage test and the differentiator figures are the critical path; everything else waits.
 
 **Why this scope.** A competing paradigm — diffusion/score-based generative lensing reconstruction — markets uncorrelated samples in ~0.2s and discards the two things this project built: a differentiable forward model and a sampler (`literature.md`). That sets the bar:
 
@@ -11,75 +11,59 @@
 - Position vs learned inference is offensive, not defensive: an exact sampler is the reference standard learned posteriors get validated against — but only as strong as the scale actually demonstrated.
 - Deprioritised: CMBLensing.jl benchmark is a citation, not a science result; lmax scaling is not the route to impact.
 
-**Positioning (decided 2026-08-06, full reasoning `literature.md`).** Broader scope, accepting scoop risk: the real-data Planck run and Phase 2b ΛCDM-parameter section are in scope, sequenced *after* the critical path below. Never lead with the differentiable machinery (Flinch made it table stakes). ⚠ The second half of this — "lead with the joint (C_ℓ, C_L^φφ) posterior" — is **under review as decision S1 below**, because that figure is a null while the bias reduction is a 93% effect.
+**Positioning (decided 2026-08-06, full reasoning `literature.md`).** Broader scope, accepting scoop risk: the real-data Planck run and Phase 2b ΛCDM-parameter section are in scope, sequenced *after* the critical path below. Never lead with the differentiable machinery (Flinch made it table stakes). **Ordering settled 2026-09-16 (was decision S1):** the bias reduction leads as *validation*, the joint (C_ℓ, C_L^φφ) posterior carries the *novelty* as a capability claim with an honestly-reported null. Full reasoning and the referee-objection language in `achievements.md` → Positioning (settled).
 
 ---
 
-## Current state (2026-09-14)
+## Current state (2026-09-16)
 
 Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md` — this section is a pointer, not a restatement.
 
-**Headline exactness:** no bias detected at lmax=64, N=24 chains, properly calibrated at ~60 rank draws/chain — stated as a **bound**, not exactness (`achievements.md`).
+**Headline exactness (3-block core):** no bias detected at lmax=64, N=24 chains, 60 rank draws/chain — stated as a **bound**, not exactness (`achievements.md`). This is the **Block-4-OFF** ensemble (jobs 11955622 + 11965828): it certifies (a_ℓm, C_ℓ, φ) only.
 
-**Headline effect, replicated at N=4:** `C_ℓ^TT` lensing-bias reduction **93.7% ± 1.8% across 4 independent skies** (job 11991514, 2026-09-14) — aware beats blind 4/4, deficit deepens monotonically with ℓ 4/4 (`achievements.md`).
+**Headline exactness (the title's object):** the full (a_ℓm, C_ℓ, φ, **C_L^φφ**) sampler is certified separately by the **Block-4-ON**, ν=6 proper-prior N=24 ensemble (jobs 11965813 + 11980637) — no bin rejects, pooled strict rank 0.4518 (KS_p 0.0567) at `--thin 10`. ⚠ **The paper must cite this one for any joint-sampler claim, not the Block-4-OFF numbers** — see `achievements.md`'s "Which configuration this certifies".
 
-**No known open sampler defect** — the last one (strict `C_L^φφ` SBC rank) closed 2026-09-13 as a measurement-resolution artifact, not a sampler bug.
+**Headline effect, replicated at N=4:** `C_ℓ^TT` lensing-bias reduction **93.7% ± 1.8% across 4 independent skies** (job 11991514) — aware beats blind 4/4, deficit deepens monotonically with ℓ 4/4. Per S1 this is presented as **validation**, not as the discovery.
 
-**Still genuinely open:** lmax=128 is blocked for *calibration* work by the low-ℓ φ mixing mode (not a correctness issue); the joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; the paper has not been updated for the last two weeks' findings.
+**No known open sampler defect** — the last one (strict `C_L^φφ` SBC rank) closed 2026-09-13 as a measurement-resolution artifact.
 
-**In flight:**
-- job **11987444** — full lensing-aware chain at **lmax=192** for the higher-lmax bias-reduction figure (decision S4). Launched 2026-09-13, ~1900 sweeps (400 burn-in + 1500 sampling) targeted, ~50% through as of 2026-09-15 morning (checkpoint `results/analysis/aware192_ckpt.npz`, 750/1500 samples written). The matching blind baseline `lensing_blind_baseline_lmax192.npz` is **already done** (job 11986725, 13 min). Harvest on landing: `compare_cl_bias_reduction.py --lmax 192` (bins now extend to `[128,160)`, `[160,192)`); expect NO-GO on the gate, as at 128.
+**In flight: nothing.** Job 11987444 (lmax=192) completed 2026-09-15T22:25; the queue holds no diffcmb jobs.
 
-**S1 decided (2026-09-14): dual lead, undecided ordering.** Build both storylines at full strength (done — see the figure-sequence checkpoint below); defer the final lead/support ordering to the content-writing stage rather than deciding it now.
+**Still genuinely open:**
+- The paper (`docs/paper/main.tex`) has not been touched since **2026-09-08** and predates the entire rank-test recalibration. This is the critical path.
+- lmax=128 *and* lmax=192 are blocked for **calibration** work by the low-ℓ φ mixing mode (a mixing limit, not a correctness one). At 192 the gate returned **NO-GO** at lag-1 0.976 — so **no exactness claim above lmax=64 is available**, and none should be attempted.
+- The lmax=192 **bias-reduction** harvest has not been run (below) — it is the one piece of unclaimed value sitting on disk.
+- The joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; per S1 this is now accepted, not a gap to close.
 
-## Figure-sequence checkpoint (2026-09-14/15) — this is the safe revert point if Phase 2a below stalls
+## Figure state
 
-`papers/7_DiffCMB/plots/` now holds the paper's scoped figure sequence, one PDF panel per subplot, built from already-validated analysis code (imported, not reimplemented — see `plots/STORY.md` for the full per-figure verdicts and the packing-version trap caught while building figure1). **Tagged in both repos as the known-good methods-paper state, safe to revert to if the Phase 2a real-data extension (below) turns out too large or contaminates anything:**
+`papers/7_DiffCMB/plots/` holds the scoped figure sequence, tagged **`methods-paper-v1`** in both repos — the known-good methods-paper state and the revert point if Phase 2a stalls. Built: figure1 (validation), figure2 (bias reduction, N=4), figure4 (joint posterior / capability claim). **Not built: figure3** (per-mode uncertainty propagation vs QE) — deliberately not fabricated; `plots/STORY.md` says what it needs. Details in `achievements.md` → Paper deliverables.
 
-- `diffcmb` repo: tag `methods-paper-v1` (commit adding `scripts/paper/fig{1,2,4}_*.py`)
-- `papers/7_DiffCMB` repo: tag `methods-paper-v1` (commit adding `plots/`)
+**Phase 2a discipline:** the real-data run touches real Planck data, foregrounds and masking, none of which the validated simulation pipeline has been checked against. **Do it on a branch or worktree, never on `main`**, so a stalled attempt is abandoned with `git worktree remove` and `main` (== `methods-paper-v1`) is untouched. Fallback if it fails: submit the methods paper as scoped — nothing in the checkpoint depends on Phase 2a landing.
 
-Built: figure1 (validation — SBC rank histograms + power curve), figure2 (headline bias-reduction, N=4 skies), figure4 (joint posterior, honestly framed as a capability claim / null). **Not built**: figure3 (per-mode uncertainty propagation vs QE) — no script exists, deliberately not fabricated; see `plots/STORY.md`'s figure3 entry for exactly what it needs.
+## Next actions — in order
 
-**Why this matters for what comes next.** The Phase 2a real-data run (pulled forward per the 2026-09-15 discussion, to give the paper an actual science-bearing hook rather than resting on simulation + a capability-claim null) touches real Planck data, real foregrounds, real masking — none of which the validated simulation pipeline has been checked against. **Do Phase 2a work on a branch or worktree, never directly on `main`**, so that a stalled or contaminating attempt can be abandoned with `git worktree remove` / branch deletion and `main` (== the `methods-paper-v1` tag) is untouched. If Phase 2a succeeds, merge it in as an addition; if it doesn't, the fallback is "submit the methods paper as scoped in this checkpoint" — no further recovery work required, because nothing about this checkpoint depends on Phase 2a landing.
-
-## Next actions
-
-1. **Update `docs/paper/main.tex`** — the critical path. It predates the entire recalibration: its exactness claims read as demonstrated exactness rather than a bound, it quotes the miscalibrated `KS_p` values, and it does not carry the bias-reduction replication (now N=4).
-2. **Decide S1** (below) — which result leads. Needs user sign-off before the paper rewrite in #1 can finalize its framing.
-3. Then Todo §1–§2. Once job 11987444 lands, harvest the lmax=192 bias-reduction figure (§2 second item).
-
-## Open decision — needs your sign-off
-
-### S1. Lead with the bias reduction, not the (C_ℓ, C_L^φφ) correlation — RECOMMENDED
-
-The standing instruction is "lead with the joint (C_ℓ, C_L^φφ) posterior." The evidence no longer supports that ordering:
-
-| | joint (C_ℓ, C_L^φφ) correlation | C_ℓ^TT bias reduction |
-|---|---|---|
-| status | **null** — 1/16 cells vs 0.8 expected by chance | **93%**, 172σ vs 2σ |
-| expected size | small *by construction* — C_ℓ^TT is the *unlensed* spectrum, coupling only through the data | large, growing with ℓ |
-| cost to strengthen | ~2.4× ensemble for \|r\|=0.10, ~9.5× for 0.05 | done; N=4 replication in flight |
-| legibility | needs the object explained first | "ignoring lensing costs 5% at ℓ~110; we remove it" |
-
-Leading with a null because it is novel is the weaker play. **Proposed:** lead with the bias reduction as the demonstration of what joint sampling buys, and keep the joint posterior as a **capability claim** — "no competing method (MUSE, QE, Commander, diffusion) produces this object at all" — rather than a detection claim. More honest about the null, and more impactful.
-
-**The vulnerability this creates, and the answer.** A referee will say "nobody analyses lensed data with an unlensed model." Both halves must be in the text: (i) Commander genuinely does not model lensing — a real, widely-used pipeline, not a strawman — so the claim is well-posed *against map-based Gibbs methods*; (ii) it must be stated that narrowly and **not** implied against Planck's cosmological likelihood, which uses lensed spectra and an A_L nuisance. Optional strengthening if pushed: add a lensed-template baseline (fit with the *lensed* spectrum, φ fixed), which isolates "we propagate φ uncertainty" from "we know about lensing at all".
-
-**Cheap framing win:** the result is an A_L statement in disguise. "We recover A_L = 1 without a template or a nuisance parameter" is far more legible to the CMB community and costs only a rewrite.
+1. **Harvest the lmax=192 bias-reduction figure.** `compare_cl_bias_reduction.py --lmax 192` against `results/analysis/pilot_coverage_lmax192_hmc.npz` and `lensing_blind_baseline_lmax192.npz`; bins extend to `[128,160)`, `[160,192)`. Cheap (both chains are on disk) and either strengthens figure2 or is dropped. **Read it with the low-ℓ caveat: `[2,10)` is UNRELIABLE as at 128, and at 192 that now extends to `[10,30)`** (lag-1 0.928, decorrelation lag 200). Do not present any lmax=192 *exactness* number.
+2. **Rewrite `docs/paper/main.tex`** — the critical path, now unblocked (S1 is decided). Four things, in this order:
+   - a. Recast every exactness statement as a **bound** ("no bias detected above ~0.5σ posterior mean offset at N=24"), not as demonstrated exactness.
+   - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title.
+   - c. Replace the miscalibrated `KS_p` values with the thin=10 / `cal_p` numbers.
+   - d. Carry the N=4 bias-reduction replication, framed per S1 as validation + the A_L framing.
+3. **Add the power table** to the paper (§1 below). No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
+4. Then the literature/citation actions below, then Phase 2a on a branch.
 
 ## Todo, priority order
 
 ### 1. Exactness evidence
-- [ ] Report the power of the validation as a table in the paper. No competing method states the sensitivity of its own validation; doing so is a strengthening, not a concession.
-- [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode.
+- [ ] Report the power of the validation as a table in the paper — **this is Next action 3**; kept here so the section is self-contained.
+- [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode, and now confirmed blocked at lmax=192 too (gate NO-GO, lag-1 0.976, job 11987444). Treat "exactness at lmax=64" as the demonstrated scale and say so; do not attempt to raise it for this paper.
 
 ### 2. Differentiator figures (what the paper is *for*)
 - [ ] Per-mode uncertainty-propagation figure: what joint sampling buys over marginal methods.
-- [~] Push the bias-reduction demonstration to higher lmax — **decided 2026-09-12**; running at **lmax=192** (job 11987444) rather than 256, because 256 would exceed the 72h cap several times over. Revisit 256 only with chained resumes if 192 lands cleanly. The effect *grows* with ℓ, and it needs only a converged C_ℓ marginal at mid/high ℓ — **not** the calibration gate that blocks lmax=128. Sequenced after the N=4 replication, since replication beats scale.
 - [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
 - [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
-- [ ] Decide whether to chase the (C_ℓ, C_L^φφ) correlation at all. Under S1 it becomes a capability claim and needs no detection; ~2.4× the ensemble buys at best a marginal one. Recommend not chasing.
+
+*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO — harvest is Next action 1) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
 
 ## Phase 2a — real-data run (end-to-end demonstration)
 
@@ -127,10 +111,10 @@ The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
 (`discrete_uniform_p`, `rank_spread`, raising draws/chain to ~60, both ensembles
 re-scored) are done and recorded in `achievements.md`. What is left:
 
-- [ ] Re-state every claim in `docs/paper/main.tex` as a *bound* ("no bias
-      detected above ~0.5σ posterior mean offset at N=24") rather than as
-      demonstrated exactness. Pre-empts "what would your test have caught?"
-- [ ] Add the power statement to the paper as a table (also listed under Todo §1).
+- [→] Re-state every claim in `docs/paper/main.tex` as a *bound* rather than as
+      demonstrated exactness — **now Next action 2a**; pre-empts "what would your
+      test have caught?"
+- [→] Add the power statement to the paper as a table — **now Next action 3**.
 - [ ] Re-read every pre-2026-09-12 flag and pass in `dashboard.md` against
       `cal_p` before citing any of them; `KS_p` is retained for continuity only.
 
@@ -138,9 +122,11 @@ re-scored) are done and recorded in `achievements.md`. What is left:
 
 - **One critical path**: Phase 2 gates ✓ → coverage/rank test → joint-posterior differentiator figures → paper. Anything not on this waits. The manuscript runs in parallel rather than at the end.
 - **Scope**: broader scope, accepting scoop risk. Real-data Planck run and Phase 2b are in scope, sequenced after the critical path, not instead of it.
-- **Never lead with the differentiable machinery.** Every abstract, talk, and intro leads with the joint (C_ℓ, C_L^φφ) posterior.
+- **Never lead with the differentiable machinery** (Flinch made it table stakes). Since S1 (2026-09-16): the **novelty** claim is the joint (C_ℓ, C_L^φφ) posterior, stated as a *capability* no competing method produces; the **evidence** that leads is the bias reduction, presented as validation. Don't sell a null as a detection, and don't sell a validation as a discovery.
+- **Name the configuration, not just the result.** "Headline exactness" meant the Block-4-*OFF* ensemble for two weeks while the paper's title claimed a four-block joint sampler — the certification of the title's object existed, under a different job pair, and was simply not labelled as such. Every exactness number in the paper or the dashboard carries which blocks were sampled, or it is not citable.
 - **Watch authors, not only keywords.** Millea, Seljak, Bayer and Loureiro are the highest-probability source of a scoop; any φ or lensing extension of Flinch, Almanac, or CMBLensing.jl changes the plan. Named-author arXiv check + citation-hygiene grep before every submission milestone.
-- **Demonstrated beats asserted.** Prefer a converged result at a smaller scale over a non-converged one at a larger scale — every time, and say which one you have.
+- **Demonstrated beats asserted.** Prefer a converged result at a smaller scale over a non-converged one at a larger scale — every time, and say which one you have. **The demonstrated exactness scale for this paper is lmax=64 and will not rise**: the low-ℓ φ mixing mode failed the gate at 128 and again, worse, at 192 (lag-1 0.976). Bias *reduction* is separately demonstrable at 128 (and possibly 192) because it needs no calibration gate — never conflate the two scales in a sentence.
+- **A scale-up that lands is not a scale-up that passes.** Job 11987444 ran 2d03h and exited `COMPLETED 0:0` while printing NO-GO. Read the script's own verdict line, not the SLURM state (the general form of this is already in `achievements.md`'s engineering gotchas).
 - **Precision**: fp64 end-to-end unless a mixed scheme is validated against fp64 chains (a float32 false-convergence trap is the standing counterexample).
 - **Dense-reference discipline**: validate every new sampler/operator against an exact small-scale reference before production — has caught real bugs repeatedly (`achievements.md`).
 - **A gate must run the production script's own initialisation path.** A gate and the thing it gates being separate scripts is how the cold-start bug reached a full 12-chain ensemble (`achievements.md`). Diff their setup before trusting a verdict.
