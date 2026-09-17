@@ -1,5 +1,5 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-16*
+*Last updated: 2026-09-18*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
@@ -359,7 +359,15 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Job 11980637** — `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
+**Nothing.** The queue holds no diffcmb jobs. The last three to land:
+
+| Job | What | Result |
+|---|---|---|
+| 12015546 (2026-09-18) | `submit_validate_qe_noise.slurm` — Monte Carlo validation of `diffcmb/qe.py`'s QE noise `N_L^φφ` against the estimator's own definition, 64 sims | **PASS**: noise ratio 0.992, response 0.883. Artifact `results/analysis/qe_noise_validation.npz`. **Valid only at (lmax=64, nside=64, σ_pix=1.0)** — `fig3` checks this and refuses on a mismatch |
+| 12015488 (2026-09-17) | `submit_compare_cl_bias_reduction_lmax192.slurm` — lmax=192 bias-reduction harvest | **98.4%** reduction over five reliable bins; blind deficit to −8.0% at `[160,192)`. **Bias reduction only — NOT an exactness claim** (φ gate NO-GO at 192) |
+| 12015538 (2026-09-18) | First, **invalid** QE validation design (vs `estimate_phi_diag_fisher`) | **Superseded — do not cite.** Compared two different quantities (fixed-alm Fisher vs CMB-marginalised noise); ratio 132, trend +0.66 in ln L. `achievements.md` records why |
+
+**Previously in flight, now complete: job 11980637** — `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
 extending the Block-4-ON proper-prior ensemble from N=12 to N=24 (realizations
 12–23, same outdir as job 11965813, byte-identical config — not a φ-tuning
 run). Doubles the chain count for the joint (C_ℓ^TT, C_L^φφ) differentiator
