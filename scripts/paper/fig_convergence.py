@@ -159,7 +159,8 @@ def generate_convergence_figures(indir: str, outdir: str, burn_in: int = 50) -> 
     ax_tau.plot(ell_arr, med_tau_pp, color=paper_style.COL_CLPP, label=r"$C_L^{\phi\phi}$", lw=1.2)
     ax_tau.set_xlabel(r"Multipole $\ell, L$")
     ax_tau.set_ylabel(r"Autocorr Time $\tau_{\mathrm{int}}$ [sweeps]")
-    ax_tau.legend(loc="upper right", frameon=False, fontsize=6.5)
+    ax_tau.set_ylim(-2, 78)
+    ax_tau.legend(loc="center right", bbox_to_anchor=(0.98, 0.40), frameon=False, fontsize=6.5)
     paper_style.stat_box(
         ax_tau,
         f"Median $\\tau = {np.median(med_tau_tt):.1f}$ (ESS $\\approx {med_ess_tt:.0f}$)\n"

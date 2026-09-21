@@ -76,11 +76,17 @@ def plot_single_mollweide(
         shrink=0.72,
     )
     cbar.ax.tick_params(labelsize=6)
+    cbar.locator = plt.MaxNLocator(nbins=5)
+    cbar.update_ticks()
     if cbar_label:
         cbar.set_label(cbar_label, fontsize=6.5, labelpad=2)
 
     if stat_text:
-        paper_style.stat_box(ax, stat_text, loc="upper right")
+        paper_style.stat_box(
+            ax, stat_text, loc="upper right", xy=(0.95, 0.90),
+            color="0.1",
+            bbox={"boxstyle": "round,pad=0.2", "fc": "white", "ec": "none", "alpha": 0.85},
+        )
 
     paper_style.save(fig, outpath)
 
@@ -120,7 +126,8 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         model, d, lmax, 1.0
     )
 
-    # 3. True lensing potential phi
+    # 3. True lensing potential phi (scaled by 1e4 for clean display)
+    scale_phi = 1e4
     phi_true_packed = d["phi_true_packed"]
     phi_true_complex = np.asarray(
         alm_utils.splittosingularalm(
@@ -128,7 +135,7 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         ),
         dtype=np.complex128,
     )
-    phi_true = hp.alm2map(phi_true_complex, nside=nside)
+    phi_true = hp.alm2map(phi_true_complex, nside=nside) * scale_phi
 
     # 4. Posterior mean phi
     phi_samples = d["phi_samples"]
@@ -141,17 +148,17 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         ),
         dtype=np.complex128,
     )
-    phi_mean = hp.alm2map(phi_mean_complex, nside=nside)
+    phi_mean = hp.alm2map(phi_mean_complex, nside=nside) * scale_phi
 
     # 5. Residual and correlation
     phi_residual = phi_mean - phi_true
     corr = float(np.corrcoef(phi_true, phi_mean)[0, 1])
 
     # Scales
-    t_lim = np.percentile(np.abs(T_unlensed), 99)
-    d_lim = np.percentile(np.abs(y_data), 99)
-    phi_lim = np.percentile(np.abs(phi_true), 99)
-    res_lim = np.percentile(np.abs(phi_residual), 99)
+    t_lim = float(np.percentile(np.abs(T_unlensed), 99))
+    d_lim = float(np.percentile(np.abs(y_data), 99))
+    phi_lim = float(np.percentile(np.abs(phi_true), 99))
+    res_lim = float(np.percentile(np.abs(phi_residual), 99))
 
     print(f"Generating projected Mollweide maps (Pearson r = {corr:.3f})...")
 
@@ -183,7 +190,7 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         cmap="magma",
         vmin=-phi_lim,
         vmax=phi_lim,
-        cbar_label=r"True $\phi$",
+        cbar_label=r"True $\phi \times 10^4$",
     )
 
     img_mean_phi = project_mollweide(phi_mean)
@@ -193,7 +200,7 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         cmap="magma",
         vmin=-phi_lim,
         vmax=phi_lim,
-        cbar_label=r"Posterior Mean $\langle\phi\rangle$",
+        cbar_label=r"Posterior Mean $\langle\phi\rangle \times 10^4$",
         stat_text=f"Pearson $r = {corr:.3f}$",
     )
 
@@ -204,7 +211,7 @@ def generate_maps(chain_path: str, outdir: str, burn_frac: float = 0.1) -> None:
         cmap="coolwarm",
         vmin=-res_lim,
         vmax=res_lim,
-        cbar_label=r"Residual $\langle\phi\rangle - \phi_{\mathrm{true}}$",
+        cbar_label=r"Residual $(\langle\phi\rangle - \phi_{\mathrm{true}}) \times 10^4$",
     )
 
 
