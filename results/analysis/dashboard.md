@@ -36,7 +36,22 @@ No task `.err` contains a traceback.
 `qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response
 **0.971**.
 
-**In flight: nothing.** The harvest job 12040798 (7 min) and `make figures`
+**In flight: job 12040935** (`scripts/submit_diagnose_calibration_exact.slurm`,
+log `logs/diag_calib_exact_12040935.out`), submitted 2026-09-23 for T0.1 (a, b):
+- `scripts/diagnose_calibration_stationarity.py` on both ensembles: field ranks at
+  thin 10/40 × {full, first half, second half} with separate mean/spread p-values;
+  rank mean_u of the truth per chain quarter; drift z (last vs first quarter,
+  across independent chains) of log(power/truth) and `logp`; τ_int per trace.
+- `sbc_joint_likelihood.py` at `--thin 40` (→ `sbc_joint_likelihood_thin40.npz`)
+  and at `--thin 10 --burn_frac 0.5` (→ `sbc_joint_likelihood_thin10_half2.npz`).
+
+**How to read it:** a rank-mean offset (a_ℓm `[30,60)`, φ in Block-4-ON) that
+trends toward 0.5 across quarters / has |drift z| ≫ 3 ⇒ burn-in too short, go to
+T0.1c (longer chains). Flat across quarters *and* surviving thin 40 ⇒ not burn-in,
+not thinning: a sampler or statistic defect. A spread excess that vanishes at
+thin 40 was autocorrelation only.
+
+The earlier harvest job 12040798 (7 min) and `make figures`
 (log `logs/make_figures_exact.log`) both completed 2026-09-23.
 
 ### First harvest (2026-09-23) — physics clean, calibration FAILS
@@ -70,8 +85,8 @@ The blind fit tracks the lensing received; mean |bias| is 13.9 % blind vs 1.37 %
 - **Figure 4:** 0/16 cells above null.
 - **Maps:** r = 0.82 (realization 0).
 
-**Next:** `ROADMAP.md` T0.1. Re-score at thin ≥ τ_int, then check stationarity
-(first vs second half), then longer chains or a lower A_φ. The a_ℓm `[30,60)`
+**Next:** harvest job 12040935 (above) into this section, then `ROADMAP.md`
+T0.1c/d as the result dictates (longer chains or a lower A_φ). The a_ℓm `[30,60)`
 offset appears in *both* ensembles.
 
 **Pilots that chose the configuration** (jobs 12037774/5, 12037979–81;
