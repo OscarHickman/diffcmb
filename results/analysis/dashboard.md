@@ -1,10 +1,10 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-23*
+*Last updated: 2026-09-24*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-09-23): exact-operator ensembles — complete, harvest in progress
+## CURRENT (2026-09-24): exact-operator ensembles — calibration fails; T0.1 diagnosis in progress
 
 Everything below the line further down was made with the **legacy forward model**:
 bilinear-interpolation lensing on an nside = lmax grid, lensing by −∇φ, and a
@@ -36,20 +36,70 @@ No task `.err` contains a traceback.
 `qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response
 **0.971**.
 
-**In flight: job 12040935** (`scripts/submit_diagnose_calibration_exact.slurm`,
-log `logs/diag_calib_exact_12040935.out`), submitted 2026-09-23 for T0.1 (a, b):
-- `scripts/diagnose_calibration_stationarity.py` on both ensembles: field ranks at
-  thin 10/40 × {full, first half, second half} with separate mean/spread p-values;
-  rank mean_u of the truth per chain quarter; drift z (last vs first quarter,
-  across independent chains) of log(power/truth) and `logp`; τ_int per trace.
-- `sbc_joint_likelihood.py` at `--thin 40` (→ `sbc_joint_likelihood_thin40.npz`)
-  and at `--thin 10 --burn_frac 0.5` (→ `sbc_joint_likelihood_thin10_half2.npz`).
+**In flight (submitted 2026-09-24, ROADMAP T0.1c):**
 
-**How to read it:** a rank-mean offset (a_ℓm `[30,60)`, φ in Block-4-ON) that
-trends toward 0.5 across quarters / has |drift z| ≫ 3 ⇒ burn-in too short, go to
-T0.1c (longer chains). Flat across quarters *and* surviving thin 40 ⇒ not burn-in,
-not thinning: a sampler or statistic defect. A spread excess that vanishes at
-thin 40 was autocorrelation only.
+| job | what | output | expected |
+|---|---|---|---|
+| 12041984 | exact-sampler null for the a_ℓm power rank under the flat C_ℓ prior (`scripts/null_alm_power_rank_flat_prior.py`), nominal + chain-calibrated effective noise, vs both ensembles | `logs/null_alm_rank_12041984.out`; `<ensemble>/null_alm_power_rank_flat_prior.npz` | minutes |
+| 12041916 | Block-4-ON, ν = 6, **1000 burn-in + 3600 samples** (same skies r000–r023) | `ens_exact_l64_A3000_n30_long/` | ~13 h/task at ~10 s/sweep |
+| 12041917 | Block-4-ON, **ν = 30**, same length, same skies | `ens_exact_l64_A3000_n30_nu30_long/` | ~13 h/task; tasks 4–23 were queued at submission |
+
+**How to read them:**
+- **Null (12041984).** Compare each bin's observed mean_u with the *effective*
+  null. `|z| < 3` in `[30,60)` ⇒ the a_ℓm offset is the statistic (fixed-spectrum
+  truth vs flat C_ℓ prior), not the sampler, and the three-block core stands.
+  `|z| ≫ 3` ⇒ sampler defect; stop and diagnose Block 2.
+- **Long ν = 6 (12041916).** Re-run `diagnose_calibration_stationarity.py`,
+  `sbc_joint_likelihood.py` and the null on it. φ `[2,10)` should stop drifting
+  (drift z < 3 and a flat quarter profile) and logp should stop falling. If φ
+  `[2,10)` still drifts at 3600 samples: T0.1d (lower A_φ).
+- **ν = 30 (12041917).** If the φ `[30,60)` rank offset (0.70 at ν = 6) shrinks
+  toward 0.5 as ν rises, it comes from the Block-4 hierarchy / prior at ν = 6. If
+  it stays, it is a Block-4-ON sampler problem (Block-4-OFF has no φ offset).
+
+### T0.1 (a, b) result — job 12040935 (4 min, harvested 2026-09-24)
+
+Log: `logs/diag_calib_exact_12040935.out`. **Two different failures, not one.**
+
+**1. a_ℓm `[30,60)`: stationary offset in both ensembles, probably the statistic.**
+
+| rank mean_u, a_ℓm `[30,60)` | thin 10 | thin 40 | quarters 1→4 | drift z |
+|---|---|---|---|---|
+| Block-4-ON | 0.280 | 0.301 | 0.264 / 0.282 / 0.284 / 0.298 | −0.85 |
+| Block-4-OFF | 0.273 | 0.286 | 0.229 / 0.263 / 0.251 / 0.285 | −2.08 |
+
+It survives thin 40 and is flat across quarters, so it is not thinning and not
+burn-in. The neighbours are offset the other way: `[10,30)` about 0.36–0.39 and
+`[60,64)` about 0.60–0.65, both marginal. Candidate cause: the truth is drawn at
+the **fixed** C_ℓ^fid while Block 1 uses the **flat** prior. The truth is then
+not a draw from the sampler's prior, and the power rank need not be uniform. The
+effect is negligible where the data pin a_ℓm down, which is why the
+legacy ensembles passed this row. They used the script default σ = 1 μK and
+A_φ = 1. It is large where A_φ = 3000 lensing
+removes the information. The sign agrees (posterior power above the truth ⇒
+mean_u < 0.5). The null job 12041984 tests this.
+
+**2. Block-4-ON φ: two parts.**
+- **Low-L φ `[2,10)` is not stationary.** Quarter mean_u 0.771 / 0.717 / 0.614 / 0.661;
+  drift z of log(power/truth) **+4.05**; τ_int **173 sweeps** (about 7 effective
+  draws per 1200-sweep chain); **logp still falling** (drift z −3.56). This is
+  burn-in from the MAP start, so run longer (job 12041916). Block-4-OFF φ `[2,10)`
+  has τ_int 138 but no significant drift (z +1.24).
+- **φ `[30,60)` is a stationary offset:** 0.696 / 0.706 / 0.696 / 0.715, drift z
+  −1.32, survives thin 40 (0.707). It is absent in Block-4-OFF (0.466) and
+  matches the strict C_L^φφ `[30,60)` 0.666. So it is Block-4-specific and not
+  burn-in (job 12041917).
+
+**Joint-likelihood SBC:**
+
+| | thin 40 | 2nd half, thin 10 |
+|---|---|---|
+| Block-4-ON | 0.724, KS_p 0.0011 — **REJECTED** | 0.695, KS_p 0.0029 — **REJECTED** |
+| Block-4-OFF | 0.492, KS_p 0.91 — pass | 0.472, KS_p 0.91 — pass |
+
+Block-4-OFF passes every φ bin and the joint likelihood at every thinning; its
+only failures are the a_ℓm rows above. **If the null explains them, the three-block
+core is calibrated on the exact operator.**
 
 The earlier harvest job 12040798 (7 min) and `make figures`
 (log `logs/make_figures_exact.log`) both completed 2026-09-23.
@@ -85,9 +135,9 @@ The blind fit tracks the lensing received; mean |bias| is 13.9 % blind vs 1.37 %
 - **Figure 4:** 0/16 cells above null.
 - **Maps:** r = 0.82 (realization 0).
 
-**Next:** harvest job 12040935 (above) into this section, then `ROADMAP.md`
-T0.1c/d as the result dictates (longer chains or a lower A_φ). The a_ℓm `[30,60)`
-offset appears in *both* ensembles.
+**Next:** read jobs 12041984 / 12041916 / 12041917 as described under "How to
+read them" above. The first-harvest numbers in this table are superseded by
+the T0.1 result section once the long chains land.
 
 **Pilots that chose the configuration** (jobs 12037774/5, 12037979–81;
 directories `pilot_exact_lmax64_*`):

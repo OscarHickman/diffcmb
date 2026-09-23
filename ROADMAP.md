@@ -78,11 +78,20 @@ Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is cita
 *Done 2026-09-23 (recorded in `achievements.md`): the work was committed on branch `exact-operator-rerun` in both repos; all three ensembles harvested; `make figures` rebuilt all seven figures; the strict SBC, Block 4 PIT and joint-likelihood SBC ran on both ensembles (job 12040798).*
 
 1. **⚠ BLOCKING — diagnose the calibration failure** before anything else touches the figures. The standing rules apply: a localised anomaly must survive more realizations *and* finer resolution *and* a calibrated test; and no φ-equilibration tuning without sign-off (this is a stationarity check first, not tuning). In order:
-   - **(a) and (b) submitted 2026-09-23 as one job, 12040935** — read its log and record the result in `results/analysis/dashboard.md` (which also says how to read it) before doing (c)/(d). Tooling: `scripts/diagnose_calibration_stationarity.py` (tested in `tests/test_diagnose_stationarity.py`, mutation-checked) + `scripts/submit_diagnose_calibration_exact.slurm`.
-   - a. **Re-score at thin ≥ τ_int** (~35–40 for the alms), with `fig1_validation.py --thin 40` and `sbc_joint_likelihood.py --thin 40`, on both ensembles. Rank *means* are unbiased under autocorrelation *if the chain is stationary*, so a surviving mean offset indicts stationarity or the sampler, not the thinning.
-   - b. **Stationarity:** first vs second half of each chain for a_ℓm power in `[30,60)`, φ power and log P. Does the offset shrink with sweep number (burn-in from the MAP start too short)?
-   - c. If (b) shows drift: **longer chains** (e.g. 1000 burn-in + 2400 samples, ~11 h/task, 72 tasks packed) or discard more burn-in. If there is no drift: treat it as a sampler or statistic defect and check the a_ℓm power rank against `validate_coverage_rank_nulls.py`'s null-style reasoning for the field statistic.
-   - d. If A_φ = 3000 cannot be made to mix, **pilot a lower A_φ** (e.g. 1000, QE S/N ≈ 1.8) and restate D4.
+   - **(a) and (b) are done (job 12040935; harvested 2026-09-24; numbers in `results/analysis/dashboard.md` → "T0.1 (a, b) result").** There are two separate failures:
+     - **a_ℓm `[30,60)`, both ensembles:** a stationary mean offset (about 0.28). It survives thin 40 and is flat across chain quarters, so it is not thinning and not burn-in. Suspected cause: the statistic, not the sampler. The truth is drawn at a fixed C_ℓ^fid while Block 1's prior is flat.
+     - **Block-4-ON φ:**
+       - `[2,10)` is still burning in: drift z +4.05, τ_int ≈ 173, and logp is still falling.
+       - `[30,60)` has a stationary offset of about 0.70 that is absent in Block-4-OFF.
+     - **Block-4-OFF** passes φ and the joint likelihood at every thinning.
+   - a. ✅ Re-scored at thin 40, with the joint-likelihood SBC at thin 40 and on the second half.
+   - b. ✅ Stationarity by chain quarter and drift z.
+   - c. **In flight (2026-09-24). Read each job as `dashboard.md` → "How to read them" says:**
+     - **c1 — a_ℓm null, job 12041984.** `scripts/null_alm_power_rank_flat_prior.py` (tests: `tests/test_null_alm_power_rank.py`, mutation-checked for prior shape, truncation and conditional variance). It draws what an *exact* sampler gives for the a_ℓm power rank under the flat C_ℓ prior with a fixed-spectrum truth. It uses nominal noise and an effective noise calibrated to the chains' own posterior variance. If the observed offset sits within the effective null, the three-block core is certified on the exact operator: redraw figure 1's a_ℓm row against that null (as the C_ℓ coverage rows already are). If not, it is a Block 2 defect.
+     - **c2 — longer Block-4-ON chains, job 12041916.** ν = 6, 1000 burn-in + 3600 samples, output `ens_exact_l64_A3000_n30_long/`. On it, re-run `diagnose_calibration_stationarity.py`, `sbc_joint_likelihood.py`, the c1 null and the strict/PIT checks. Success means φ `[2,10)` drift |z| < 3, logp flat, and the joint-likelihood SBC passes.
+     - **c3 — Block-4 prior sensitivity, job 12041917.** ν = 30, same length and skies, output `ens_exact_l64_A3000_n30_nu30_long/`. Does the φ `[30,60)` offset shrink as ν rises? This is a diagnosis of the prior and hierarchy, not φ tuning.
+   - d. If c2 still drifts at 3600 samples, **pilot a lower A_φ** (e.g. 1000, QE S/N ≈ 1.8) and restate D4. If c3 shows the offset is set by ν, decide (sign-off needed) whether the paper's Block-4 ensemble uses a different ν and why.
+   - Wrapper change: `scripts/submit_ensemble_exact_lmax64.slurm` now takes optional `NU` (default 6.0) and `TAG` (output-directory suffix, default none). The defaults reproduce the original runs.
 2. **Only after T0.1 passes: read the rebuilt figures against the checklist.**
    - **figure 1:** `p_bin` for both ensembles; the power curve at the final draws per chain.
    - **figure 2:** the aware residuals (`[2,10)` is −2.96 ± 1.05 % now); the A_L = 1 wording.
