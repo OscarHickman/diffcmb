@@ -14,14 +14,19 @@
 - **At lmax ≤ 300 a physical sky carries almost no lensing information in temperature.** The QE S/N on C_L^φφ is 0.002 at lmax = 64 and 0.13 at 300. The legacy figure 3 sat exactly there.
 
 **Already positive:**
-- **A certified-exact four-block joint sampler**, which nobody else has.
+- **A four-block joint sampler that passed calibration on the legacy model**, which nobody else has. Certification on the exact-operator model is **not yet achieved**: it is the blocking item below (T0.1).
 - **An exact, differentiable, geodesic curved-sky lensing operator**, with FD-checked gradients and physical sign conventions.
-- **Exact-operator production ensembles** on identical skies:
-  - Block-4-ON: 24/24;
-  - lensing-blind: 24/24;
-  - Block-4-OFF: 23/24, last task running.
+- **Exact-operator production ensembles** on identical skies, all complete (24/24 each: Block-4-ON, lensing-blind, Block-4-OFF).
+- **Physics validated (figure 2):** on 24 same-sky pairs the blind fit lands on the lensing each sky received (−45.6 vs −46.0 % at ℓ ∈ [45,64)), while the joint fit stays within ~1–3 %.
 - **A QE validated at that configuration**: noise 0.995, response 0.971.
 - **A test suite that covers the scripts as well as the package.**
+
+**⚠ Blocking as of the 2026-09-23 harvest:** the exact-operator ensembles do **not** pass calibration.
+- Block-4-ON rejects on the joint-likelihood SBC (0.716, p = 0.001) and on φ/a_ℓm field ranks.
+- Block-4-OFF passes the joint-likelihood and φ tests but fails a_ℓm `[30,60)`, the same bin that fails in the ON ensemble.
+- Alm ESS is ~35 per 1200 sweeps.
+
+Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is citable** (`achievements.md` → First harvest).
 
 **Handling the caution in the paper:**
 - The retraction becomes one methods paragraph: validate an operator on the observable you report, not only its gradients.
@@ -70,28 +75,30 @@
 
 ## T0 — Core figures from the exact-operator ensembles
 
-1. **Commit this session's work** (operator, fixes, scripts, tests, docs). It is all uncommitted as of 2026-09-23.
-2. **Harvest when the last Block-4-OFF task lands** (`results/analysis/ens_exact_l64_A3000_n30{,_nocl4}`). Check every task's `.err` for tracebacks and its `phi_calibration_ok`.
-   - Run `make figures`.
-   - Run the strict and Block 4 checks (`validate_coverage_rank_nulls.py`, with a failing misaligned control) and `sbc_joint_likelihood.py` on both ensembles.
-3. **Read the rebuilt figures against the checklist:**
-   - **figure 1:** `p_bin` for both ensembles, and the power curve at the new draws per chain;
-   - **figure 2:** does the blind bias land on "lensing received", is the aware bias consistent with zero, and does it support the A_L = 1 wording;
-   - **figure 3:** the posterior width vs QE⊕prior, now in a regime where the QE is informative (S/N ≈ 5);
-   - **convergence:** Block 4 and low-L φ ESS against the rank draws; re-derive `--thin` from τ_int;
-   - **maps:** recovery at A_φ = 3000.
+*Done 2026-09-23 (recorded in `achievements.md`): the work was committed on branch `exact-operator-rerun` in both repos; all three ensembles harvested; `make figures` rebuilt all seven figures; the strict SBC, Block 4 PIT and joint-likelihood SBC ran on both ensembles (job 12040798).*
 
-   Any result that does not survive gets recorded in `achievements.md`, not argued away.
-4. **Figure 1 and the Block-4-OFF ensemble:** decide whether the three-block certification needs its own panel or a caption number.
-5. **Power statement:** decide whether the paper needs it as a table as well as figure 1's curve; if so, generate it from the same script.
-6. **Whole-set pass** at printed size: same colour for the same quantity, same ℓ-axis conventions, same ensemble names.
-7. **Update `plots/STORY.md` and `results/analysis/dashboard.md`** for the new ensembles; they still describe the legacy ones.
-8. **Re-tag** the finalised core-figure state; the stale `methods-paper-v1` tag points at `d9979b7`.
-9. **Small test gap:** freeze N_L's absolute normalisation at lmax = 16 in `tests/test_qe.py` (the sign/response is now pinned; the normalisation is covered only by the SLURM Monte Carlo).
-10. **Limitations to carry into T2:**
+1. **⚠ BLOCKING — diagnose the calibration failure** before anything else touches the figures. The standing rules apply: a localised anomaly must survive more realizations *and* finer resolution *and* a calibrated test; and no φ-equilibration tuning without sign-off (this is a stationarity check first, not tuning). In order:
+   - a. **Re-score at thin ≥ τ_int** (~35–40 for the alms), with `fig1_validation.py --thin 40` and `sbc_joint_likelihood.py --thin 40`, on both ensembles. Rank *means* are unbiased under autocorrelation *if the chain is stationary*, so a surviving mean offset indicts stationarity or the sampler, not the thinning.
+   - b. **Stationarity:** first vs second half of each chain for a_ℓm power in `[30,60)`, φ power and log P. Does the offset shrink with sweep number (burn-in from the MAP start too short)?
+   - c. If (b) shows drift: **longer chains** (e.g. 1000 burn-in + 2400 samples, ~11 h/task, 72 tasks packed) or discard more burn-in. If there is no drift: treat it as a sampler or statistic defect and check the a_ℓm power rank against `validate_coverage_rank_nulls.py`'s null-style reasoning for the field statistic.
+   - d. If A_φ = 3000 cannot be made to mix, **pilot a lower A_φ** (e.g. 1000, QE S/N ≈ 1.8) and restate D4.
+2. **Only after T0.1 passes: read the rebuilt figures against the checklist.**
+   - **figure 1:** `p_bin` for both ensembles; the power curve at the final draws per chain.
+   - **figure 2:** the aware residuals (`[2,10)` is −2.96 ± 1.05 % now); the A_L = 1 wording.
+   - **figure 3:** the width ratio 0.61–0.74 must be re-derived from calibrated chains before it means anything.
+   - **convergence:** re-derive `--thin` from τ_int.
+   - **maps:** per-mode z sd (1.108 now, too narrow).
+3. **Figure 1 and the Block-4-OFF ensemble:** decide whether the three-block certification gets its own panel or a caption number (the figure is currently built from Block-4-ON only).
+4. **Power statement:** decide whether the paper needs a table as well as figure 1's curve; if so, generate it from the same script.
+5. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
+6. **Keep `plots/STORY.md` and `results/analysis/dashboard.md` current** with every harvest number (both were updated 2026-09-23 with the first harvest).
+7. **Merge `exact-operator-rerun` into `main` in both repos** once T0.1 is resolved, then **re-tag** the finalised core-figure state (the stale `methods-paper-v1` tag points at `d9979b7`).
+8. **Small test gap:** freeze N_L's absolute normalisation at lmax = 16 in `tests/test_qe.py`.
+9. **Limitations to carry into T2:**
     - exactness above lmax = 64 (low-L φ NO-GO at 128/192);
     - A_φ above ~3000 at lmax = 64 (Gibbs stalls);
     - physical-sky lensing information at lmax ≤ 300;
+    - whatever T0.1 establishes about mixing at A_φ = 3000;
     - no further φ-equilibration tuning without sign-off.
 
 ## T1 — Extension figures (by impact per effort)

@@ -53,9 +53,61 @@ The lever: the QE S/N is cosmic-variance limited (A_φ = 3000: 5.0 at σ = 1, 4.
 |---|---|---|---|
 | Block-4-ON, ν = 6 | 12038494 | `results/analysis/ens_exact_l64_A3000_n30/chain_rNNN.npz` | 24/24 complete |
 | lensing-blind (same data) | 12038496 | same dir, `blind_rNNN.npz` | 24/24 complete |
-| Block-4-OFF | 12038495 | `..._nocl4/chain_rNNN.npz` | 23/24, last task running |
+| Block-4-OFF | 12038495 | `..._nocl4/chain_rNNN.npz` | 24/24 complete |
 
 **QE validated at the production configuration** (job 12038409, `results/analysis/qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response **0.971** (1.09 / 1.00 / 0.94 / 0.93 by bin). The QE weights and filter now use the lensed spectrum *measured* from exact-operator simulations. That, together with the sign fix, resolves the old 0.883 response.
+
+### First harvest of the exact-operator ensembles (2026-09-23) — physics validated, calibration NOT passed
+
+All 72 tasks completed; no tracebacks; `phi_calibration_ok` 24/24 in both sampled ensembles. Sources:
+- `make figures` (log `logs/make_figures_exact.log`);
+- harvest job 12040798 (`scripts/submit_harvest_exact_lmax64.slurm`, log `logs/harvest_exact_l64_12040798.out`);
+- figure 1's test run on the Block-4-OFF ensemble.
+
+**The physics validation is clean (figure 2).** On 24 same-sky pairs, the blind fit lands on the lensing each sky actually received, bin by bin:
+
+| bin | blind bias | lensing received | aware bias (± SEM) |
+|---|---|---|---|
+| `[2,10)` | +0.90 % | +1.70 % | **−2.96 ± 1.05 %** |
+| `[10,20)` | +6.65 % | +6.42 % | +1.50 ± 0.69 % |
+| `[20,30)` | +0.55 % | +0.03 % | +0.76 ± 0.82 % |
+| `[30,45)` | −15.72 % | −15.96 % | +0.85 ± 0.56 % |
+| `[45,64)` | −45.64 % | −46.02 % | +0.75 ± 0.50 % |
+
+Mean |bias| over bins: blind 13.9 %, aware 1.37 % (90.2 % reduction). The aware residuals are within ~1.5σ except `[2,10)` (−2.8σ) and `[10,20)` (+2.2σ). Given the calibration results below, they are not yet citable as "consistent with zero".
+
+**Calibration fails on the Block-4-ON ensemble (the title's object):**
+- joint-likelihood SBC **rejected**: mean_u 0.716, KS_p 0.0011;
+- figure 1 field ranks: φ p_bin **0.004** (mean_u 0.625, i.e. posterior φ power sits low; `[2,10)`–`[30,60)` means all p ≤ 0.011); a_ℓm p_bin **< 0.001** (`[30,60)` mean);
+- strict C_L^φφ SBC borderline: pooled 0.552, KS_p 0.067; `[30,60)` 0.666, KS_p 0.020; figure 1 p_bin 0.038;
+- Block 4's own conditional exact: PIT aligned KS_p 0.937, with lag-10/50 controls rejected at KS_p = 0 (lag-1 passes vacuously, since φ lag-1 autocorrelation is +0.877);
+- φ power bias per bin 0.85 / 0.95 / 0.98 / 1.02.
+
+**Block-4-OFF ensemble:**
+- joint-likelihood SBC **passes** (0.480, KS_p 0.67);
+- φ ranks pass (mean_u 0.497, p_bin 0.039, from one spread test in `[2,10)`);
+- **a_ℓm ranks fail**: p_bin < 0.001, `[30,60)` mean (mean_u 0.426 overall, i.e. posterior power sits high);
+- φ power bias 1.07 / 0.99 / 1.00 / 1.00.
+
+**The a_ℓm `[30,60)` mean offset appears in both ensembles.** That rules out a single-ensemble fluke, but per standing discipline it is not yet a diagnosed defect.
+
+**Convergence (figure_convergence, Block-4-ON; rank draws 120/chain at thin 10):**
+- R̂ > 1.01 for 48 % (Block 1) and 55 % (Block 4) of (chain, multipole) pairs; max 1.54 / 1.44;
+- median bulk ESS per 1200 sweeps: Block 1 123, **Block 2 (a_ℓm) 35**, Block 3 (φ) 65, Block 4 80.
+
+All alm and most φ coordinates have fewer effective draws than the rank test uses. The per-mode normalised φ residual has sd 1.108 pooled over 24 skies, against ≈1.03–1.05 for a calibrated posterior, i.e. posteriors too narrow. Map recovery r = 0.82 on realization 0.
+
+**Figure 3 is not interpretable yet.** It reports joint-posterior width / (QE⊕prior) = 0.61 / 0.63 / 0.68 / 0.74 at L ~ 15 / 25 / 38 / 55, but those widths come from the same under-mixed chains, and too-narrow posteriors would produce exactly this.
+
+**Figure 4:** 0/16 cells above null.
+
+**Reading (hypothesis, not a finding):** the amplified-lensing configuration mixes too slowly for 400 + 1200 sweeps. The alms mix worst (ESS ~35), and non-stationarity from the MAP start would bias rank means in exactly this way. Candidates to test, in order:
+1. the rank tests at thin ≥ τ_int (≈ 35–40) — does the mean offset survive?
+2. first half vs second half of each chain (drift);
+3. longer chains (the ensemble costs ~5 h per task at 12 s/sweep);
+4. a lower A_φ.
+
+Rank *means* are unbiased under autocorrelation if the chain is stationary, so a surviving mean offset would indict stationarity or the sampler, not the thinning.
 
 ### Figures and statistics reworked (2026-09-22)
 

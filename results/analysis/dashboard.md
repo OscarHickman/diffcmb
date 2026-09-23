@@ -1,32 +1,88 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-18*
+*Last updated: 2026-09-23*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-> **✅ 2026-09-08: the headline exactness claim is CONFIRMED under the
-> restored `Im(a_{L,1})` packing** (`k_L = 2L` → `2L+1`, `achievements.md`).
-> Job 11955622 (12 realizations, restored packing) reproduces job 11903181's
-> pre-restoration result: φ 0.4792 / alm 0.5130, both uniform. Everything
-> below marked "pre-restoration"/job ≤11913324 was measured through the old
-> 2L packing (one fewer real dof per multipole) and is kept as historical
-> reference, not current status.
+## CURRENT (2026-09-23): exact-operator ensembles — complete, harvest in progress
 
-> **⚠ 2026-09-16 — WHICH BLOCKS WERE SAMPLED. Read before citing any row on
-> this page.** Rows labelled "Block 4 OFF" pin `C_L^φφ` at the fiducial and
-> certify (a_ℓm, C_ℓ, φ) **only** — they are *not* evidence for the paper's
-> four-block joint claim. The title's object is certified by the **Block-4-ON,
-> ν=6 proper-prior N=24 ensemble (jobs 11965813 + 11980637)**: no bin rejects,
-> pooled strict rank 0.4518 (KS_p 0.0567) at `--thin 10`. See
-> `achievements.md` → "Which configuration this certifies".
+Everything below the line further down was made with the **legacy forward model**:
+bilinear-interpolation lensing on an nside = lmax grid, lensing by −∇φ, and a
+defective fiducial cosmology. It is reproducible and kept as the record, but it
+is **not** a statement about lensing on the sky, and its bias-reduction numbers
+(93.7 % / 98.4 %) are **retracted** (`achievements.md`). Cite nothing below the
+line as a current result.
 
-> **2026-09-15 — lmax=192 (job 11987444): chain landed, gate NO-GO.** 1900
-> sweeps, COMPLETED exit 0:0, but worst φ lag-1 **0.976** (floor 0.9) in
-> `[2,10)`. **No exactness claim is available above lmax=64.** The
-> bias-reduction harvest at 192 is still open (`ROADMAP.md` Next action 1) and
-> must carry the low-ℓ caveat out to `[10,30)` at this lmax.
+**Configuration (decisions D3/D4):**
+- exact geodesic lensing operator (`lensing_operator='exact'`, physical +∇φ);
+- corrected fiducial (`power.fiducial_spectra`);
+- amplified lensing **A_φ = 3000**, pixel noise **σ = 30 μK**;
+- lmax = nside = 64;
+- 400 burn-in + 1200 saved sweeps;
+- `phi_n_lfs=240`, `phi_mass_matrix=prior`.
+
+Every chain file records `lensing_operator`, `fiducial`, `phi_amplitude` and
+`noisesig`; every replay reads them.
+
+| ensemble | job | directory | state | chain health |
+|---|---|---|---|---|
+| Block-4-ON, ν = 6 (title's object) | 12038494 | `ens_exact_l64_A3000_n30/chain_rNNN.npz` | **24/24 COMPLETED** | `phi_calibration_ok` 24/24; φ power / truth median 0.87 (0.41–1.70); alm accept 0.62 |
+| lensing-blind, same data | 12038496 | `ens_exact_l64_A3000_n30/blind_rNNN.npz` | **24/24 COMPLETED** | — |
+| Block-4-OFF (three-block core) | 12038495 | `ens_exact_l64_A3000_n30_nocl4/chain_rNNN.npz` | **24/24 COMPLETED** | `phi_calibration_ok` 24/24; φ power / truth median 1.07 (0.54–2.89); alm accept 0.64 |
+
+No task `.err` contains a traceback.
+
+**QE validated at this configuration** (job 12038409,
+`qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response
+**0.971**.
+
+**In flight: nothing.** The harvest job 12040798 (7 min) and `make figures`
+(log `logs/make_figures_exact.log`) both completed 2026-09-23.
+
+### First harvest (2026-09-23) — physics clean, calibration FAILS
+
+| test | Block-4-ON (ν = 6) | Block-4-OFF |
+|---|---|---|
+| joint-likelihood SBC (thin 10) | **0.716, KS_p 0.0011 — REJECTED** | 0.480, KS_p 0.67 — pass |
+| φ field ranks (fig 1 `p_bin`) | **0.004** (mean_u 0.625: posterior φ power low) | 0.039 (mean_u 0.497) |
+| a_ℓm field ranks (`p_bin`) | **< 0.001** (`[30,60)` mean) | **< 0.001** (`[30,60)` mean, mean_u 0.426) |
+| strict C_L^φφ SBC | pooled 0.552, KS_p 0.067; `[30,60)` 0.666, KS_p 0.020; `p_bin` 0.038 | n/a |
+| Block 4 PIT | aligned KS_p 0.937; lag-10/50 controls rejected (lag-1 vacuous, φ lag-1 +0.877) | n/a |
+| φ power bias by bin | 0.85 / 0.95 / 0.98 / 1.02 | 1.07 / 0.99 / 1.00 / 1.00 |
+
+**Convergence (Block-4-ON, 1200 sweeps, 120 rank draws):**
+- R̂ > 1.01 for 48 % (Block 1) and 55 % (Block 4) of (chain, ℓ) pairs;
+- median bulk ESS: C_ℓ 123, **a_ℓm 35**, φ 65, C_L^φφ 80;
+- per-mode φ residual sd 1.108 over 24 skies (≈1.03–1.05 expected), i.e. posteriors too narrow.
+
+**Figure 2** (24 same-sky pairs, per bin `[2,10)` … `[45,64)`):
+
+| | `[2,10)` | `[10,20)` | `[20,30)` | `[30,45)` | `[45,64)` |
+|---|---|---|---|---|---|
+| blind bias (%) | +0.90 | +6.65 | +0.55 | −15.72 | −45.64 |
+| lensing received (%) | +1.70 | +6.42 | +0.03 | −15.96 | −46.02 |
+| aware bias (%) | −2.96 ± 1.05 | +1.50 ± 0.69 | +0.76 ± 0.82 | +0.85 ± 0.56 | +0.75 ± 0.50 |
+
+The blind fit tracks the lensing received; mean |bias| is 13.9 % blind vs 1.37 % aware.
+
+**Other figures:**
+- **Figure 3:** width ratio 0.61 / 0.63 / 0.68 / 0.74 at L ~ 15 / 25 / 38 / 55. **Not interpretable** until the chains calibrate.
+- **Figure 4:** 0/16 cells above null.
+- **Maps:** r = 0.82 (realization 0).
+
+**Next:** `ROADMAP.md` T0.1. Re-score at thin ≥ τ_int, then check stationarity
+(first vs second half), then longer chains or a lower A_φ. The a_ℓm `[30,60)`
+offset appears in *both* ensembles.
+
+**Pilots that chose the configuration** (jobs 12037774/5, 12037979–81;
+directories `pilot_exact_lmax64_*`):
+- At σ = 1 μK Gibbs crawls (φ|alm too sharp).
+- A_φ = 10,000 stalls or inflates φ.
+- A_φ = 3000 at σ = 30 recovers φ (corr 0.77–0.82, power 0.94–0.98 of truth).
 
 ---
+
+# LEGACY RECORD (bilinear operator, pre-2026-09-23) — do not cite as current
 
 ## ✅ STATUS 2026-09-13: re-scored at ~60 draws/chain — no known open defect
 
