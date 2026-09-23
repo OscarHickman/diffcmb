@@ -109,3 +109,48 @@ def _toy_cl(lmax):
 
 def _toy_noise(lmax, amp=1.0):
     return np.full(lmax + 1, amp * 1e-3)
+
+
+def test_qe_sign_matches_physical_lensing_convention():
+    """The normalised QE must return +phi for T~(n) = T(n + grad phi).
+
+    Skies lensed with diffcmb's exact operator (geodesic, physical sign; itself
+    pinned to healpy's gradient in test_lensing_exact.py), at A_phi = 1000 so
+    the response is measured to a few percent in 24 sims. Until 2026-09-23
+    qe_tt_reconstruct returned +div[A grad B] instead of the documented
+    -div[...]; that cancelled against the legacy -grad(phi) lensing operator
+    and so passed the old response test, but gives response ~ -1 here.
+    """
+    hp = pytest.importorskip("healpy")
+    pytest.importorskip("camb")
+    pytest.importorskip("ducc0")
+    from diffcmb.lensing import _alm_hp_to_packed, exact_lens_np
+    from diffcmb.power import fiducial_spectra
+
+    lmax = nside = 32
+    npix = hp.nside2npix(nside)
+    tt, pp = fiducial_spectra(lmax + 1)
+    pp = 1000.0 * pp[:lmax]
+    sims = []
+    for i in range(24):
+        np.random.seed(2000 + i)
+        tlm = hp.synalm(tt[:lmax], lmax=lmax - 1, new=True)
+        plm = hp.synalm(pp, lmax=lmax - 1, new=True)
+        sims.append((exact_lens_np(tlm, _alm_hp_to_packed(plm, lmax), nside, lmax,
+                                   np.arange(npix)), plm))
+    cl_len = np.mean([hp.anafast(m, lmax=lmax, iter=3) for m, _ in sims], axis=0)
+    cl_len[:2] = 0.0
+    nl_noise = qe.white_noise_cl(10.0, npix, lmax)
+    nl = qe.qe_tt_noise_nl(cl_len, cl_len + nl_noise, lmax)
+    norm = np.where(np.isfinite(nl), nl, 0.0)
+    rng = np.random.default_rng(0)
+    w = 2.0 * np.arange(lmax + 1) + 1.0
+    num = den = 0.0
+    for m, plm in sims:
+        phat = hp.almxfl(qe.qe_tt_reconstruct(m + rng.normal(0, 10.0, npix), cl_len,
+                                              cl_len + nl_noise, lmax, nside), norm)
+        p = hp.resize_alm(plm, lmax - 1, lmax - 1, lmax, lmax)
+        num += np.sum((w * hp.alm2cl(phat, p))[2:lmax])
+        den += np.sum((w * hp.alm2cl(p))[2:lmax])
+    response = num / den
+    assert 0.85 < response < 1.15, response

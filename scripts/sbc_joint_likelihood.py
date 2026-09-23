@@ -67,6 +67,17 @@ from diffcmb.lensing import (  # noqa: E402
 TOL = 1e-12
 
 
+def chain_lensing_operator(d):
+    """Operator a chain was made with. Chains before 2026-09-23 carry no field
+    and were all made with the legacy bilinear operator (and -grad(phi) sign)."""
+    return str(d["lensing_operator"]) if "lensing_operator" in d.files else "bilinear"
+
+
+def chain_noisesig(d, default):
+    """Noise level a chain was made with (recorded from 2026-09-23 on)."""
+    return float(d["noisesig"]) if "noisesig" in d.files else float(default)
+
+
 def rebuild_truth_and_data(model, d, lmax, noisesig):
     """Replay the chain's generative path; verify against what it saved.
 
@@ -138,20 +149,26 @@ def main():
     print(f"SBC on the joint likelihood -- {len(files)} realizations, "
           f"thin={args.thin}\n")
 
-    model = None
+    model, model_key = None, None
     ranks, n_draws = [], []
     for f in files:
         d = np.load(f, allow_pickle=True)
         lmax, nside = int(d["lmax"]), int(d["nside"])
-        if model is None:
+        op = chain_lensing_operator(d)
+        noisesig = chain_noisesig(d, args.noisesig)
+        # The replay must use the chain's own operator and noise: replaying an
+        # exact-operator chain through the bilinear one (or vice versa) builds a
+        # different data map and silently scores the sampler against it.
+        if model is None or model_key != (lmax, nside, op, noisesig):
             model = CosmologyAdvancedSampling(
-                _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
+                _lmax=lmax, _NSIDE=nside, _noisesig=noisesig,
                 data_mode="synthetic", dtype=tf.complex128,
-                use_matrixfree_sht=True,
+                use_matrixfree_sht=True, lensing_operator=op,
             )
             model._ensure_tf_tensors()
+            model_key = (lmax, nside, op, noisesig)
 
-        alm_t, phi_t, y = rebuild_truth_and_data(model, d, lmax, args.noisesig)
+        alm_t, phi_t, y = rebuild_truth_and_data(model, d, lmax, noisesig)
         model.prior_map = y
         model.prior_map_masked = tf.convert_to_tensor(
             y[model.unmasked_idx], dtype=tf.float64

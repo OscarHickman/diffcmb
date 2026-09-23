@@ -48,7 +48,7 @@ import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
-from diffcmb.power import call_CAMB_map
+from diffcmb.power import call_CAMB_map, fiducial_spectra
 from diffcmb.samplers import find_map_estimate
 
 # Identical to pilot_coverage_equilibration.py
@@ -79,6 +79,15 @@ def main():
     p.add_argument("--lmax", type=int, default=128)
     p.add_argument("--nside", type=int, default=128)
     p.add_argument("--noisesig", type=float, default=1.0)
+    p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
+                   help="Forward lensing operator. 'exact' (default since 2026-09-23) "
+                        "evaluates the alm at the deflected positions and lenses by "
+                        "+grad(phi); 'bilinear' is the legacy interpolation (and "
+                        "-grad(phi) sign) that every earlier chain used. ROADMAP D3.")
+    p.add_argument("--fiducial", choices=("corrected", "legacy"), default="corrected",
+                   help="'corrected' = power.fiducial_spectra (physical densities, "
+                        "raw C_l, unlensed TT); 'legacy' = the pre-2026-09-23 "
+                        "call_CAMB_map spectra, for reproducing old chains only.")
     p.add_argument("--n_burnin", type=int, default=500)
     p.add_argument("--n_samples", type=int, default=3000)
     p.add_argument("--map_steps", type=int, default=2000)
@@ -104,12 +113,16 @@ def main():
     model = CosmologyAdvancedSampling(
         _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
         data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
+        lensing_operator=args.lensing_operator,
     )
     model._ensure_tf_tensors()
 
     print("Drawing (alm_true, phi_true) from CAMB spectra (same seed as pilot)...")
-    cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
-    cl_phiphi_true = get_cl_phiphi(lmax)
+    if args.fiducial == "corrected":
+        cl_true, cl_phiphi_true = fiducial_spectra(lmax)
+    else:
+        cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
+        cl_phiphi_true = get_cl_phiphi(lmax)
 
     # Identical RNG setup as pilot_coverage_equilibration.py (seed=0):
     # rng_truth seeded from args.seed, rng_noise from args.seed + 20_000
@@ -198,6 +211,8 @@ def main():
         lmax=lmax,
         nside=nside,
         seed=args.seed,
+        lensing_operator=args.lensing_operator, fiducial=args.fiducial,
+        noisesig=args.noisesig,
     )
     print(f"\nSaved lensing-blind baseline chain to {args.out}")
     print("Compare cl_samples[:,ℓ-2] against the joint-lensing-aware C_ℓ posterior")

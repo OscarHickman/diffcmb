@@ -87,7 +87,7 @@ class CosmologyAdvancedSampling:
     refactors can split responsibilities.
     """
 
-    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered', dtype=None, use_matrixfree_sht=False, sht_nthreads=0, beam_fwhm_arcmin=None, noise_map=None):
+    def __init__(self, _lmax, _NSIDE, _noisesig, data_mode='synthetic', data_dir=None, parameterization='centered', dtype=None, use_matrixfree_sht=False, sht_nthreads=0, beam_fwhm_arcmin=None, noise_map=None, lensing_operator='bilinear'):
         if dtype is None:
             dtype = tf.complex64 if tf is not None else None
         self.dtype = dtype
@@ -114,6 +114,19 @@ class CosmologyAdvancedSampling:
         self.use_matrixfree_sht = use_matrixfree_sht
         self.sht_nthreads = sht_nthreads
         self._sht = None
+        # Lensing operator (ROADMAP D3, 2026-09-23). 'bilinear' interpolates
+        # the unlensed map on the nside grid (hp.get_interp_weights) -- at
+        # nside = lmax its smoothing dominates physical lensing in C_l^TT
+        # (scripts/validate_lensing_power_transfer.py, job 12037446).
+        # 'exact' evaluates the band-limited alm at the deflected positions
+        # (ducc0 synthesis_general, accurate to ~1e-10). Opt-in so existing
+        # call sites and saved chains keep their meaning; production uses
+        # 'exact'. 'exact' needs the matrix-free path (it consumes the alm).
+        if lensing_operator not in ('bilinear', 'exact'):
+            raise ValueError(f"lensing_operator must be 'bilinear' or 'exact', got {lensing_operator!r}")
+        if lensing_operator == 'exact' and not use_matrixfree_sht:
+            raise ValueError("lensing_operator='exact' requires use_matrixfree_sht=True")
+        self.lensing_operator = lensing_operator
 
         if data_mode == 'synthetic':
             print("Generating synthetic data...")
@@ -358,14 +371,16 @@ class CosmologyAdvancedSampling:
         else:
             self.beam_pixwin_per_l = None
 
-        _lw = np.ones(len_alm, dtype=np.float32)
+        _lw = np.ones(len_alm, dtype=np.float64)
         _count = 0
         for L in range(self.lmax):
             for m in range(L + 1):
                 if m > 0:
                     _lw[_count] = 2.0
                 _count = _count + 1
-        self.l_weights = tf.convert_to_tensor(_lw, dtype=np.float32)
+        # float64: the prior quadratic form must not be the one fp32 step in an
+        # otherwise fp64 posterior (ROADMAP standing discipline).
+        self.l_weights = tf.convert_to_tensor(_lw, dtype=tf.float64)
 
         _imag_mask = []
         for L in range(2, self.lmax):
@@ -484,7 +499,7 @@ class CosmologyAdvancedSampling:
         else:
             _realalm, _imagalm = _real_p, _imag_p
             _a_tmp = splittosingularalm_tf(_realalm, _imagalm, _lmax)
-            _abs_a2 = tf.cast(tf.math.abs(_a_tmp), tf.float32) ** 2
+            _abs_a2 = tf.math.real(_a_tmp * tf.math.conj(_a_tmp))
             _as = tf.math.unsorted_segment_sum(_abs_a2 * self.l_weights, self.l_indices, num_segments=_lmax)
             # Added a small epsilon in denominator to prevent division by zero and NaNs during MAP estimation/optimization
             _psi_prior_alm = 0.5 * tf.reduce_sum(tf.cast(_as, tf.float64) / (tf.math.exp(_lncl) + 1e-30))

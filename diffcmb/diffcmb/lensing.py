@@ -449,11 +449,28 @@ def sample_phi_amplitude_rescale(
 # Step 1 — phi_alm → deflection field
 # ---------------------------------------------------------------------------
 
-def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
+# Sign of the deflection relative to +grad(phi). healpy/ducc spin-1 synthesis of
+# the E-mode glm = +sqrt(l(l+1)) phi_lm returns (+d phi/d theta,
+# +d phi/d varphi / sin theta), i.e. +grad(phi) (checked against
+# hp.alm2map_der1 in tests/test_lensing_exact.py). The original code used
+# glm = -sqrt(l(l+1)) phi_lm, so every chain made with the BILINEAR operator
+# lensed by -grad(phi): T~(n) = T(n - grad phi). Self-consistent (simulation
+# and sampler share it, so all validation stands) but opposite to the standard
+# convention T~(n) = T(n + grad phi), which matters against external phi maps
+# or tracers. Found 2026-09-23. The bilinear path keeps the legacy sign so
+# saved chains replay exactly; the exact operator (production from
+# 2026-09-23) uses the physical sign.
+DEFLECTION_SIGN_LEGACY = -1.0
+DEFLECTION_SIGN_PHYSICAL = +1.0
+
+
+def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int,
+                     sign: float = DEFLECTION_SIGN_LEGACY):
     """Convert lensing potential alm to deflection angles at every HEALPix pixel.
 
-    The deflection d = ∇φ.  In harmonic space the gradient of a scalar is
-    a spin-1 E-mode field with alm = −√(l(l+1)) φ_lm.
+    Returns sign * grad(phi) (see DEFLECTION_SIGN_*): the legacy default
+    -grad(phi) reproduces every bilinear-operator chain; pass
+    DEFLECTION_SIGN_PHYSICAL for the standard +grad(phi).
 
     Parameters
     ----------
@@ -476,7 +493,7 @@ def deflection_field(phi_alm_hp: np.ndarray, nside: int, lmax: int):
     grad_weight = np.sqrt(ells * (ells + 1))
     grad_weight[:2] = 0.0
 
-    glm = hp.almxfl(phi_alm_hp.astype(complex), -grad_weight)
+    glm = hp.almxfl(phi_alm_hp.astype(complex), sign * grad_weight)
     blm = np.zeros_like(glm)
 
     # Spin-1 SHT: (Q, U) = alm2map_spin([E-alm, B-alm])
@@ -504,11 +521,12 @@ def _deflection_adjoint(
     g_phi_full: np.ndarray,
     nside: int,
     lmax: int,
+    sign: float = DEFLECTION_SIGN_LEGACY,
 ) -> np.ndarray:
     """Backward pass through deflection_field.
 
-    Forward:  phi_alm → glm = −√(l(l+1))·phi_lm  → (d_θ, sinθ·d_φ) via alm2map_spin
-    Adjoint:  (g_θ, g_φ) → g_glm via map2alm_spin → g_phi_alm = −√(l(l+1))·g_glm
+    Forward:  phi_alm → glm = sign·√(l(l+1))·phi_lm  → (d_θ, sinθ·d_φ) via alm2map_spin
+    Adjoint:  (g_θ, g_φ) → g_glm via map2alm_spin → g_phi_alm = sign·√(l(l+1))·g_glm
 
     Parameters
     ----------
@@ -552,7 +570,7 @@ def _deflection_adjoint(
     ells = np.arange(lmax_hp + 1, dtype=float)
     grad_weight = np.sqrt(ells * (ells + 1))
     grad_weight[:2] = 0.0
-    g_phi_alm_hp = hp.almxfl(g_glm, -grad_weight)
+    g_phi_alm_hp = hp.almxfl(g_glm, sign * grad_weight)
 
     return _alm_hp_to_packed(g_phi_alm_hp, lmax)
 
@@ -966,6 +984,197 @@ def lens_map_phi_diff_tf(
 
 
 # ---------------------------------------------------------------------------
+# Step 4b — EXACT lensing: evaluate the band-limited alm at deflected positions
+# ---------------------------------------------------------------------------
+#
+# Why (ROADMAP D3, 2026-09-22/23): the bilinear operator above interpolates the
+# unlensed map on the nside grid. At nside = lmax that interpolation smooths the
+# map by an amount that grows as (l/nside)^2 and dominates the physical lensing
+# effect on C_l^TT at every l the project runs (-5.3% at [100,128) for
+# lmax=128 against a physical +0.15%; scripts/validate_lensing_power_transfer.py,
+# job 12037446). The exact operator below evaluates
+#     T~(n_i) = sum_lm a_lm Y_lm(theta_i + d_theta_i, phi_i + d_phi_i)
+# directly with ducc0.sht.synthesis_general (non-uniform SHT, accuracy
+# `epsilon`) at the GEODESICALLY deflected positions n' = exp_n(+grad phi)
+# (_exact_lensing_geometry), the standard curved-sky remapping. The bilinear
+# path uses a first-order coordinate offset and the legacy -grad(phi) sign.
+#
+# Gradients:
+#   d/d a_lm : adjoint_synthesis_general at the same positions, times the
+#              m>0 weight 2 -- the same (unconjugated) convention as
+#              sht_ducc.full_synthesis_tf, so it composes with the rest of
+#              psi_lensed unchanged.
+#   d/d phi  : dT~_i/d(deflection) = grad T at n' contracted with the
+#              Jacobian of the geodesic map; grad T at n' comes from one spin-1
+#              synthesis_general of glm = +sqrt(l(l+1)) a_lm, which returns
+#              (dT/dtheta', dT/dphi' / sin theta'). They then go through the
+#              existing _deflection_adjoint (spin-1 SHT adjoint) to phi_alm.
+# Both are checked against finite differences in tests/test_lensing_exact.py.
+
+EXACT_LENSING_EPSILON = 1e-11
+
+
+def _unit_basis(theta, phi):
+    """n, e_theta, e_phi (each (n, 3)) at (theta, phi)."""
+    st, ct, sp, cp = np.sin(theta), np.cos(theta), np.sin(phi), np.cos(phi)
+    n = np.stack([st * cp, st * sp, ct], axis=1)
+    e_th = np.stack([ct * cp, ct * sp, -st], axis=1)
+    e_ph = np.stack([-sp, cp, np.zeros_like(phi)], axis=1)
+    return n, e_th, e_ph
+
+
+def _exact_lensing_geometry(phi_packed, nside, lmax, pixel_indices, with_jacobian=False):
+    """Geodesically deflected positions n' = exp_n(grad phi) at pixel_indices.
+
+    The deflection d = a e_theta + b e_phi (a = d_theta, b = sin(theta) d_phi,
+    both physical angles) moves each point a distance |d| along the great
+    circle in direction d/|d|:
+        n' = cos|d| n + (sin|d|/|d|) d.
+    This is the standard curved-sky lensing remapping (lenspyx convention); the
+    bilinear path's coordinate offset (theta + d_theta, phi + d_phi) agrees to
+    first order in |d| but is wrong at O(|d|^2 cot theta), which matters for
+    the degree-scale deflections of the amplified-lensing validation runs
+    and near the poles.
+
+    Returns loc (n, 2) = (theta', phi'); with_jacobian also returns the basis
+    at n' and the derivatives dn'/d(d_theta), dn'/d(d_phi) (d_phi = the
+    longitude deflection deflection_field returns), each (n, 3), for the phi
+    gradient.
+    """
+    pixel_indices = np.asarray(pixel_indices)
+    phi_alm_hp = _alm_packed_to_hp(np.asarray(phi_packed, dtype=np.float64), lmax)
+    d_theta_full, d_phi_full = deflection_field(phi_alm_hp, nside, lmax,
+                                                sign=DEFLECTION_SIGN_PHYSICAL)
+    theta0, phi0 = hp.pix2ang(nside, pixel_indices)
+    sin0 = np.clip(np.sin(theta0), 1e-10, None)     # same clip as deflection_field
+    a = d_theta_full[pixel_indices]
+    b = d_phi_full[pixel_indices] * sin0
+    n, e_th, e_ph = _unit_basis(theta0, phi0)
+    alpha = np.hypot(a, b)
+    small = alpha < 1e-8
+    safe = np.where(small, 1.0, alpha)
+    s_fn = np.where(small, 1.0 - alpha ** 2 / 6.0, np.sin(safe) / safe)       # sin a / a
+    ds_fn = np.where(small, -alpha / 3.0,
+                     (safe * np.cos(safe) - np.sin(safe)) / safe ** 2)       # d/da (sin a / a)
+    dvec = a[:, None] * e_th + b[:, None] * e_ph
+    n_new = np.cos(alpha)[:, None] * n + s_fn[:, None] * dvec
+    n_new /= np.linalg.norm(n_new, axis=1, keepdims=True)
+    theta = np.arccos(np.clip(n_new[:, 2], -1.0, 1.0))
+    phi = np.mod(np.arctan2(n_new[:, 1], n_new[:, 0]), 2.0 * np.pi)
+    loc = np.ascontiguousarray(np.stack([theta, phi], axis=1))
+    if not with_jacobian:
+        return loc
+    # d alpha / d(a, b) = (a, b)/alpha (zero at alpha = 0, where it multiplies zero)
+    ua = np.where(small, 0.0, a / safe)
+    ub = np.where(small, 0.0, b / safe)
+    common = -np.sin(alpha)[:, None] * n + ds_fn[:, None] * dvec
+    dn_da = ua[:, None] * common + s_fn[:, None] * e_th
+    dn_db = ub[:, None] * common + s_fn[:, None] * e_ph
+    dn_ddphi = dn_db * sin0[:, None]                # b = sin(theta0) * d_phi
+    _, e_th_new, e_ph_new = _unit_basis(theta, phi)
+    return loc, e_th_new, e_ph_new, dn_da, dn_ddphi
+
+
+def _alm_m_weight(lmax):
+    _, ms = hp.Alm.getlm(lmax - 1)
+    return np.where(ms == 0, 1.0, 2.0)
+
+
+def exact_lens_np(alm_ho, phi_packed, nside, lmax, pixel_indices, nthreads=0,
+                  with_gradient=False):
+    """Exact lensed map at pixel_indices (numpy). Optionally dT/dtheta, dT/dphi there.
+
+    alm_ho : complex healpy-ordered alm of the unlensed field, lmax_hp = lmax-1.
+    Returns T (n,) or (T, loc, dT/d(d_theta), dT/d(d_phi)) -- derivatives with
+    respect to the deflection components deflection_field returns, through the
+    geodesic remapping, ready for _deflection_adjoint.
+    """
+    import ducc0
+
+    alm_ho = np.ascontiguousarray(alm_ho, dtype=np.complex128)
+    geo = _exact_lensing_geometry(phi_packed, nside, lmax, np.asarray(pixel_indices),
+                                  with_jacobian=with_gradient)
+    loc = geo[0] if with_gradient else geo
+    T = ducc0.sht.synthesis_general(
+        alm=alm_ho[np.newaxis, :], spin=0, lmax=lmax - 1, loc=loc,
+        epsilon=EXACT_LENSING_EPSILON, nthreads=nthreads)[0]
+    if not with_gradient:
+        return T
+    _, e_th_new, e_ph_new, dn_da, dn_ddphi = geo
+    ells, _ = hp.Alm.getlm(lmax - 1)
+    glm = np.sqrt(ells * (ells + 1.0)) * alm_ho        # +grad T (see DEFLECTION_SIGN_*)
+    grad = ducc0.sht.synthesis_general(
+        alm=np.ascontiguousarray(np.stack([glm, np.zeros_like(glm)])), spin=1,
+        lmax=lmax - 1, loc=loc, epsilon=EXACT_LENSING_EPSILON, nthreads=nthreads)
+    g_th, g_ph = grad[0], grad[1]                      # dT/dtheta', dT/dphi' / sin theta'
+    # dT = g_th (e_theta'.dn') + g_ph (e_phi'.dn'): stable at the poles of n'.
+    dT_dtheta = g_th * np.sum(e_th_new * dn_da, axis=1) + g_ph * np.sum(e_ph_new * dn_da, axis=1)
+    dT_dphi = g_th * np.sum(e_th_new * dn_ddphi, axis=1) + g_ph * np.sum(e_ph_new * dn_ddphi, axis=1)
+    return T, loc, dT_dtheta, dT_dphi
+
+
+def lens_alm_exact_tf(alm_ho_tf, phi_packed_tf, nside, lmax, pixel_indices, nthreads=0):
+    """Exact lensing, differentiable w.r.t. the unlensed alm AND phi.
+
+    alm_ho_tf     : complex128 tensor, healpy-ordered alm, lmax_hp = lmax-1
+    phi_packed_tf : float64 tensor, packed phi alm
+    Returns T_lensed : float64 tensor at pixel_indices.
+    """
+    if tf is None:
+        raise ImportError("tensorflow is required for lens_alm_exact_tf")
+    import ducc0
+
+    pixel_indices = np.asarray(pixel_indices)
+    npix_full = 12 * nside * nside
+    n_pix = len(pixel_indices)
+    n_alm = hp.Alm.getsize(lmax - 1)
+    w_m = _alm_m_weight(lmax)
+
+    def _forward_np(alm_t, phi_t):
+        T, loc, dth, dph = exact_lens_np(alm_t.numpy(), phi_t.numpy(), nside, lmax,
+                                          pixel_indices, nthreads, with_gradient=True)
+        return T, loc, dth, dph
+
+    def _backward_np(g_t, loc_t, dth_t, dph_t):
+        g = g_t.numpy().astype(np.float64)
+        loc = loc_t.numpy()
+        g_alm = ducc0.sht.adjoint_synthesis_general(
+            map=np.ascontiguousarray(g[np.newaxis, :]), spin=0, lmax=lmax - 1,
+            loc=loc, epsilon=EXACT_LENSING_EPSILON, nthreads=nthreads)[0]
+        g_alm = (w_m * g_alm).astype(np.complex128)
+        g_th_full = np.zeros(npix_full)
+        g_ph_full = np.zeros(npix_full)
+        g_th_full[pixel_indices] = g * dth_t.numpy()
+        g_ph_full[pixel_indices] = g * dph_t.numpy()
+        g_phi = _deflection_adjoint(g_th_full, g_ph_full, nside, lmax,
+                                    sign=DEFLECTION_SIGN_PHYSICAL)
+        return g_alm, g_phi.astype(np.float64)
+
+    @tf.custom_gradient
+    def _lens(alm_t, phi_t):
+        T, loc, dth, dph = tf.py_function(
+            func=_forward_np, inp=[alm_t, phi_t],
+            Tout=[tf.float64, tf.float64, tf.float64, tf.float64])
+        T.set_shape([n_pix])
+        loc.set_shape([n_pix, 2])
+        dth.set_shape([n_pix])
+        dph.set_shape([n_pix])
+
+        def backward(upstream):
+            upstream = tf.convert_to_tensor(upstream)
+            g_alm, g_phi = tf.py_function(
+                func=_backward_np, inp=[upstream, loc, dth, dph],
+                Tout=[tf.complex128, tf.float64])
+            g_alm.set_shape([n_alm])
+            g_phi.set_shape(phi_t.shape)
+            return tf.cast(g_alm, alm_t.dtype), g_phi
+
+        return T, backward
+
+    return _lens(alm_ho_tf, phi_packed_tf)
+
+
+# ---------------------------------------------------------------------------
 # Step 5 — full alm-differentiable pipeline (phi treated as external numpy)
 # ---------------------------------------------------------------------------
 
@@ -1002,6 +1211,12 @@ def lens_map_tf(model, alm_tf: "tf.Tensor", phi_alm_np: np.ndarray):
 
     if getattr(model, "beam_pixwin_per_l", None) is not None:
         _a = _a * tf.cast(tf.gather(model.beam_pixwin_per_l, model.l_indices), _a.dtype)
+
+    if getattr(model, "lensing_operator", "bilinear") == "exact":
+        _a_ho = tf.gather(_a, model._alm_mo_to_ho_idx)
+        phi_packed = tf.constant(_alm_hp_to_packed(np.asarray(phi_alm_np), lmax), tf.float64)
+        return lens_alm_exact_tf(tf.cast(_a_ho, tf.complex128), phi_packed, nside,
+                                 lmax, model.unmasked_idx, model.sht_nthreads)
 
     if getattr(model, "use_matrixfree_sht", False):
         # alm → full-sky unlensed map directly (ducc0 synthesizes all Npix
@@ -1081,17 +1296,23 @@ def psi_lensed(
     lncl_start = tf.zeros(2, tf.float64)
     lncl_full = tf.concat([lncl_start, lncl_raw], axis=0)  # length lmax
 
-    # alm → full-sphere unlensed map
-    _a = splittosingularalm_tf(real_alm, imag_alm, lmax)
+    # alm → full-sphere unlensed map. The PRIOR is on the sky alm (_a_sky);
+    # only the forward model sees the beam. (Until 2026-09-23 the prior below
+    # was computed from the beamed alm, inconsistent with model._psi_tf_raw;
+    # harmless while production ran with beam_fwhm_arcmin=None.)
+    _a_sky = splittosingularalm_tf(real_alm, imag_alm, lmax)
+    _a = _a_sky
 
     if getattr(model, "beam_pixwin_per_l", None) is not None:
         _a = _a * tf.cast(tf.gather(model.beam_pixwin_per_l, model.l_indices), _a.dtype)
 
+    exact = getattr(model, "lensing_operator", "bilinear") == "exact"
     if getattr(model, "use_matrixfree_sht", False):
         from .sht_ducc import full_synthesis_tf
 
         _a_ho = tf.gather(_a, model._alm_mo_to_ho_idx)
-        T_full = full_synthesis_tf(tf.cast(_a_ho, tf.complex128), model._sht)
+        if not exact:  # the exact operator consumes the alm directly
+            T_full = full_synthesis_tf(tf.cast(_a_ho, tf.complex128), model._sht)
     else:
         from .model import matvec_on_device
 
@@ -1108,10 +1329,15 @@ def psi_lensed(
             T_unlensed_unmasked, unmasked_idx_tf, num_segments=npix_full
         )
 
-    # Lensed map — differentiable w.r.t. both T_full (→ alm) and phi_packed_tf
-    T_lensed = lens_map_phi_diff_tf(
-        T_full, phi_packed_tf, nside, lmax, model.unmasked_idx
-    )
+    # Lensed map — differentiable w.r.t. both the alm and phi_packed_tf
+    if exact:
+        T_lensed = lens_alm_exact_tf(
+            tf.cast(_a_ho, tf.complex128), phi_packed_tf, nside, lmax,
+            model.unmasked_idx, model.sht_nthreads)
+    else:
+        T_lensed = lens_map_phi_diff_tf(
+            T_full, phi_packed_tf, nside, lmax, model.unmasked_idx
+        )
 
     # Lensed likelihood
     if getattr(model, "use_matrixfree_sht", False):
@@ -1133,7 +1359,7 @@ def psi_lensed(
             start += n
 
     # alm Gaussian prior  0.5 Σ_lm |a_lm|² / C_l
-    _abs_a2 = tf.cast(tf.math.abs(_a), tf.float32) ** 2
+    _abs_a2 = tf.math.real(_a_sky * tf.math.conj(_a_sky))  # fp64, not fp32
     _as = tf.math.unsorted_segment_sum(
         _abs_a2 * model.l_weights, model.l_indices, num_segments=lmax
     )
@@ -1202,7 +1428,7 @@ def log_prob_phi_block(
     from .alm_utils import splittosingularalm_tf
     _phi_a = splittosingularalm_tf(_real_p, _imag_p, lmax)
 
-    _abs_phi2 = tf.cast(tf.math.abs(_phi_a), tf.float32) ** 2
+    _abs_phi2 = tf.math.real(_phi_a * tf.math.conj(_phi_a))  # fp64, not fp32
     _phi_s = tf.math.unsorted_segment_sum(
         _abs_phi2 * model.l_weights, model.l_indices, num_segments=lmax
     )

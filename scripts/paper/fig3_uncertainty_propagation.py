@@ -54,7 +54,7 @@ The caption says so.
 
 Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/fig3_uncertainty_propagation.py \
-      --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
+      --indir results/analysis/ens_exact_l64_A3000_n30 \
       --validation results/analysis/qe_noise_validation.npz \
       --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3
 """
@@ -144,7 +144,11 @@ def posterior_sigma_per_L(files, thin):
     return np.sqrt(var_acc / n_chain), lmax_seen, np.asarray(per_chain)
 
 
-def load_validated_qe(validation_npz, lmax, nside, noisesig):
+def _meta(d, key, default):
+    return d[key].item() if key in d.files else default
+
+
+def load_validated_qe(validation_npz, lmax, nside, noisesig, chain=None):
     """N_L from the validation artifact, so the figure and the check agree.
 
     Reading N_L back out of the validation run's own output (rather than
@@ -168,11 +172,17 @@ def load_validated_qe(validation_npz, lmax, nside, noisesig):
     # for the same reason every script here checks packing width: a silently
     # mismatched N_L would put a wrong curve in a figure with no visible
     # symptom.
-    got = (int(v["lmax"]), int(v["nside"]), float(v["noisesig"]))
-    want = (int(lmax), int(nside), float(noisesig))
+    got = (int(v["lmax"]), int(v["nside"]), float(v["noisesig"]),
+           float(_meta(v, "phi_amplitude", 1.0)), str(_meta(v, "fiducial", "legacy")),
+           str(_meta(v, "lensing_operator", "bilinear")))
+    want = (int(lmax), int(nside), float(noisesig),
+            float(_meta(chain, "phi_amplitude", 1.0)) if chain is not None else got[3],
+            str(_meta(chain, "fiducial", "legacy")) if chain is not None else got[4],
+            str(_meta(chain, "lensing_operator", "bilinear")) if chain is not None else got[5])
     if got != want:
         raise SystemExit(
-            f"{validation_npz} was validated at (lmax, nside, noisesig)={got}, "
+            f"{validation_npz} was validated at (lmax, nside, noisesig, A_phi, "
+            f"fiducial, operator)={got}, "
             f"but the chains are {want}. N_L is configuration-specific -- "
             "re-run scripts/submit_validate_qe_noise.slurm with matching "
             "arguments rather than reusing this curve.")
@@ -217,10 +227,7 @@ def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath):
     ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
     ax.set_xlabel("$L$")
     ax.set_ylabel(r"width / prior width $\sqrt{C_L^{\phi\phi}}$")
-    ax.set_ylim(0.6, 1.25)
     ax.legend(loc="lower right")
-    ps.stat_box(ax, "1.0 = learned nothing", loc="upper right",
-                xy=(0.97, 0.90))
     ps.save(fig, outpath)
 
 
@@ -266,8 +273,9 @@ def plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var, outpath):
     ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
     ax.set_xlabel("$L$")
     ax.set_ylabel("joint posterior / (QE " r"$\oplus$" " prior)")
-    ps.stat_box(ax, "below 1: more information" "\n" "than the QE extracts",
-                loc="lower right", xy=(0.97, 0.06))
+    if vals:
+        ps.stat_box(ax, rf"$L\sim{centres[0]:.0f}$: ${vals[0]:.3f}\pm{errs[0]:.3f}$",
+                    loc="upper left")
     ps.save(fig, outpath)
     for c, v, e in zip(centres, vals, errs):
         print(f"    L~{c:5.1f}   ratio {v:.3f} +/- {e:.3f}")
@@ -278,13 +286,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--indir",
-        default="results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2")
+        default="results/analysis/ens_exact_l64_A3000_n30")
     ap.add_argument("--thin", type=int, default=10)
-    ap.add_argument("--noisesig", type=float, default=1.0,
-                    help="per-pixel noise sigma the chains were run at; must "
-                         "match the QE validation run (checked, not assumed)")
+    ap.add_argument("--noisesig", type=float, default=None,
+                    help="per-pixel noise sigma; read from the chains when they "
+                         "record it (checked against the QE validation run)")
     ap.add_argument("--validation",
-                    default="results/analysis/qe_noise_validation.npz")
+                    default="results/analysis/qe_noise_validation_exact_A3000_n30.npz")
     ap.add_argument(
         "--outdir",
         default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3")
@@ -297,8 +305,10 @@ def main():
     print(f"{len(files)} chains, lmax={lmax}, thin={args.thin}")
 
     d0 = np.load(files[0], allow_pickle=True)
+    noisesig = (float(d0["noisesig"]) if "noisesig" in d0.files
+                else (args.noisesig if args.noisesig is not None else 1.0))
     nl_qe, _noise, _resp = load_validated_qe(
-        args.validation, lmax, int(d0["nside"]), args.noisesig)
+        args.validation, lmax, int(d0["nside"]), noisesig, chain=d0)
     cl_pp = np.asarray(d0["cl_phiphi_fid"], dtype=np.float64)[:lmax]
     nl_qe = np.asarray(nl_qe, dtype=np.float64)[:lmax]
     L = np.arange(lmax)

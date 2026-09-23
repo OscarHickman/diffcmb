@@ -51,7 +51,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "diffcmb"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from diffcmb import qe  # noqa: E402
-from diffcmb.power import call_CAMB_map  # noqa: E402
+from diffcmb.power import call_CAMB_map, fiducial_spectra  # noqa: E402
 
 LCDM_PARAMS = [67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066]
 
@@ -82,6 +82,10 @@ def main():
     ap.add_argument("--n_sims", type=int, default=64)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="results/analysis/qe_noise_validation.npz")
+    ap.add_argument("--fiducial", choices=("corrected", "legacy"), default="corrected")
+    ap.add_argument("--phi_amplitude", type=float, default=1.0,
+                    help="A_phi, must match the chains (coverage_ensemble_chain.py).")
+    ap.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact")
     args = ap.parse_args()
 
     lmax, nside = args.lmax, args.nside
@@ -89,16 +93,53 @@ def main():
     print(f"lmax={lmax} nside={nside} noisesig={args.noisesig} "
           f"n_sims={args.n_sims}\n", flush=True)
 
-    cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
-    cl_tt = np.zeros(lmax + 1)
-    n_copy = min(lmax + 1, len(cl_true))
-    cl_tt[:n_copy] = cl_true[:n_copy]
-    cl_pp = get_cl_phiphi(lmax)
+    import tensorflow as tf
+
+    from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
+    from diffcmb.model import CosmologyAdvancedSampling
+
+    if args.fiducial == "corrected":
+        tt_unl, cl_pp = fiducial_spectra(lmax + 1)
+        cl_pp = cl_pp[:lmax]
+    else:
+        tt_unl = np.zeros(lmax + 1)
+        legacy = call_CAMB_map(LCDM_PARAMS, lmax)
+        tt_unl[:len(legacy)] = legacy[:lmax + 1]
+        cl_pp = get_cl_phiphi(lmax)
+    cl_pp = args.phi_amplitude * cl_pp
+    tt_unl = tt_unl[:lmax + 1]
+
+    model = CosmologyAdvancedSampling(
+        _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
+        data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
+        lensing_operator=args.lensing_operator,
+    )
+    model._ensure_tf_tensors()
+
+    # ---- lensed skies with known phi (used twice: to MEASURE the lensed TT
+    # spectrum the estimator's weights and filter need, and for the response
+    # test). With amplified lensing the lensed spectrum differs visibly from
+    # the unlensed one, so it is measured from the same operator the chains
+    # use rather than assumed.
+    lensed = []
+    for i in range(args.n_sims):
+        np.random.seed(args.seed + 500000 + i)
+        tlm = hp.synalm(tt_unl[:lmax], lmax=lmax - 1, new=True).astype(np.complex128)
+        plm = hp.synalm(cl_pp, lmax=lmax - 1, new=True).astype(np.complex128)
+        tmap = lens_map_tf(
+            model, tf.constant(_alm_hp_to_packed(tlm, lmax), tf.float64), plm
+        ).numpy()
+        lensed.append((tmap, plm))
+        if (i + 1) % 16 == 0:
+            print(f"  lensed sim {i + 1}/{args.n_sims}", flush=True)
+    cl_tt = np.mean([hp.anafast(m, lmax=lmax, iter=3) for m, _ in lensed], axis=0)
+    cl_tt[:2] = 0.0
 
     nl_noise = qe.white_noise_cl(args.noisesig, npix, lmax)
     cl_tot = cl_tt + nl_noise
     nl_qe = qe.qe_tt_noise_nl(cl_tt, cl_tot, lmax)
-    print(f"N_L computed; finite for L=2..{lmax - 1}\n", flush=True)
+    print(f"N_L computed from the measured lensed spectrum; finite for "
+          f"L=2..{lmax - 1}\n", flush=True)
 
     ell = np.arange(lmax + 1)
     norm = np.where(np.isfinite(nl_qe), nl_qe, 0.0)  # A_L = N_L
@@ -118,41 +159,16 @@ def main():
             print(f"  noise sim {i + 1}/{args.n_sims}", flush=True)
     cl_hat_noise = cl_hat_acc / args.n_sims
 
-    # ---- (1) RESPONSE: lensed skies with known phi -----------------------
-    # Lensing is applied with the project's own forward operator so the test
-    # measures the estimator against the same lensing convention the sampler
-    # uses, not against a second convention introduced here.
-    import tensorflow as tf
-
-    from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
-    from diffcmb.model import CosmologyAdvancedSampling
-
-    model = CosmologyAdvancedSampling(
-        _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
-        data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
-    )
-    model._ensure_tf_tensors()
-
+    # ---- (1) RESPONSE: the lensed skies above, with noise -------------------
     resp_num = np.zeros(lmax + 1)
     resp_den = np.zeros(lmax + 1)
-    for i in range(args.n_sims):
-        np.random.seed(args.seed + 500000 + i)
-        tlm = hp.synalm(cl_tt, lmax=lmax - 1, new=True).astype(np.complex128)
-        plm = hp.synalm(cl_pp, lmax=lmax - 1, new=True).astype(np.complex128)
-        tmap = lens_map_tf(
-            model, tf.constant(_alm_hp_to_packed(tlm, lmax), tf.float64), plm
-        ).numpy()
+    for tmap, plm in lensed:
         tmap = tmap + rng.normal(0.0, args.noisesig, size=npix)
         phihat = hp.almxfl(
             qe.qe_tt_reconstruct(tmap, cl_tt, cl_tot, lmax, nside), norm)
-        # plm is generated at lmax-1 (the packing convention the forward
-        # operator expects); pad it to lmax so it can be cross-correlated
-        # with phihat without truncating either.
         plm_pad = hp.resize_alm(plm, lmax - 1, lmax - 1, lmax, lmax)
         resp_num += hp.alm2cl(phihat, plm_pad, lmax=lmax)
         resp_den += hp.alm2cl(plm_pad, plm_pad, lmax=lmax)
-        if (i + 1) % 16 == 0:
-            print(f"  response sim {i + 1}/{args.n_sims}", flush=True)
 
     # ---- report ----------------------------------------------------------
     print(f"\n{'L bin':>12} {'response':>10} {'noise ratio':>12}")
@@ -189,7 +205,9 @@ def main():
              median_ratio=float(np.nanmedian(nr_all)),
              median_response=float(np.nanmedian(resp_all)),
              passed=bool(ok), lmax=lmax, nside=nside,
-             noisesig=args.noisesig, n_sims=args.n_sims)
+             noisesig=args.noisesig, n_sims=args.n_sims, cl_tt_lensed=cl_tt,
+             cl_pp=cl_pp, phi_amplitude=args.phi_amplitude,
+             fiducial=args.fiducial, lensing_operator=args.lensing_operator)
     print(f"\nSaved {args.out}")
 
 

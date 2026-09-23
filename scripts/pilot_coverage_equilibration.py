@@ -84,7 +84,7 @@ import tensorflow as tf
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.alm_utils import packed_sizes
 from diffcmb.lensing import _alm_hp_to_packed, compute_sl_phi_np, lens_map_tf
-from diffcmb.power import call_CAMB_map
+from diffcmb.power import call_CAMB_map, fiducial_spectra
 from diffcmb.samplers import _alm_index_lm, find_map_estimate
 
 LCDM_PARAMS = [67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066]
@@ -227,6 +227,15 @@ def main():
     p.add_argument("--lmax", type=int, default=128)
     p.add_argument("--nside", type=int, default=128)
     p.add_argument("--noisesig", type=float, default=1.0)
+    p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
+                   help="Forward lensing operator. 'exact' (default since 2026-09-23) "
+                        "evaluates the alm at the deflected positions and lenses by "
+                        "+grad(phi); 'bilinear' is the legacy interpolation (and "
+                        "-grad(phi) sign) that every earlier chain used. ROADMAP D3.")
+    p.add_argument("--fiducial", choices=("corrected", "legacy"), default="corrected",
+                   help="'corrected' = power.fiducial_spectra (physical densities, "
+                        "raw C_l, unlensed TT); 'legacy' = the pre-2026-09-23 "
+                        "call_CAMB_map spectra, for reproducing old chains only.")
     p.add_argument("--n_burnin", type=int, default=400,
                    help="raised from 100 after job 11663105's cold-start freeze")
     p.add_argument("--n_samples", type=int, default=600)
@@ -325,6 +334,7 @@ def main():
     model = CosmologyAdvancedSampling(
         _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
         data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
+        lensing_operator=args.lensing_operator,
     )
     model._ensure_tf_tensors()
     assert len(model.unmasked_idx) == model.NPIX, (
@@ -332,8 +342,11 @@ def main():
     )
 
     print("Drawing (alm_true, phi_true) from CAMB spectra at the fixed LCDM cosmology...")
-    cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
-    cl_phiphi_true = get_cl_phiphi(lmax)
+    if args.fiducial == "corrected":
+        cl_true, cl_phiphi_true = fiducial_spectra(lmax)
+    else:
+        cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
+        cl_phiphi_true = get_cl_phiphi(lmax)
 
     # Truth stream and start-point stream are deliberately independent: the
     # start must not be a perturbation of the truth, or the chain begins
@@ -561,6 +574,8 @@ def main():
         diagnostic_lags=np.array(DIAGNOSTIC_LAGS, dtype=np.int64),
         seconds_total=elapsed, seconds_per_sweep=elapsed / n_collected,
         lmax=lmax, nside=nside, phi_n_lfs=args.phi_n_lfs,
+        lensing_operator=args.lensing_operator, fiducial=args.fiducial,
+        noisesig=args.noisesig,
     )
     print(f"\nSaved chain + traces + equilibration stats to {args.out}")
 

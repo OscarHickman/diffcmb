@@ -234,7 +234,13 @@ def qe_tt_reconstruct(tmap, cl_lensed, cl_total, lmax, nside):
     glm, _clm = hp.map2alm_spin([a_map * b_dtheta, a_map * b_dphi],
                                 spin=1, lmax=lmax)
 
-    # spin-1 gradient -> scalar divergence: multiply by -sqrt(L(L+1)).
+    # For a vector field V, map2alm_spin returns E_V with div V <-> -sqrt(L(L+1)) E_V
+    # (healpy/ducc convention: a gradient field grad f has E = +sqrt(l(l+1)) f_lm,
+    # see lensing.DEFLECTION_SIGN_*). The estimator is -div[A grad B], hence
+    # +sqrt(L(L+1)) E. Until 2026-09-23 this multiplied by -sqrt(L(L+1)), i.e.
+    # returned +div: the sign error cancelled against the legacy lensing
+    # operator's -grad(phi) and so passed the response test; against physical
+    # T(n + grad phi) lensing its response is -1 (tests/test_qe.py pins it).
     fac = np.zeros(lmax + 1)
-    fac[1:] = -np.sqrt(ell[1:] * (ell[1:] + 1.0))
+    fac[1:] = np.sqrt(ell[1:] * (ell[1:] + 1.0))
     return hp.almxfl(glm, fac)

@@ -46,7 +46,7 @@ LaTeX caption.
 
 Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/fig1_validation.py \
-      --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
+      --indir results/analysis/ens_exact_l64_A3000_n30 \
       --thin 10 \
       --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure1
 """
@@ -197,6 +197,46 @@ def _draw_hist(ax, u, n_draws, color, label):
     ax.set_xlabel("normalised rank $u$")
 
 
+def mean_sd_p(ranks, n_draws, n_rep=20000, seed=11):
+    """Two-sided simulated p-values of the rank MEAN and rank SPREAD.
+
+    The mean is the statistic the power curve (validation_power.pdf) is
+    computed for, so it is the one whose p-value the bound refers to. The
+    spread (sd_u) is the only summary sensitive to an over-narrow posterior.
+    `discrete_uniform_p` (chi-square over n_draws+1 categories) is printed for
+    continuity but not drawn: at N=96 over 61 categories it has ~1.6 counts per
+    cell and almost no power, so its large p-values say little.
+    """
+    rng = np.random.default_rng(seed)
+    r = np.asarray(ranks)
+    u = (r + 0.5) / (n_draws + 1.0)
+    sim = (rng.integers(0, n_draws + 1, size=(n_rep, r.size)) + 0.5) / (n_draws + 1.0)
+    m0, s0 = sim.mean(axis=1), sim.std(axis=1)
+
+    def two_sided(null, obs):
+        c = np.median(null)
+        return float(np.mean(np.abs(null - c) >= abs(obs - c)))
+
+    return two_sided(m0, u.mean()), two_sided(s0, u.std())
+
+
+def binned_test(rank_sets, n_draws):
+    """Per-bin mean and spread p-values, Bonferroni-corrected minimum.
+
+    The pooled N=96 ranks are 24 chains x 4 l-bins, and bins from one chain
+    are correlated, so a pooled test that assumes 96 independent ranks is
+    over-confident -- at thin=60 it "rejects" a_lm spread at p=0.003 where
+    a_lm draws are certainly independent. Each bin alone has 24 independent
+    chains, so the valid test is per bin, corrected for 4 bins x 2 statistics.
+    """
+    ps_all = []
+    for r in rank_sets:
+        if len(r) == 0:           # bin above this ensemble's lmax
+            continue
+        ps_all.extend(mean_sd_p(np.asarray(r), n_draws))
+    return min(1.0, len(ps_all) * min(ps_all)), ps_all
+
+
 def plot_rank_histograms(records, n_draws, outpath):
     fig, axes = plt.subplots(1, 2, figsize=ps.FIG_2COL, sharey=True)
     for ax, tag, label, color in (
@@ -210,28 +250,47 @@ def plot_rank_histograms(records, n_draws, outpath):
         _draw_hist(ax, u, n_draws, color, label)
         cal_p = discrete_uniform_p(pooled, n_draws)
         sd_u = rank_spread(pooled, n_draws)
-        ps.stat_box(ax, f"{label}\n" rf"$\bar u$={u.mean():.3f},  cal$_p$={cal_p:.2f}"
-                    "\n" rf"sd$_u$={sd_u:.3f},  $N$={u.size}", loc="lower left")
-        print(f"  {tag}: mean_u={u.mean():.4f} cal_p={cal_p:.4f} "
-              f"sd_u={sd_u:.4f} N={u.size}")
+        p_corr, p_bins = binned_test(
+            [records.get((tag, lo, hi), []) for lo, hi in ELL_BINS], n_draws)
+        ps.stat_box(ax, rf"$\bar u$={u.mean():.3f},  sd$_u$={sd_u:.3f}" "\n"
+                    rf"$p_{{\rm bin}}$={p_corr:.2f},  $N$={u.size}", loc="lower left")
+        print(f"  {tag}: mean_u={u.mean():.4f} sd_u={sd_u:.4f} N={u.size}; per-bin "
+              f"(mean,sd) p = {np.round(p_bins, 3).tolist()} -> corrected min "
+              f"{p_corr:.3f}  [pooled chi2 cal_p={cal_p:.4f}, not drawn]")
     axes[0].set_ylabel("density")
-    axes[1].legend(loc="upper right")
-    fig.tight_layout()
+    for ax in axes:
+        ax.set_ylim(0, 2.35)       # headroom so the legend clears the bands
+    h, lab = axes[0].get_legend_handles_labels()
+    axes[0].legend(h[2:], lab[2:], loc="upper right")   # field name only
+    h, lab = axes[1].get_legend_handles_labels()
+    axes[1].legend(h[2:] + h[:2], lab[2:] + lab[:2], loc="upper right", ncol=3,
+                   columnspacing=1.0)
     ps.save(fig, outpath)
 
 
-def plot_clpp_sbc(us, n_draws, nu, outpath):
+def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath):
+    # Same calibrated statistics as the field panels. The continuous KS test
+    # this panel used to print is the miscalibrated one (achievements.md,
+    # 2026-09-12) -- the paper must not carry two different tests side by side.
+    ranks = np.rint(us * (n_draws + 1.0) - 0.5).astype(np.int64)
+    cal_p = discrete_uniform_p(ranks, n_draws)
+    sd_u = rank_spread(ranks, n_draws)
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    _draw_hist(ax, us, n_draws, ps.COL_CLPP, r"$C_L^{\phi\phi}$")
-    from scipy import stats
-    ks = stats.kstest(us, "uniform").pvalue
-    ps.stat_box(ax, r"$C_L^{\phi\phi}$ strict SBC" "\n"
-                rf"$\bar u$={us.mean():.3f},  KS$_p$={ks:.2f}" "\n"
-                rf"$\nu$={nu:g},  $N$={us.size}", loc="lower left")
+    _draw_hist(ax, us, n_draws, ps.COL_CLPP, r"$C_L^{\phi\phi}$ (strict SBC)")
+    ax.set_ylim(0, 2.35)
+    h, lab = ax.get_legend_handles_labels()
+    ax.legend(h[2:], lab[2:], loc="upper right")
+    # collect_clpp_ranks loops bins outermost, chains inner; bins above the
+    # ensemble's lmax are skipped there, so split by chain count, not by
+    # len(ELL_BINS).
+    p_corr, p_bins = binned_test(ranks.reshape(-1, n_chains), n_draws)
+    ps.stat_box(ax, rf"$\bar u$={us.mean():.3f},  sd$_u$={sd_u:.3f}" "\n"
+                rf"$p_{{\rm bin}}$={p_corr:.2f},  $N$={us.size}", loc="lower left")
     ax.set_ylabel("density")
-    fig.tight_layout()
     ps.save(fig, outpath)
-    print(f"  clpp strict SBC: mean_u={us.mean():.4f} KS_p={ks:.4f} N={us.size}")
+    print(f"  clpp strict SBC (nu={nu:g}): mean_u={us.mean():.4f} sd_u={sd_u:.4f} "
+          f"N={us.size}; per-bin (mean,sd) p = {np.round(p_bins, 3).tolist()} -> "
+          f"corrected min {p_corr:.3f}  [pooled chi2 cal_p={cal_p:.4f}, not drawn]")
 
 
 def plot_power_curve(n_real, n_draws, n_rep, seed, outpath):
@@ -259,7 +318,6 @@ def plot_power_curve(n_real, n_draws, n_rep, seed, outpath):
     ax.set_ylim(-0.03, 1.03)
     ps.stat_box(ax, rf"$N$={n_real} chains, {n_draws} draws" "\n"
                 rf"50% power at {knee:.2f}$\sigma$", loc="lower right")
-    fig.tight_layout()
     ps.save(fig, outpath)
     for b, p in zip(shifts, power):
         print(f"  shift={b:.1f} sigma  power={p:6.1%}")
@@ -270,7 +328,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--indir",
-        default="results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2",
+        default="results/analysis/ens_exact_l64_A3000_n30",
         help=("MUST be the restored 2L+1-packing dir (field width "
               "packed_length(lmax)=4092 at lmax=64), not '..._doffix' which is "
               "pre-restoration 2L packing -- see achievements.md."))
@@ -296,7 +354,7 @@ def main():
               "C_L^phiphi rank is NOT a valid SBC statistic here, so panel (b) "
               "is skipped rather than drawn misleadingly.")
     else:
-        plot_clpp_sbc(us, clpp_draws, nu,
+        plot_clpp_sbc(us, clpp_draws, nu, len(files),
                       os.path.join(args.outdir, "clpp_sbc.pdf"))
 
     plot_power_curve(len(files), n_draws + 1, args.n_rep, args.seed,

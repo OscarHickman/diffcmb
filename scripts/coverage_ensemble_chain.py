@@ -65,7 +65,7 @@ import tensorflow as tf
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
-from diffcmb.power import call_CAMB_map
+from diffcmb.power import call_CAMB_map, fiducial_spectra
 from diffcmb.samplers import PACKING_VERSION, find_map_estimate
 
 LCDM_PARAMS = [67.74, 0.0486, 0.2589, 0.06, 0.0, 0.066]
@@ -121,6 +121,15 @@ def main():
     p.add_argument("--lmax", type=int, default=128)
     p.add_argument("--nside", type=int, default=128)
     p.add_argument("--noisesig", type=float, default=1.0)
+    p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
+                   help="Forward lensing operator. 'exact' (default since 2026-09-23) "
+                        "evaluates the alm at the deflected positions and lenses by "
+                        "+grad(phi); 'bilinear' is the legacy interpolation (and "
+                        "-grad(phi) sign) that every earlier chain used. ROADMAP D3.")
+    p.add_argument("--fiducial", choices=("corrected", "legacy"), default="corrected",
+                   help="'corrected' = power.fiducial_spectra (physical densities, "
+                        "raw C_l, unlensed TT); 'legacy' = the pre-2026-09-23 "
+                        "call_CAMB_map spectra, for reproducing old chains only.")
     # 2000 steps at lr=0.01 are the validated production MAP settings, copied
     # from pilot_coverage_equilibration.py so the ensemble and the gate that
     # clears it run the SAME initialisation. map_steps=0 reproduces the old
@@ -166,13 +175,30 @@ def main():
                    help="Disable Block 4 (C_L^phiphi|phi). Required for the "
                         "lmax=64 GO configuration: Block 4 ON degrades phi "
                         "mixing to lag-1 0.945 vs 0.557 OFF (job 11836793).")
+    p.add_argument("--phi_amplitude", type=float, default=1.0,
+                   help="Scale the fiducial C_L^phiphi by this factor (A_phi) "
+                        "before anything is drawn from it. >1 is the "
+                        "amplified-lensing validation (ROADMAP 2026-09-23): at "
+                        "lmax<=300 a physical sky carries almost no lensing "
+                        "information in T, so the sampler is stress-tested on a "
+                        "sky with lensing strong enough to measure. The prior "
+                        "the sampler uses is centred on the SAME amplified "
+                        "spectrum, so the SBC remains a test of its own target.")
+    p.add_argument("--blind", action="store_true",
+                   help="Fit the lensing-BLIND model (Blocks 1-2 only, no phi) "
+                        "to this realization's identical data map -- the "
+                        "Commander-style baseline for the bias-reduction figure. "
+                        "Same seed streams, so the sky matches the aware chain.")
     args = p.parse_args()
+    if args.phi_amplitude <= 0:
+        raise SystemExit("--phi_amplitude must be > 0")
     sample_cl_phiphi = not args.no_sample_cl_phiphi
 
     lmax, nside, r = args.lmax, args.nside, args.realization
     os.makedirs(args.outdir, exist_ok=True)
-    ckpt = os.path.join(args.outdir, f"chain_r{r:03d}_ckpt.npz")
-    out = os.path.join(args.outdir, f"chain_r{r:03d}.npz")
+    tag = "blind" if args.blind else "chain"
+    ckpt = os.path.join(args.outdir, f"{tag}_r{r:03d}_ckpt.npz")
+    out = os.path.join(args.outdir, f"{tag}_r{r:03d}.npz")
 
     print(f"=== Coverage ensemble, realization {r} (lmax={lmax}, nside={nside}) ===")
     if args.cl_phiphi_prior_nu is not None:
@@ -188,12 +214,17 @@ def main():
     model = CosmologyAdvancedSampling(
         _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
         data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
+        lensing_operator=args.lensing_operator,
     )
     model._ensure_tf_tensors()
     assert len(model.unmasked_idx) == model.NPIX, "ensemble assumes full-sky data"
 
-    cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
-    cl_phiphi_fid = get_cl_phiphi(lmax)
+    if args.fiducial == "corrected":
+        cl_true, cl_phiphi_fid = fiducial_spectra(lmax)
+    else:
+        cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
+        cl_phiphi_fid = get_cl_phiphi(lmax)
+    cl_phiphi_fid = args.phi_amplitude * cl_phiphi_fid
 
     # With a PROPER prior on C_L^phiphi the generative process must match the
     # sampler's target, or the rank test is invalid in the other direction --
@@ -291,6 +322,31 @@ def main():
               "configuration that broke jobs 11663105 and 11887897")
         x0 = np.concatenate([np.log(cl_true[2:lmax]), alm_start_packed])
 
+    if args.blind:
+        t0 = time.time()
+        # No cl_phiphi_full -> no phi block: the Commander-style lensing-blind fit.
+        samples, logp, accepts, _ = run_gibbs_chain(
+            model, n_samples=args.n_samples, n_burnin=args.n_burnin,
+            hmc_step_size=args.hmc_step_size, n_lfs=args.n_lfs,
+            initial_params=x0, seed=r, checkpoint_path=ckpt,
+            checkpoint_every=args.checkpoint_every)[:4]
+        elapsed = time.time() - t0
+        if not np.all(np.isfinite(samples)):
+            raise RuntimeError(f"realization {r}: blind chain produced NaN/Inf")
+        np.savez(out, packing_version=PACKING_VERSION, realization=r, lmax=lmax,
+                 nside=nside, blind=True, alm_samples=samples, logp=logp,
+                 accepts=accepts, cl_true=cl_true, cl_phiphi_true=cl_phiphi_true,
+                 cl_phiphi_fid=cl_phiphi_fid, alm_true_packed=alm_true_packed,
+                 phi_true_packed=phi_true_packed, n_burnin=args.n_burnin,
+                 seconds_total=elapsed, lensing_operator=args.lensing_operator,
+                 fiducial=args.fiducial, noisesig=args.noisesig,
+                 phi_amplitude=args.phi_amplitude)
+        print(f"  blind chain done in {elapsed / 3600:.2f}h; alm accept="
+              f"{accepts.mean():.3f}; saved {out}")
+        if os.path.exists(ckpt):
+            os.remove(ckpt)
+        return
+
     t0 = time.time()
     # run_gibbs_chain's return arity depends on which blocks are enabled: a
     # 5-tuple with Block 3 only, a 6-tuple with Block 3 + Block 4. Unpack
@@ -376,6 +432,8 @@ def main():
         "map_steps": args.map_steps,
         "phi_power_ratio_to_truth": ratio,
         "phi_calibration_ok": phi_calibration_ok,
+        "lensing_operator": args.lensing_operator, "fiducial": args.fiducial,
+        "noisesig": args.noisesig, "phi_amplitude": args.phi_amplitude,
     }
     # Omit the key entirely (rather than storing None) when Block 4 is off, so
     # the aggregator's `"cl_phiphi_samples" in npz.files` check stays truthful

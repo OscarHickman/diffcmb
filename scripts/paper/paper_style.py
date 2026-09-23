@@ -19,23 +19,39 @@ TWO RULES THAT ARE NOT COSMETIC, both from plots/STORY.md's panel convention:
    `stat_box`, not as a title. A referee checking a claim should not have to
    cross-reference the caption to find the value the panel demonstrates.
 
-Sizes assume a two-column journal (MNRAS/AAS): FIG_1COL fits one column,
-FIG_2COL spans both. Panels are saved at their final printed size with no
-rescaling in LaTeX, so font sizes here are the font sizes on the page.
+Sizes and fonts come from a JOURNAL preset (default PRD, override with the
+environment variable DIFFCMB_JOURNAL=MNRAS|JCAP). FIG_1COL fits one column,
+FIG_2COL spans a figure* ; FIG_MAP is one of three Mollweide panels across a
+figure*. Panels are saved at their final printed size with no rescaling in
+LaTeX, so font sizes here are the font sizes on the page.
 """
 
 from __future__ import annotations
+
+import os
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
+# (column width, figure* width) in inches, and the body font to match.
+# PRD/revtex4-2: 8.6 cm column, 17.8 cm text, Computer Modern.
+# MNRAS: 84 mm column, 174 mm text, Times.  JCAP: single column ~15.9 cm, CM.
+_JOURNALS = {
+    "PRD": {"w1": 3.375, "w2": 7.0, "serif": ["cmr10"], "math": "cm"},
+    "MNRAS": {"w1": 3.30, "w2": 6.85, "serif": ["Nimbus Roman", "STIXGeneral"], "math": "stix"},
+    "JCAP": {"w1": 3.10, "w2": 6.25, "serif": ["cmr10"], "math": "cm"},
+}
+JOURNAL = os.environ.get("DIFFCMB_JOURNAL", "PRD").upper()
+_J = _JOURNALS[JOURNAL]
+
 # Printed panel sizes in inches. Do not rescale with \includegraphics[width=...]
 # beyond the column width, or the type sizes below stop being what lands.
-FIG_1COL = (3.35, 2.60)
-FIG_1COL_TALL = (3.35, 3.10)
-FIG_2COL = (7.00, 2.90)
+FIG_1COL = (_J["w1"], 2.45)
+FIG_1COL_TALL = (_J["w1"], 2.95)
+FIG_2COL = (_J["w2"], 2.60)
+FIG_MAP = (_J["w2"] / 3.0 - 0.04, 1.62)
 
 # Semantic palette, fixed across all figures so a colour means the same thing
 # everywhere. Okabe-Ito derived: distinguishable in the common forms of colour
@@ -58,8 +74,10 @@ def apply() -> None:
         # Serif to match a LaTeX body; mathtext in the same family so an
         # axis label and an inline equation in the caption look related.
         "font.family": "serif",
-        "font.serif": ["DejaVu Serif"],
-        "mathtext.fontset": "dejavuserif",
+        "font.serif": _J["serif"],
+        "mathtext.fontset": _J["math"],
+        "axes.unicode_minus": False,      # cmr10 has no U+2212 glyph
+        "axes.formatter.use_mathtext": True,
         "font.size": 8,
         "axes.titlesize": 8,
         "axes.labelsize": 8,
@@ -68,8 +86,13 @@ def apply() -> None:
         "legend.fontsize": 7,
         "figure.dpi": 200,
         "savefig.dpi": 200,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.02,
+        # Constrained layout + standard bbox: the saved PDF is exactly the
+        # figsize above, so the page size of a panel is known, not cropped to
+        # whatever "tight" decides. (tight_layout() must not be called on top.)
+        "figure.constrained_layout.use": True,
+        "figure.constrained_layout.h_pad": 0.02,
+        "figure.constrained_layout.w_pad": 0.02,
+        "savefig.bbox": "standard",
         "axes.linewidth": 0.7,
         "grid.linewidth": 0.5,
         "lines.linewidth": 1.3,

@@ -151,8 +151,9 @@ def rank_of(truth_scalar, posterior_scalars):
 def realized_spectrum(S, lmax):
     """S_l -> realized C_l = S_l / k_l for l=2..lmax-1, zero below.
 
-    k_l is the PACKED real dof at l (2l, not 2l+1 -- splittosingularalm forces
-    Im(a_{l,1}) = 0), so this is both the ML estimate of C_l given
+    k_l is the PACKED real dof at l, read from packed_dof_per_multipole (2l+1
+    since the 2026-09-06 Im(a_{l,1}) restoration; it was 2l before), so this
+    is both the ML estimate of C_l given
     S_l | C_l ~ C_l * chi^2_{k_l} and, under the flat improper prior
     (a0 = -1), exactly the mode beta/(alpha+1) = (S_l/2)/(k_l/2) of the
     conditional that Blocks 1 and 4 draw from.

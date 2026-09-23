@@ -1,186 +1,198 @@
 # Research Roadmap: Differentiable Bayesian CMB Analysis
 
-*Forward-looking plan only. Completed/closed-out work is in `achievements.md`; positioning/novelty argument is in `literature.md`; full detail in git history.*
+*Forward-looking plan only. What is done, retracted or closed is in `achievements.md`. Positioning and novelty argument: `literature.md`. Figure-by-figure caption requirements: `papers/7_DiffCMB/plots/STORY.md`.*
 
-**The claim:** the first full-sky, curved-sky (HEALPix), differentiable joint Gibbs sampler over (alm_unlensed, C_ℓ, φ, C_L^φφ). ⚠ The fourth block is in the claim, so it must be in the evidence — cite the Block-4-**ON** ensemble, not the Block-4-OFF one (see Current state). Flat-sky joint sampling exists (CMBLensing.jl); full-sky methods are point-estimate or marginal (MUSE, QE). The window is finite (curved-sky MUSE could appear at any time) — the coverage test and the differentiator figures are the critical path; everything else waits.
-
-**Why this scope.** A competing paradigm — diffusion/score-based generative lensing reconstruction — markets uncorrelated samples in ~0.2s and discards the two things this project built: a differentiable forward model and a sampler (`literature.md`). That sets the bar:
-
-- The product is *demonstrated* exactness, not asserted exactness — a convincing coverage/rank test outranks any additional scale. Since 2026-09-12 read "demonstrated" strictly: the honest form is a **bound** on undetected bias, stated with the test's power.
-- The differentiator is the joint (C_ℓ, C_L^φφ) posterior with propagated correlations — an object no competing method (MUSE, QE, Commander, diffusion) produces.
-- Position vs learned inference is offensive, not defensive: an exact sampler is the reference standard learned posteriors get validated against — but only as strong as the scale actually demonstrated.
-- Deprioritised: CMBLensing.jl benchmark is a citation, not a science result; lmax scaling is not the route to impact.
-
-**Positioning (decided 2026-08-06, full reasoning `literature.md`).** Broader scope, accepting scoop risk: the real-data Planck run and Phase 2b ΛCDM-parameter section are in scope, sequenced *after* the critical path below. Never lead with the differentiable machinery (Flinch made it table stakes). **Ordering settled 2026-09-16 (was decision S1):** the bias reduction leads as *validation*, the joint (C_ℓ, C_L^φφ) posterior carries the *novelty* as a capability claim with an honestly-reported null. Full reasoning and the referee-objection language in `achievements.md` → Positioning (settled).
+**The claim:** the first full-sky, curved-sky (HEALPix), differentiable joint Gibbs sampler over (a_ℓm unlensed, C_ℓ, φ, C_L^φφ), certified by simulation-based calibration. The title names the fourth block, so the evidence must be the **Block-4-ON** ensemble. Flat-sky joint sampling exists (CMBLensing.jl, including T+P in `1708.06753`); full-sky methods are point estimates or marginal (MUSE, QE). Nothing had appeared in the curved-sky joint cell as of 2026-09-22.
 
 ---
 
-## Current state (2026-09-18)
+## Where the project stands (2026-09-23)
 
-Full detail and numbers in `achievements.md` and `results/analysis/dashboard.md` — this section is a pointer, not a restatement.
+**Cautionary core:**
+- **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
+- **Exactness is capped at lmax = 64.** The low-L φ mode fails at 128 and 192.
+- **At lmax ≤ 300 a physical sky carries almost no lensing information in temperature.** The QE S/N on C_L^φφ is 0.002 at lmax = 64 and 0.13 at 300. The legacy figure 3 sat exactly there.
 
-**Headline exactness (3-block core):** no bias detected at lmax=64, N=24 chains, 60 rank draws/chain — stated as a **bound**, not exactness (`achievements.md`). This is the **Block-4-OFF** ensemble (jobs 11955622 + 11965828): it certifies (a_ℓm, C_ℓ, φ) only.
+**Already positive:**
+- **A certified-exact four-block joint sampler**, which nobody else has.
+- **An exact, differentiable, geodesic curved-sky lensing operator**, with FD-checked gradients and physical sign conventions.
+- **Exact-operator production ensembles** on identical skies:
+  - Block-4-ON: 24/24;
+  - lensing-blind: 24/24;
+  - Block-4-OFF: 23/24, last task running.
+- **A QE validated at that configuration**: noise 0.995, response 0.971.
+- **A test suite that covers the scripts as well as the package.**
 
-**Headline exactness (the title's object):** the full (a_ℓm, C_ℓ, φ, **C_L^φφ**) sampler is certified separately by the **Block-4-ON**, ν=6 proper-prior N=24 ensemble (jobs 11965813 + 11980637) — no bin rejects, pooled strict rank 0.4518 (KS_p 0.0567) at `--thin 10`. ⚠ **The paper must cite this one for any joint-sampler claim, not the Block-4-OFF numbers** — see `achievements.md`'s "Which configuration this certifies".
+**Handling the caution in the paper:**
+- The retraction becomes one methods paragraph: validate an operator on the observable you report, not only its gradients.
+- The lmax cap is reframed as *the regime where exact inference is the only certified option*.
+- The amplified-lensing validation (A_φ = 3000, D4) is stated openly as a stress test.
 
-**Headline effect, extended to lmax=192:** the same comparison at lmax=192 (job 12015488, 2026-09-17) gives a **98.4% bias reduction** over five reliable bins, with the lensing-blind deficit deepening monotonically to −8.0% at `[160,192)`. Bias reduction only — **not** an exactness claim at that scale (the φ gate is NO-GO there). `achievements.md`.
+## Positive routes (these organise T1)
 
-**Headline effect, replicated at N=4:** `C_ℓ^TT` lensing-bias reduction **93.7% ± 1.8% across 4 independent skies** (job 11991514) — aware beats blind 4/4, deficit deepens monotonically with ℓ 4/4. Per S1 this is presented as **validation**, not as the discovery.
+1. **Exact operator, then measure the real thing — in progress.** The operator is done and the ensembles have landed. Do **not** rebuild the retracted headline on physical lensing: at these ℓ the physical C_ℓ^TT effect is +0.05–0.2 %. Figure 2 now shows a blind fit absorbing exactly the lensing each (amplified) sky received while the joint fit does not. Put the positive claim where exact inference is actually needed.
+2. **Certify a learned posterior (T1.1): the highest-impact positive use.** Score a learned CMB-lensing posterior (`2603.04535`, or a trained NPE/diffusion model) against the exact one, including the correlation structure that marginals miss. Either it passes (the first certification of one) or it fails in a quantified way. In both cases the positive deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
+3. **Science where exactness is certified: low-L lensing on Planck (T1.2b), conditional on scale.**
+   - **The idea:** low-L C_L^φφ is where the QE has its largest reconstruction noise and mask/mean-field problems. Use that weakness as the claim: "an exact joint posterior on C_L^φφ at L < 30 from Planck temperature, where the QE is noise-dominated", on real data with the real mask.
+   - **⚠ Feasibility check first.** Planck's low-L lensing information comes from temperature at ℓ ≳ 1000. At the certified lmax = 64 the physical S/N is 0.002, so the posterior would return the prior. The route needs the sampler at lmax ≳ 1000 (Parked: scaling), or a formulation where low-L φ is inferred from high-ℓ T.
+   - **Scope this before building anything**, starting from what Planck's own low-L lensing analysis reports there.
+4. **A_L post-mortem (T1.2)** as a real-data consistency test on Planck 2018 vs PR4, framed as a demonstration, not a competitive measurement.
 
-**No known open sampler defect** — the last one (strict `C_L^φφ` SBC rank) closed 2026-09-13 as a measurement-resolution artifact.
+## Decisions (all resolved)
 
-**In flight: nothing.** The last diffcmb jobs were 12015488 (lmax=192 harvest, 2026-09-17) and 12015546 (QE noise validation, 2026-09-18); both completed and the queue holds no diffcmb jobs.
+- **D1:** one paper, all extensions included (2026-09-22).
+- **D1b:** all figures final before any paper text (2026-09-22).
+- **D2:** journal PRD (2026-09-22); it is the `paper_style.py` default.
+- **D3:** exact lensing operator (2026-09-23).
+- **D4:** amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64 (2026-09-23, chosen by pilots; `achievements.md`).
 
-**Still genuinely open:**
-- The paper (`docs/paper/main.tex`) has not been touched since **2026-09-08**, predates the entire rank-test recalibration, and **references none of the ten panel PDFs that now exist**. This is the critical path and it is now the *only* thing on it.
-- lmax=128 *and* lmax=192 are blocked for **calibration** work by the low-ℓ φ mixing mode (a mixing limit, not a correctness one). At 192 the gate returned **NO-GO** at lag-1 0.976 — so **no exactness claim above lmax=64 is available**, and none should be attempted.
-- The joint (C_ℓ, C_L^φφ) correlation is a null at achievable sample size; per S1 this is now accepted, not a gap to close.
-- Figure 3's QE baseline is measured in a regime where the QE is uninformative (`N_L/C_L` up to 1539). The claim is honest and quantified as stated, but the strongest form needs a lower-noise ensemble — Todo §2b.
+---
 
-## Figure state
+## How this roadmap is ordered
 
-`papers/7_DiffCMB/plots/` holds the figure sequence. ⚠ **The `methods-paper-v1` tag is now STALE**: it points at `d9979b7`, the pre-2026-09-18 sequence, so it is no longer the revert point it is documented to be (Next action 5). **All four figures are built and at publication standard (2026-09-18)**, on a shared `scripts/paper/paper_style.py`. Per-figure detail, captions-to-write and standing rules are in `plots/STORY.md`; what was *defective* rather than merely unpolished is in `achievements.md`.
+**One paper, plots first, paper last.** No paper text (`main.tex`, drafts, stubs) until every figure for every section passes the checklist below.
 
-- **figure1** (validation) — now certifies all four blocks: a third panel carries the strict `C_L^φφ` SBC rank, closing a real hole where the figure certified two of the four blocks the title claims. Rank histograms now carry a simulated discrete-uniform band. Bound quantified: **50% power at 0.42σ**.
-- **figure2** (bias reduction) — third panel added at ℓmax=192 (98.4%, deficit to −8.0%). Scales never mixed within a panel.
-- **figure3** (uncertainty propagation) — **BUILT**, was the last unbuilt figure. The joint posterior is **0.953 ± 0.010** of the QE⊕prior width at 10≤L<20. Needed new validated machinery: `diffcmb/qe.py` + `scripts/validate_qe_noise.py` (N_L validated to 0.992 by Monte Carlo against the estimator's own definition, job 12015546).
-- **figure4** (joint posterior) — null now drawn rather than asserted; heatmap rescaled to per-cell significance.
+| Tier | Purpose | Gate |
+|---|---|---|
+| **T0** | Core figures, from the exact-operator ensembles | every core figure passes the checklist |
+| **T1** | Extension figures (positive routes), each validated to the core's standard on a branch/worktree | every extension figure passes |
+| **T2** | Write the paper | draft complete and internally read |
+| **T3** | Release, benchmark, submit | submitted |
 
-⚠ **A false statement had been shipped inside figure 1** (a burnt-in "Block 4 OFF" footer on a Block-4-ON ensemble). Prose inside panels is now banned by `paper_style.py`; it belongs in the LaTeX caption where it can be reviewed. Treat any burnt-in text in a future figure as a defect.
+**"Final form" checklist:**
+1. built from the right, validated data, with the configuration checked (Block-4-ON for anything touching C_L^φφ; the exact operator; the QE validated at that configuration);
+2. covers the claim it supports;
+3. null or uncertainty drawn;
+4. the demonstrated number in a stat box, and no other prose in the panel;
+5. clear at printed size in PRD geometry/font;
+6. reproducible by `make figures`;
+7. caption requirements recorded in `plots/STORY.md`.
 
-**Phase 2a discipline:** the real-data run touches real Planck data, foregrounds and masking, none of which the validated simulation pipeline has been checked against. **Do it on a branch or worktree, never on `main`**, so a stalled attempt is abandoned with `git worktree remove` and `main` is untouched. (`main` is no longer `== methods-paper-v1` — re-tag first, Next action 5.) Fallback if it fails: submit the methods paper as scoped — nothing in the checkpoint depends on Phase 2a landing.
+## T0 — Core figures from the exact-operator ensembles
 
-## Next actions — in order
+1. **Commit this session's work** (operator, fixes, scripts, tests, docs). It is all uncommitted as of 2026-09-23.
+2. **Harvest when the last Block-4-OFF task lands** (`results/analysis/ens_exact_l64_A3000_n30{,_nocl4}`). Check every task's `.err` for tracebacks and its `phi_calibration_ok`.
+   - Run `make figures`.
+   - Run the strict and Block 4 checks (`validate_coverage_rank_nulls.py`, with a failing misaligned control) and `sbc_joint_likelihood.py` on both ensembles.
+3. **Read the rebuilt figures against the checklist:**
+   - **figure 1:** `p_bin` for both ensembles, and the power curve at the new draws per chain;
+   - **figure 2:** does the blind bias land on "lensing received", is the aware bias consistent with zero, and does it support the A_L = 1 wording;
+   - **figure 3:** the posterior width vs QE⊕prior, now in a regime where the QE is informative (S/N ≈ 5);
+   - **convergence:** Block 4 and low-L φ ESS against the rank draws; re-derive `--thin` from τ_int;
+   - **maps:** recovery at A_φ = 3000.
 
-**The only thing between here and a submittable methods paper is the manuscript.** All four figures are built and validated; nothing in the critical path is now waiting on compute.
+   Any result that does not survive gets recorded in `achievements.md`, not argued away.
+4. **Figure 1 and the Block-4-OFF ensemble:** decide whether the three-block certification needs its own panel or a caption number.
+5. **Power statement:** decide whether the paper needs it as a table as well as figure 1's curve; if so, generate it from the same script.
+6. **Whole-set pass** at printed size: same colour for the same quantity, same ℓ-axis conventions, same ensemble names.
+7. **Update `plots/STORY.md` and `results/analysis/dashboard.md`** for the new ensembles; they still describe the legacy ones.
+8. **Re-tag** the finalised core-figure state; the stale `methods-paper-v1` tag points at `d9979b7`.
+9. **Small test gap:** freeze N_L's absolute normalisation at lmax = 16 in `tests/test_qe.py` (the sign/response is now pinned; the normalisation is covered only by the SLURM Monte Carlo).
+10. **Limitations to carry into T2:**
+    - exactness above lmax = 64 (low-L φ NO-GO at 128/192);
+    - A_φ above ~3000 at lmax = 64 (Gibbs stalls);
+    - physical-sky lensing information at lmax ≤ 300;
+    - no further φ-equilibration tuning without sign-off.
 
-1. **Rewrite `docs/paper/main.tex`** — the critical path, unblocked. In this order:
-   - a. Recast every exactness statement as a **bound**. The number is now measured: **50% detection power at 0.42σ posterior-mean shift** at N=24, 60 draws/chain (fig1 panel c). Quote that, not "~0.5σ".
-   - b. **Separate the Block-4-OFF and Block-4-ON certifications explicitly**, and cite Block-4-ON for the joint claim in the title. Figure 1 now certifies all four blocks, so the figure and the title finally agree — say so.
-   - c. Replace the miscalibrated `KS_p` values with the thin=10 / `cal_p` numbers.
-   - d. Carry the N=4 bias-reduction replication, framed per S1 as validation + the A_L framing.
-   - e. Add the figure-3 result: the joint posterior is **0.953 ± 0.010** of the QE⊕prior width at 10≤L<20. This is the paper's only *positive* argument for the method — do not bury it in the validation section.
-2. **Write the four figure captions.** `plots/STORY.md` lists, per figure, the points a caption **must** carry; each is a referee objection pre-empted, not polish:
-   - fig1: the uniform band is **pointwise, not simultaneous** (φ's first bin is above the 95% band; expected ~0.5×/10 bins, pooled cal_p=0.18 does not reject).
-   - fig2: panels (a)/(b) are ℓmax=128 and (c) is ℓmax=192; **scales are not mixed and the 4-sky replication exists only at 128**. Panel (c) is bias-reduction only, **not** an exactness claim.
-   - fig3: the comparison is against **QE⊕prior, never raw N_L**; the ratio rising above 1 at high L is Block 4 honestly marginalising over an unknown `C_L^φφ`, not a defect; the QE's own response is 0.88 here.
-   - fig4: the null-vs-physics distinction — `C_ℓ^TT` is the *unlensed* spectrum, so a small correlation is physically expected. Capability claim, not detection.
-3. **Assemble the panels into LaTeX `figure*` environments.** Ten panel PDFs now exist across four figures; `main.tex` references none of them. One `figure*` per figure with several `\includegraphics`, (a)/(b)/(c) lettering in the caption prose per the panel convention. **Do not rescale beyond the column width** — panels are saved at final printed size, so `\includegraphics[width=...]` past that silently changes every type size.
-4. **Add the power table** (§1 below).
-5. **Re-tag `methods-paper-v1`.** Both repos carry that tag but it points at the *pre-2026-09-18* figures, so the documented "revert point" no longer matches what is on disk. Either re-tag to the current state or rename the old one; leaving it stale defeats its purpose as a Phase-2a fallback.
-6. Then the literature/citation actions below, then Phase 2a on a branch.
+## T1 — Extension figures (by impact per effort)
 
-## Todo, priority order
+Each extension is validated to the core's standard (gate → production → calibrated check) on a branch or worktree. It delivers final-form figures plus caption requirements, not text. **Step one for each: which figures, supporting which claim.**
 
-### 1. Exactness evidence
-- [ ] Report the power of the validation as a table in the paper — **this is Next action 4**; kept here so the section is self-contained. The measured curve is fig1's `validation_power.pdf`; the table is the same information in numbers.
-- [ ] Optional: lmax≈128 exactness only if a referee asks — **blocked** by the low-ℓ φ mode, and now confirmed blocked at lmax=192 too (gate NO-GO, lag-1 0.976, job 11987444). Treat "exactness at lmax=64" as the demonstrated scale and say so; do not attempt to raise it for this paper.
+1. **Certify a learned CMB-lensing posterior against the exact one (route 2).**
+   - Reuse the lmax = 64 Block-4-ON ensemble.
+   - Train a conditional diffusion or NPE model on the same simulator (exact operator, A_φ = 3000, σ = 30), or use `2603.04535`'s if its code is available (read its body first for geometry).
+   - Score it against the exact posteriors with SBC ranks, coverage and C2ST, including the (C_ℓ, C_L^φφ) and φ-mode correlations.
+   - Likely figures: learned-vs-exact rank histograms with drawn nulls; per-mode width ratio; correlation-structure comparison.
+2. **Real Planck data.**
+   - **2a — A_L post-mortem (route 4):** Planck 2018 vs PR4. First the pipeline on a simulation carrying the real mask, `noise_map` and beam (note the beam path's prior fix, `achievements.md`), then data. Figures: real-data C_ℓ and C_L^φφ posteriors vs Planck spectra and the QE; the posterior-mean φ on the real mask.
+   - **2b — low-L C_L^φφ (route 3):** only after its feasibility check; it needs lmax ≳ 1000 or a formulation using high-ℓ T.
+3. **Polarization / LiteBIRD.**
+   - Target the LiteBIRD lensing forecast (`2507.22618`).
+   - Benchmark against `2511.21949` and `2608.06343`; the flat-sky T+P precedent is `1708.06753`.
+   - **Scope the scale first:** the E-modes and φ that source low-ℓ B-modes sit at L of several hundred, beyond the certified scale, and the same physical-information check as route 3 applies.
+   - Then:
+     - [ ] ducc0 spin-2 lensing (the exact operator generalises);
+     - [ ] TQU likelihood (C_ℓ^TE breaks conjugacy: 2×2 inverse-Wishart or HMC);
+     - [ ] small-lmax TQU validation to the core's standard;
+     - [ ] LiteBIRD-like simulation (delensing efficiency, r).
+4. **ΛCDM parameters from the posterior C_ℓ.** One consistency figure (simulated and real-data chains vs Planck/ACT/SPT).
 
-### 2. Differentiator figures (what the paper is *for*)
-- [x] ~~Per-mode uncertainty-propagation figure~~ — **DONE 2026-09-18**; see Figure state above and `achievements.md`.
-- [ ] Write the position vs learned/amortised inference into the paper explicitly (intro + subsection) — the most likely referee question.
-- [ ] Write the position vs **Flinch and Almanac** explicitly too — a separate referee question, answered by the φ/C_L^φφ block. Draft language and citations already in `main.tex`.
+## T2 — Write the paper (only after the T0 and T1 gates)
 
-### 2b. Figure-3 / QE follow-ups (from the 2026-09-18 build)
+1. Fix the structure from the finished figure set, then write `docs/paper/main.tex`:
+   - a. Every exactness statement as a **bound** with its power, quoting the rebuilt figure 1's power curve.
+   - b. Block-4-OFF and Block-4-ON certifications separated; Block-4-ON cited for the title's claim.
+   - c. The amplified-lensing validation stated plainly: why (the physical S/N table), A_φ = 3000, σ = 30, and that the prior targets the same amplified spectrum.
+   - d. The retraction as one methods paragraph, plus the lmax-cap reframing.
+   - e. Positioning:
+     - vs learned inference: `2603.04535`, concede `2606.12255`, cite `2606.10023`, then T1.1's result;
+     - vs Flinch and Almanac (`2210.13260` for the masked sphere);
+     - vs Darwish 2025;
+     - the scale paragraph, where the comparison set is 10²–10⁴× larger and the answer is certified correctness, not scale.
+   - f. Figure 3 near the front of the results if the rebuilt version supports a positive claim.
+   - g. Limitations from T0.10.
+2. Captions from `plots/STORY.md`.
+3. Panels assembled into `figure*` environments, no rescaling past column width.
+4. The literature actions below.
 
-The figure is honest and quantified as it stands; these are the things a referee could reasonably push on, in descending order of likelihood.
+## T3 — Release and reach
 
-- [ ] **Re-run figure 3 at a configuration where the QE is competitive.** At ℓmax=64 / nside=64 / σ_pix=1.0, `N_L/C_L` runs from 3.3 at L=5 to **1539** at L=60 — the QE alone is essentially uninformative, so the comparison is made in a regime no QE user would work in. This needs a **new production ensemble at lower noise**, not a re-analysis: new chains, then re-run `validate_qe_noise.py` at the matching configuration, then rebuild. Nothing else in the paper depends on it, and the current claim stands without it — but this is the most likely "your baseline is a strawman" objection. **Costed as: one coverage-ensemble campaign + one 10-minute validation job.**
-- [ ] **Understand the QE response of 0.883.** The validated estimator recovers ~12% less than the input φ (0.57 in `[60,64)`, where the band limit truncates the l1,l2 sum). Band-edge truncation explains the last bin; the ~10% in the body is more likely the standard gradient-vs-lensed-spectrum subtlety in `f^TT` (the coupling should use the *gradient* spectrum, not the lensed one, for an unbiased response). Does **not** affect `N_L` — the noise test is independent and passes at 0.992 — so this is a caption caveat today and a correctness item only if figure 3 is ever restated as a response-level claim.
-- [ ] **`N_L` is validated only at (lmax=64, nside=64, σ_pix=1.0).** `fig3` now refuses to run on a mismatch, but the *coverage* of the validation is one configuration. Any new configuration needs its own validation run before the curve may be plotted — the standing "must not be fabricated" rule applies to a re-used curve as much as to an invented one.
-- [ ] Optional: extend `tests/test_qe.py` with a small-lmax regression on `N_L` itself (currently the unit tests cover the coupling's structure and scaling, while `N_L`'s absolute normalisation is covered only by the SLURM Monte Carlo). A frozen 5-value array at lmax=16 would catch an accidental factor change without needing the cluster.
+1. **Tagged public code release** (GitHub `OscarHickman/diffcmb`) with a Zenodo DOI: README quick-start, `make test`, `make figures`.
+2. **The benchmark:** the lmax = 64 exact reference posteriors (truth, data, configuration, thinned joint samples, T1.1's scoring script) on Zenodo. Check the quota rules before staging.
+3. **Submit and post to arXiv together**, after a final named-author scan.
+4. **Talks and outreach:** Durham/ICC, one external meeting, and announce the benchmark to the learned-inference groups it targets.
 
-### 2c. Figure infrastructure
+## Parked
 
-- [ ] **Check every panel at final printed size, on paper or at 100% zoom.** Panels are saved at column width with 7-8pt type; they have only been inspected as upscaled PNGs. Tick-label collisions and over-long legends do not show up at 200 dpi preview.
-- [ ] `paper_style.py` uses **DejaVu Serif**, not the target journal's font. Once a journal is chosen, set `font.serif` to match (or switch to `text.usetex`) so panel type matches the body text rather than merely being serif.
-- [ ] Consider a `make figures` target. The four scripts have differing default arguments (fig4 needs `--indir`/`--thin` explicitly) and the correct invocations currently live only in `plots/STORY.md`'s header.
+- **lmax ≳ 1000 scaling (cuHPX `2510.01785`, cunuSHT `2406.14542`):** now the gate for routes 3 and T1.3, not just a platform item. The low-L φ mixing mode must be solved first; Millea et al.'s reparameterisation is the standing external lead.
+- **Non-Gaussian extensions:** fNL, in-painting, learned priors, systematics.
+- **Matrix-free HMC step-size re-tuning:** only if T1 chains show it matters.
 
-*Closed out of this section and recorded in `achievements.md`:* the lmax=192 scale-up (landed 2026-09-15, gate NO-GO), its bias-reduction harvest (2026-09-17, 98.4%), the figure-3 build with its validated QE machinery (2026-09-18) and the decision not to chase the (C_ℓ, C_L^φφ) correlation (S1, 2026-09-16).
+## Literature actions (full annotations in `literature.md`)
 
-## Phase 2a — real-data run (end-to-end demonstration)
-
-In scope for this paper. Supporting evidence, not the headline (the A_L anomaly that originally motivated it is no longer live per Planck PR4/ACT DR6). Pitch as either an A_L post-mortem on Planck 2018 vs PR4, or the joint posterior as a lensing-consistency test for SO/LiteBIRD-class data. Sequenced after the Todo §1/§2 items above.
-
-- [ ] Run the joint sampler on real Planck data; report the joint (C_ℓ, φ) posterior's lensing-consistency verdict.
-
-## Phase 2b — ΛCDM parameters from C_ℓ
-
-In scope for this paper. Routine, cheap robustness section — derive standard ΛCDM parameter constraints from the posterior C_ℓ chains once the Todo §1/§2 items are done. Sequenced after those.
-
-- [ ] Parameter-inference pass on the posterior C_ℓ^TT chains from the lmax≈128 (and, if run, real-data) chains; report against Planck/ACT/SPT baselines.
-
-## Phase 3 — polarization / LiteBIRD delensing (the science paper)
-
-Full TQU joint analysis, after Phase 2 submits. Target reference: LiteBIRD lensing forecast (arXiv:2507.22618, QE/iterative pipeline — a sampling-based result fills a real gap). Benchmark against `2511.21949` (~47% delensing at 30≤ℓ≤300) and `2608.06343` (A_lens^res≈0.48), not only the CMB-S4 forecast.
-
-- [ ] Spin-2 extension of alm utilities and the lensing operator (ducc0 spin-2 transforms).
-- [ ] TQU joint likelihood (TT, TE, EE, BB); C_ℓ^TE breaks inverse-Gamma conjugacy → 2×2 inverse-Wishart or HMC.
-- [ ] Simulated lensed TQU at LiteBIRD-like noise: delensing efficiency vs QE/iterative baselines, recovered r constraint.
-
-## Parked (not started; recorded so the platform argument isn't lost)
-
-- Phase 4 — lmax≥1000 scaling: tuning, not rearchitecture; profile only when Phase 2/3 need it. Scaling route if unparked: cuHPX (arXiv:2510.01785) or cunuSHT (arXiv:2406.14542).
-- Phase 5 — non-Gaussian extensions (fNL, mask in-painting, learned priors, systematics): separate papers after Phases 2-3.
-- Re-tune matrix-free-HMC step-size adaptation: current regime mixes ~4× less efficiently per-sample than the old dense-SHT reference. Skip unless Phase 2 chains show it matters.
-
-## Literature actions (from the 2026-09-03 rescan; full annotations `literature.md`)
-
-- [ ] Re-check the full `main.tex` reference list for further ID errors, the same way the three referee-visible ones (MUSE, CMBLensing/SPTpol, MCHMC title) were found and fixed.
-- [ ] Cite `2603.04535` (learned CMB-delensing sampler) in the competing-paradigm section, replacing JADE as the lead example; read its body first to confirm sky geometry. Concede `2606.12255` honestly as the counterpoint (implicit/explicit field-level inference agreeing in a neighbouring problem).
-- [ ] Cite Doeser & Jasche (`2606.10023`) in the introduction — external statement of why an exact reference posterior is needed.
-- [ ] Add `2210.13260` (masked-sphere Almanac companion) alongside `2305.16134`; correct the draft's "all-sky, noiseless" characterisation of Almanac.
-- [ ] Cite Modrák et al. (`2211.02383`) for the joint-likelihood test quantity, now adopted and passing (`achievements.md`). Reading it also falsified this item's original premise — it is about test-quantity *sensitivity*, not about valid quantities being non-uniform under a correct sampler.
-- [ ] Adopt nested R̂ (`2110.13017`) alongside rank-normalised split-R̂ (`1903.08008`); report τ_int as a lower bound citing `2408.13411`; cite the corrected (2017) Cook, Gelman & Rubin form.
-- [ ] State the demonstrated scale precisely: **exactness at lmax=64, lensing-bias removal at lmax=128** (the bias-reduction figure is a legitimate lmax=128 result — it needs no calibration gate). Give the comparison set (MUSE/Almanac/Bayer/FLI, all 10²-10⁴× larger) and the scaling route. Never claim *exactness* at lmax≈128.
-- [ ] Add the "what the deficit is not" paragraph (not N0/N1, not mean-field, not non-Gaussian deflection, not foregrounds) — note the missing `Im(a_{ℓ,1})` dof is now *removed as a candidate* (restored 2026-09-06), not excluded by evidence.
-- [ ] Locate an arXiv/proceedings version of the SFNO CMB-delensing paper (OpenReview `I8k3wwwm9l`) or drop it — currently `[UNVERIFIED]`.
-- [ ] Still unverified before citing: author lists for `1708.06753`, `2111.07664`, `0708.2989`; Papež et al. 2018 and Huffenberger & Næss 2018 IDs; the Eriksen/Jewell/Wandelt 2004 Commander trio IDs.
-- [ ] Re-run the named-author arXiv scan (Millea, Seljak, Bayer, Loureiro) and the citation-hygiene ID grep before every submission milestone (below).
-
-## Rank-test remediation — remaining items
-
-The rank test was found miscalibrated and underpowered on 2026-09-12; the fixes
-(`discrete_uniform_p`, `rank_spread`, raising draws/chain to ~60, both ensembles
-re-scored) are done and recorded in `achievements.md`. What is left:
-
-- [→] Re-state every claim in `docs/paper/main.tex` as a *bound* rather than as
-      demonstrated exactness — **now Next action 1a**; pre-empts "what would your
-      test have caught?"
-- [→] Add the power statement to the paper as a table — **now Next action 4**.
-- [ ] Re-read every pre-2026-09-12 flag and pass in `dashboard.md` against
-      `cal_p` before citing any of them; `KS_p` is retained for continuity only.
+- [ ] Re-check the full `main.tex` reference list for ID errors.
+- [ ] Cite `2603.04535` as the lead competing-paradigm example, after reading its body for sky geometry; concede `2606.12255`.
+- [ ] Cite Doeser & Jasche (`2606.10023`) in the introduction.
+- [ ] Add `2210.13260` alongside `2305.16134`; correct the "all-sky, noiseless" characterisation of Almanac.
+- [ ] Cite Modrák et al. (`2211.02383`) for the joint-likelihood test quantity.
+- [ ] Rank-normalised R̂ (`1903.08008`) is adopted in the convergence figure: cite it, consider nested R̂ (`2110.13017`), cite `2408.13411` for ESS as an estimate, and cite the corrected (2017) Cook, Gelman & Rubin.
+- [ ] Cite Millea, Anderes & Wandelt 2019 (`1708.06753`) alongside `2002.00965`; pin `\bibitem{Commander}` to the verified 2004 IDs.
+- [ ] SFNO CMB delensing: still no arXiv ID; cite as OpenReview `I8k3wwwm9l` or drop.
+- [ ] Before every milestone: named-author scan (Millea, Seljak, Bayer, Loureiro, Bonici; check Seljak and Bayer by hand, since the API author query missed them) and the reference-ID grep. **Monthly** while the paper is unposted.
 
 ## Standing discipline
 
-- **One critical path**: Phase 2 gates ✓ → coverage/rank test → joint-posterior differentiator figures → paper. Anything not on this waits. The manuscript runs in parallel rather than at the end.
-- **Scope**: broader scope, accepting scoop risk. Real-data Planck run and Phase 2b are in scope, sequenced after the critical path, not instead of it.
-- **Never lead with the differentiable machinery** (Flinch made it table stakes). Since S1 (2026-09-16): the **novelty** claim is the joint (C_ℓ, C_L^φφ) posterior, stated as a *capability* no competing method produces; the **evidence** that leads is the bias reduction, presented as validation. Don't sell a null as a detection, and don't sell a validation as a discovery.
-- **Name the configuration, not just the result.** "Headline exactness" meant the Block-4-*OFF* ensemble for two weeks while the paper's title claimed a four-block joint sampler — the certification of the title's object existed, under a different job pair, and was simply not labelled as such. Every exactness number in the paper or the dashboard carries which blocks were sampled, or it is not citable.
-- **Watch authors, not only keywords.** Millea, Seljak, Bayer and Loureiro are the highest-probability source of a scoop; any φ or lensing extension of Flinch, Almanac, or CMBLensing.jl changes the plan. Named-author arXiv check + citation-hygiene grep before every submission milestone.
-- **Demonstrated beats asserted.** Prefer a converged result at a smaller scale over a non-converged one at a larger scale — every time, and say which one you have. **The demonstrated exactness scale for this paper is lmax=64 and will not rise**: the low-ℓ φ mixing mode failed the gate at 128 and again, worse, at 192 (lag-1 0.976). Bias *reduction* is separately demonstrable at 128 (and possibly 192) because it needs no calibration gate — never conflate the two scales in a sentence.
-- **A scale-up that lands is not a scale-up that passes.** Job 11987444 ran 2d03h and exited `COMPLETED 0:0` while printing NO-GO. Read the script's own verdict line, not the SLURM state (the general form of this is already in `achievements.md`'s engineering gotchas).
-- **Precision**: fp64 end-to-end unless a mixed scheme is validated against fp64 chains (a float32 false-convergence trap is the standing counterexample).
-- **Dense-reference discipline**: validate every new sampler/operator against an exact small-scale reference before production — has caught real bugs repeatedly (`achievements.md`).
-- **A gate must run the production script's own initialisation path.** A gate and the thing it gates being separate scripts is how the cold-start bug reached a full 12-chain ensemble (`achievements.md`). Diff their setup before trusting a verdict.
-- **Check calibration, not just mixing.** R̂/ESS/τ_int measure whether a chain is moving, not whether it is in the right place — always also compare a recovered quantity against its known truth scale.
-- **A PIT check against the sampler's own stated conditional validates the draw, not the derivation.** It passes for any shape parameter, since code and reference share the assumption. To test a derivation you need an independent generative draw, which for a spectrum block requires a proper prior.
-- **Derive constants from the structure, don't hardcode them** — and when you do fix one, grep for every script that mirrors the same derivation (`achievements.md` — this slipped three times in one week before the lesson stuck).
-- **A control that passes makes its check vacuous** — a misalignment/mutation control must itself fail before the aligned pass counts as evidence.
-- **A saved `.npz` carries no packing version.** `PACKING_VERSION` guards checkpoints only. Before differencing or pooling any pre-2026-09-06 analysis product against a current chain, check its array widths against `packed_length(lmax)` — this caught the stale lensing-blind baseline that would otherwise have rendered a packing artifact as a physics result (`achievements.md`).
-- **An unbiased `C_l` posterior does not centre on the truth's realized power.** Under the flat improper prior Block 1's posterior *mean* is `S_l/(k_l−4)`, not `S_l/k_l` — +15% at ℓ~20. Difference any spectrum comparison against `S_l/(k_l−4)`; against the realized power (or worse, the fiducial, which adds cosmic variance) the artifact is larger than the signal and reverses conclusions (`achievements.md`).
-- **A localised anomaly is noise until it survives more realizations AND a finer rank resolution AND a calibrated test.** Three separate "ℓ-localised defects" on this project (φ `[30,60)` at N=12, the Block-4-ON `[10,30)`, φ `[2,10)` at thin=90) each dissolved under one of those, and the flagged bin demonstrably migrates between bins when the resolution changes. Weeks of Hessian-coupling and mass-matrix work were spent on the second one. Check all three before chasing.
-- **Calibrate a goodness-of-fit test at the granularity you use it at, by feeding it output from a provably correct sampler and measuring the false-positive rate — before trusting either a flag OR a pass.** A continuous KS test on discrete ranks rejected a correct sampler 12.5% of the time at p<0.01 and drove a two-week investigation into a defect that was largely the test (`achievements.md`). And always report the POWER a pass carries: at N=24 ours could not see a 0.3σ posterior mean shift 3 times in 4, so a pass is a bound, not a proof.
-- **A rank/coverage statistic needs its own simulated null before any flag is read as bias** — it can ranks the truth against its conditional's mode, which is non-uniform by construction even for a perfect sampler.
+- **One paper; plots first, paper last.** Unattended compute starts early; extensions are validated before they are written up, on a branch or worktree.
+- **Never lead with the differentiable machinery** (Flinch). The novelty is the joint (C_ℓ, C_L^φφ) posterior as a capability; the evidence is validation. Don't sell a null as a detection or a validation as a discovery.
+- **Name the configuration, not just the result:** blocks sampled, operator, fiducial, A_φ, noise. Every chain now records them and every replay reads them.
+- **Validate a forward operator on the observable you report**, against an exact reference, not only its gradients against finite differences. The legacy operator's gradients were correct and it was still the wrong model.
+- **Estimate the physical information content before interpreting a posterior.** A posterior that learns more than the data can contain is learning from the model's defects.
+- **Pin sign and convention choices against an independent reference.** Two opposite sign errors (deflection and QE) cancelled and passed every internal consistency test.
+- **Test the scripts, not only the package.** Metadata saved into the wrong call, replays through the wrong operator, and invalid pooled statistics all lived in `scripts/`. Mutation-check new tests by reintroducing the bug they target.
+- **Watch authors, not only keywords** (Millea, Seljak, Bayer, Loureiro, Bonici).
+- **Demonstrated beats asserted.** Exactness is certified at lmax = 64 only; never conflate scales in one sentence.
+- **Read the script's own verdict and `.err`, not the SLURM state** (`COMPLETED 0:0` has hidden NO-GO verdicts and post-run crashes).
+- **Precision:** fp64 end-to-end, including prior terms.
+- **Dense or exact reference first:** validate every new sampler or operator against an exact small-scale reference before production.
+- **A gate must run the production script's own initialisation path.**
+- **Check calibration, not just mixing:** compare recovered quantities to their truth scale.
+- **A PIT against the sampler's own conditional validates the draw, not the derivation;** a derivation needs an independent generative draw (proper prior).
+- **Derive constants from the structure**, and grep every script that mirrors a derivation when fixing one.
+- **A control that passes makes its check vacuous.**
+- **Check array widths against `packed_length(lmax)`** before combining any pre-2026-09-06 product.
+- **Spectrum comparisons reference S_ℓ/(k_ℓ−4)** under the flat prior, never S_ℓ/k_ℓ or the fiducial.
+- **A localised anomaly is noise until it survives more realizations, finer rank resolution and a calibrated test.**
+- **Calibrate a test at the granularity you use it,** and never pool correlated units as if independent (ℓ-bins of one chain). Report the power a pass carries.
+- **A rank or coverage statistic needs its own simulated null** before a flag is read as bias.
 - **An intermittent test failure is a hypothesis, not a flake.**
-- **No prose inside a figure panel.** A burnt-in footer in figure 1 asserted "Block 4 OFF" while the script loaded the Block-4-ON ensemble, and shipped that way because a picture of a sentence is unreachable by every test, linter and review the project has. Explanatory text belongs in the LaTeX caption. `paper_style.py` enforces this; treat burnt-in text in any new figure as a defect, not a style preference.
-- **A figure must cover the object the title claims.** Figure 1 certified two of the four blocks for weeks while the title claimed four — the `C_L^φφ` evidence existed and was simply never plotted. Before a figure is called done, check it against the *claim*, not against its own caption.
-- **A statistic needs its null drawn, not just computed.** A rank histogram against a bare line at 1.0, or a regression line with no null cone, cannot be read by a referee — the eye cannot separate a 1σ wobble from a detection, and a fitted slope reads as a result however the caption hedges. If a panel's point is "this is consistent with chance", the range chance produces has to be *visible* in the panel.
-- **A colour scale is an analysis choice.** Figure 4's heatmap was misleading on a fixed ±0.6 scale (everything white: "no data") and misleading rescaled to the largest null (everything saturated: "strong correlations"). Encode significance — value relative to each cell's own null — when significance is the claim.
-- **Two independent routes to "the same quantity" may not be the same quantity.** `N_L^φφ` was first validated against `estimate_phi_diag_fisher` on the reasoning that both are the φ Fisher. They are not: one conditions on a known CMB, the other marginalises over an unknown one. The test failed at a ratio of 132 and the *test* was wrong, not the code. Before trusting a cross-check, state what each side conditions on.
-- **Compare like with like, or the win is an artefact.** The joint posterior looked 14× tighter than the QE until the comparison was made against QE⊕prior — the posterior carries a prior and a quadratic estimator does not. A baseline that cannot use the information you gave yourself is a strawman, and a referee will say so.
-- **A validated curve is validated at a configuration, not in general.** `N_L` depends on lmax, nside and noise level; re-using a validated curve at a new configuration is the same error as fabricating one. `fig3` checks this rather than assuming it, the same way every script checks packing width.
-- **Claims hygiene**: every "first" carries scope qualifiers and nearest-prior-work citations.
-- **R-hat on C_ℓ alone is not convergence** — check the alm block and tail-ESS trends too.
-- **No further φ-equilibration tuning without user sign-off** — this track has produced a negative or ambiguous result on almost every attempt (`achievements.md`); report and wait rather than launching the next idea unilaterally.
-- **Cluster/storage operational rules** (job-submission caps, `/cosma8` quota, checkpoint placement, `$TMPDIR`): see the global `~/.claude/CLAUDE.md` COSMA entries and `achievements.md`'s "Engineering gotchas" — cluster-account facts, not project-plan facts.
+- **Figures:**
+  - no prose inside a panel;
+  - a figure must cover the object the title claims;
+  - draw the null, don't just compute it;
+  - a colour scale is an analysis choice;
+  - a validated curve is validated at a configuration.
+- **State what each side of a cross-check conditions on; compare like with like** (QE⊕prior, not raw N_L).
+- **Claims hygiene:** every "first" carries scope qualifiers and nearest-prior-work citations.
+- **R̂ on C_ℓ alone is not convergence;** check every block.
+- **No further φ-equilibration tuning without user sign-off.**
+- **Cluster operations** (job caps, quotas, `$TMPDIR`, packing TF tasks per node): see `~/.claude/CLAUDE.md` and `achievements.md` → Engineering gotchas.

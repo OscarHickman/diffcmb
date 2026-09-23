@@ -87,10 +87,9 @@ def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
     pp_lo, pp_hi = CLPP_BINS[j]
     ax.set_xlabel(rf"$C_\ell^{{TT}}$, $\ell \in [{cl_lo},{cl_hi})$ (standardised)")
     ax.set_ylabel(rf"$C_L^{{\phi\phi}}$, $L \in [{pp_lo},{pp_hi})$ (standardised)")
+    # The legend already carries both numbers (measured r and its null);
+    # "consistent with zero" is the caption's sentence, not the panel's.
     ax.legend(loc="upper left")
-    ps.stat_box(ax, "strongest bin pair" "\n" "consistent with zero",
-                loc="lower right")
-    fig.tight_layout()
     ps.save(fig, outpath)
 
 
@@ -124,13 +123,12 @@ def plot_heatmap(corr, null_abs95, outpath, caveat):
     for i in range(len(CL_BINS)):
         for j in range(len(CLPP_BINS)):
             sig = "*" if abs(corr[i, j]) > null_abs95[i, j] else ""
-            ax.text(j, i, f"{corr[i, j]:+.2f}{sig}", ha="center", va="center",
+            ax.text(j, i, f"${corr[i, j]:+.2f}$" + sig, ha="center", va="center",
                     fontsize=6.5,
                     color="white" if abs(ratio[i, j]) > 0.7 else "black")
     cb = fig.colorbar(im, ax=ax, fraction=0.046, ticks=[-1, -0.5, 0, 0.5, 1])
-    cb.set_label("$r$ / 95% null  (|1| = significant)", fontsize=6.5)
+    cb.set_label(r"$r\,/\,r^{\rm null}_{95\%}$", fontsize=7)
     cb.ax.tick_params(labelsize=6.5)
-    fig.tight_layout()
     ps.save(fig, outpath)
 
 
