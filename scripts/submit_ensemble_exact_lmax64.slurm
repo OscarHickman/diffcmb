@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --time=24:00:00
+#SBATCH --time=36:00:00
 #SBATCH --array=0-23
 #SBATCH -J ens_exact_l64
 #SBATCH -o logs/ens_exact_l64_%A_%a.out
@@ -37,10 +37,12 @@ export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
-# Tasks are packed several per node (no --exclusive), so each sees ONE of the
-# node's four GPUs and TF must not reserve all its memory up front.
-export CUDA_VISIBLE_DEVICES=$(( SLURM_ARRAY_TASK_ID % 4 ))
-export TF_FORCE_GPU_ALLOW_GROWTH=true
+# /cosma5-mounting partitions only (probe-verified 2026-09-07; NOT dine2, and
+# not cosma7-shm/ska2, whose mad01 lacks /cosma5): results/analysis is a
+# symlink into /cosma5, which dine2
+# does not mount (every T0.1c task, jobs 12041916/12041917, died at its first
+# checkpoint write for that reason). The chains are CPU-bound anyway: on dine2
+# TF logged CUDA_ERROR_NO_DEVICE and never used the GPU.
 echo "MODE=$MODE nu=$NU tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
 .venv/bin/python -u scripts/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax 64 --nside 64 \
@@ -48,4 +50,7 @@ echo "MODE=$MODE nu=$NU tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP
     --phi_mass_matrix prior --noisesig $NOISE --phi_amplitude $AMP \
     --lensing_operator exact --fiducial corrected \
     --outdir $OUT --checkpoint_every 50 $EXTRA
-echo "Realization ${SLURM_ARRAY_TASK_ID} exited with status $?"
+rc=$?
+echo "Realization ${SLURM_ARRAY_TASK_ID} exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

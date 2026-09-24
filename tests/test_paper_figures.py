@@ -406,3 +406,73 @@ def test_fig4_end_to_end_on_a_synthetic_lmax64_ensemble(tmp_path, monkeypatch, c
     for name in ("joint_posterior_scatter", "joint_posterior_heatmap"):
         w, h = _pdf_size_inches(tmp_path / "out" / f"{name}.pdf")
         assert (w, h) == pytest.approx(paper_style.FIG_1COL_TALL, abs=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# fig1_validation: the a_lm row against the exact-sampler null (ROADMAP T0.1c)
+# ---------------------------------------------------------------------------
+
+def test_mean_sd_p_against_a_null_pool_is_calibrated_and_has_power():
+    """With a supplied null pool, ranks drawn FROM that pool must pass at ~5%,
+    and exactly-uniform ranks must be rejected when the pool sits at 0.3."""
+    import fig1_validation as f1
+
+    rng = np.random.default_rng(8)
+    n_draws, trials = 119, 200
+    pool_r = np.clip(rng.normal(0.3, 0.2, size=4000) * (n_draws + 1), 0, n_draws)
+    pool_u = (np.floor(pool_r) + 0.5) / (n_draws + 1.0)
+    rejections = 0
+    for _ in range(trials):
+        r = np.rint(rng.choice(pool_u, 24) * (n_draws + 1) - 0.5).astype(int)
+        p_m, _ = f1.mean_sd_p(r, n_draws, n_rep=2000,
+                              seed=int(rng.integers(1e9)), null_u=pool_u)
+        rejections += (p_m < 0.05)
+    assert 0.01 <= rejections / trials <= 0.10
+    uniform = rng.integers(0, n_draws + 1, size=24)
+    assert f1.mean_sd_p(uniform, n_draws, n_rep=4000, null_u=pool_u)[0] < 0.01
+
+
+def test_load_alm_null_refuses_a_draw_count_mismatch(tmp_path):
+    """A null computed at another thinning lives on a different rank grid;
+    comparing against it would be silently wrong, so the loader must refuse."""
+    import fig1_validation as f1
+
+    u = (np.arange(60) + 0.5) / 60.0                       # 59 draws + 1
+    np.savez(tmp_path / f1.ALM_NULL_FILE, effective_2_10_u=u, effective_2_10_obs=0.5)
+    assert f1.load_alm_null(str(tmp_path), 59, "effective", lmax=10) is not None
+    with pytest.raises(SystemExit, match="draw"):
+        f1.load_alm_null(str(tmp_path), 119, "effective", lmax=10)
+    assert f1.load_alm_null(str(tmp_path / "missing"), 59, "effective", lmax=10) is None
+
+
+def _alm_ranks_of_synthetic_ensemble(dirpath, n_chains, n_samp, bias, seed, thin):
+    import fig1_validation as f1
+
+    dirpath.mkdir()
+    _write_synthetic_ensemble(dirpath, n_chains=n_chains, n_samp=n_samp,
+                              bias=bias, seed=seed)
+    records, n_draws = f1.collect_field_ranks(f1.chain_files(str(dirpath)), thin)
+    return {k[1:]: np.asarray(v) for k, v in records.items() if k[0] == "alm_power"}, n_draws
+
+
+def test_fig1_alm_row_passes_an_offset_that_the_null_predicts(tmp_path, capsys, monkeypatch):
+    """A sampler whose a_lm ranks are offset EXACTLY as its own exact null says
+    must pass against that null and fail against uniform -- the T0.1c logic."""
+    ens = tmp_path / "ens"
+    _alm_ranks_of_synthetic_ensemble(ens, 24, 120, bias=1.0, seed=7, thin=2)
+    null_r, n_draws = _alm_ranks_of_synthetic_ensemble(
+        tmp_path / "null", 300, 120, bias=1.0, seed=99, thin=2)
+    import fig1_validation as f1
+    np.savez(ens / f1.ALM_NULL_FILE,
+             **{f"effective_{lo}_{hi}_u": (r + 0.5) / (n_draws + 1.0)
+                for (lo, hi), r in null_r.items()})
+
+    p_null = _run_fig1(ens, tmp_path / "o1", capsys, monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["fig1", "--indir", str(ens), "--outdir",
+                                      str(tmp_path / "o2"), "--thin", "2",
+                                      "--n_rep", "50", "--alm_null", "uniform"])
+    f1.main()
+    out = capsys.readouterr().out
+    p_unif = float(re.search(r"alm_power.*?corrected min ([\d.]+)", out).group(1))
+    assert p_null["alm_power"] > 0.01, p_null
+    assert p_unif < 0.01, p_unif

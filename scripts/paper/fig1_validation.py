@@ -78,6 +78,8 @@ from diffcmb.samplers import _alm_index_lm  # noqa: E402
 
 ELL_BINS = [(2, 10), (10, 30), (30, 60), (60, 64)]
 N_HIST_BINS = 10
+# Written into the ensemble directory by scripts/null_alm_power_rank_flat_prior.py.
+ALM_NULL_FILE = "null_alm_power_rank_flat_prior.npz"
 
 
 def chain_files(indir):
@@ -162,32 +164,79 @@ def collect_clpp_ranks(files, thin):
     return np.asarray(us), n_draws, nu
 
 
-def uniform_band(n_samples, n_draws, n_bins=N_HIST_BINS, n_rep=4000, seed=7):
-    """Central 68% and 95% of histogram bin DENSITY under the discrete-uniform null.
+def load_alm_null(indir, n_draws, mode, lmax):
+    """{(lo,hi): null u pool} for the a_lm power rank, or None if not computed.
+
+    Under the flat C_l prior with a fixed-spectrum truth the a_lm power rank is
+    NOT uniform even for an exact sampler (ROADMAP T0.1c), so the a_lm row is
+    read against what an exact sampler gives. The pool must sit on this
+    figure's rank grid u = (r+0.5)/(n_draws+1): a null made at another thinning
+    has a different draw count, and comparing against it would be wrong
+    without any visible sign, so that is refused.
+    """
+    path = os.path.join(indir, ALM_NULL_FILE)
+    if not os.path.exists(path):
+        return None
+    d = np.load(path)
+    out = {}
+    for lo, hi in ELL_BINS:
+        hi = min(hi, lmax)
+        key = f"{mode}_{lo}_{hi}_u"
+        if lo >= hi or key not in d.files:
+            continue
+        u = np.asarray(d[key], dtype=np.float64)
+        r = u * (n_draws + 1.0) - 0.5
+        if not (np.allclose(r, np.rint(r), atol=1e-6) and r.max() <= n_draws + 1e-6):
+            raise SystemExit(
+                f"{path}: '{key}' is not on the rank grid for {n_draws + 1} draws "
+                "per chain -- the null was computed at a different thinning. "
+                "Re-run null_alm_power_rank_flat_prior.py to match, or pass "
+                "--alm_null uniform.")
+        out[(lo, hi)] = u
+    return out or None
+
+
+def _sim_u(rng, n, n_draws, pool):
+    """n null u values: discrete-uniform, or resampled from an exact-null pool."""
+    if pool is None:
+        return (rng.integers(0, n_draws + 1, size=n) + 0.5) / (n_draws + 1.0)
+    return rng.choice(pool, size=n, replace=True)
+
+
+def uniform_band(n_samples, n_draws, n_bins=N_HIST_BINS, n_rep=4000, seed=7,
+                 null_pools=None):
+    """Central 68% and 95% of histogram bin DENSITY under the null.
 
     Simulated rather than approximated: the rank of a truth among n_draws exact
     draws is discrete-uniform on {0..n_draws}, and this project's standing
     calibration lesson (discrete_uniform_p) is that continuous approximations
     misjudge exactly this statistic.
+
+    `null_pools`, if given, is a list of (pool, n_obs) per ell bin: each
+    replicate resamples n_obs values from every bin's exact-null pool and pools
+    them, mirroring how the observed histogram pools the bins.
     """
     rng = np.random.default_rng(seed)
     heights = np.empty((n_rep, n_bins))
     for i in range(n_rep):
-        r = rng.integers(0, n_draws + 1, size=n_samples)
-        u = (r + 0.5) / (n_draws + 1.0)
+        if null_pools is None:
+            u = _sim_u(rng, n_samples, n_draws, None)
+        else:
+            u = np.concatenate([_sim_u(rng, n, n_draws, pool) for pool, n in null_pools])
         h, _ = np.histogram(u, bins=n_bins, range=(0, 1), density=True)
         heights[i] = h
     return (np.percentile(heights, [16, 84], axis=0),
             np.percentile(heights, [2.5, 97.5], axis=0))
 
 
-def _draw_hist(ax, u, n_draws, color, label):
-    b68, b95 = uniform_band(u.size, n_draws)
+def _draw_hist(ax, u, n_draws, color, label, null_pools=None):
+    b68, b95 = uniform_band(u.size, n_draws, null_pools=null_pools)
+    name = "uniform" if null_pools is None else "exact null"
     edges = np.linspace(0, 1, N_HIST_BINS + 1)
     ax.stairs(b95[1], edges, baseline=b95[0], fill=True, color=ps.COL_NULL,
-              alpha=0.45, lw=0, label="uniform, 95%")
+              alpha=0.45, lw=0, label=f"{name}, 95%")
     ax.stairs(b68[1], edges, baseline=b68[0], fill=True, color=ps.COL_NULL,
-              alpha=0.75, lw=0, label="uniform, 68%")
+              alpha=0.75, lw=0, label=f"{name}, 68%")
     ax.hist(u, bins=N_HIST_BINS, range=(0, 1), histtype="step", color=color,
             lw=1.4, density=True, label=label)
     ax.axhline(1.0, color="0.45", lw=0.7, ls="--", zorder=0)
@@ -197,7 +246,7 @@ def _draw_hist(ax, u, n_draws, color, label):
     ax.set_xlabel("normalised rank $u$")
 
 
-def mean_sd_p(ranks, n_draws, n_rep=20000, seed=11):
+def mean_sd_p(ranks, n_draws, n_rep=20000, seed=11, null_u=None):
     """Two-sided simulated p-values of the rank MEAN and rank SPREAD.
 
     The mean is the statistic the power curve (validation_power.pdf) is
@@ -206,11 +255,14 @@ def mean_sd_p(ranks, n_draws, n_rep=20000, seed=11):
     `discrete_uniform_p` (chi-square over n_draws+1 categories) is printed for
     continuity but not drawn: at N=96 over 61 categories it has ~1.6 counts per
     cell and almost no power, so its large p-values say little.
+
+    `null_u`, if given, is an exact-sampler null pool of u values to test
+    against instead of the discrete uniform (see load_alm_null).
     """
     rng = np.random.default_rng(seed)
     r = np.asarray(ranks)
     u = (r + 0.5) / (n_draws + 1.0)
-    sim = (rng.integers(0, n_draws + 1, size=(n_rep, r.size)) + 0.5) / (n_draws + 1.0)
+    sim = _sim_u(rng, n_rep * r.size, n_draws, null_u).reshape(n_rep, r.size)
     m0, s0 = sim.mean(axis=1), sim.std(axis=1)
 
     def two_sided(null, obs):
@@ -220,7 +272,7 @@ def mean_sd_p(ranks, n_draws, n_rep=20000, seed=11):
     return two_sided(m0, u.mean()), two_sided(s0, u.std())
 
 
-def binned_test(rank_sets, n_draws):
+def binned_test(rank_sets, n_draws, null_sets=None):
     """Per-bin mean and spread p-values, Bonferroni-corrected minimum.
 
     The pooled N=96 ranks are 24 chains x 4 l-bins, and bins from one chain
@@ -228,35 +280,41 @@ def binned_test(rank_sets, n_draws):
     over-confident -- at thin=60 it "rejects" a_lm spread at p=0.003 where
     a_lm draws are certainly independent. Each bin alone has 24 independent
     chains, so the valid test is per bin, corrected for 4 bins x 2 statistics.
+    `null_sets`, if given, is the matching per-bin list of null pools.
     """
     ps_all = []
-    for r in rank_sets:
+    null_sets = [None] * len(rank_sets) if null_sets is None else null_sets
+    for r, pool in zip(rank_sets, null_sets):
         if len(r) == 0:           # bin above this ensemble's lmax
             continue
-        ps_all.extend(mean_sd_p(np.asarray(r), n_draws))
+        ps_all.extend(mean_sd_p(np.asarray(r), n_draws, null_u=pool))
     return min(1.0, len(ps_all) * min(ps_all)), ps_all
 
 
-def plot_rank_histograms(records, n_draws, outpath):
+def plot_rank_histograms(records, n_draws, outpath, alm_null=None):
+    """alm_null: {(lo,hi): pool} from load_alm_null, or None for uniform."""
     fig, axes = plt.subplots(1, 2, figsize=ps.FIG_2COL, sharey=True)
-    for ax, tag, label, color in (
-            (axes[0], "phi_power", r"$\phi$ field power", ps.COL_PHI),
-            (axes[1], "alm_power", r"$a_{\ell m}$ field power", ps.COL_ALM)):
-        pooled = []
-        for lo, hi in ELL_BINS:
-            pooled.extend(records.get((tag, lo, hi), []))
-        pooled = np.asarray(pooled, dtype=np.int64)
+    for ax, tag, label, color, null in (
+            (axes[0], "phi_power", r"$\phi$ field power", ps.COL_PHI, None),
+            (axes[1], "alm_power", r"$a_{\ell m}$ field power", ps.COL_ALM, alm_null)):
+        bins = records_bins(records, tag)
+        pooled = np.asarray([r for b in bins for r in records[(tag,) + b]],
+                            dtype=np.int64)
         u = (pooled + 0.5) / (n_draws + 1.0)
-        _draw_hist(ax, u, n_draws, color, label)
+        null_sets = None if null is None else [null[b] for b in bins]
+        null_pools = (None if null is None else
+                      [(null[b], len(records[(tag,) + b])) for b in bins])
+        _draw_hist(ax, u, n_draws, color, label, null_pools=null_pools)
         cal_p = discrete_uniform_p(pooled, n_draws)
         sd_u = rank_spread(pooled, n_draws)
-        p_corr, p_bins = binned_test(
-            [records.get((tag, lo, hi), []) for lo, hi in ELL_BINS], n_draws)
+        p_corr, p_bins = binned_test([records[(tag,) + b] for b in bins], n_draws,
+                                     null_sets=null_sets)
         ps.stat_box(ax, rf"$\bar u$={u.mean():.3f},  sd$_u$={sd_u:.3f}" "\n"
                     rf"$p_{{\rm bin}}$={p_corr:.2f},  $N$={u.size}", loc="lower left")
         print(f"  {tag}: mean_u={u.mean():.4f} sd_u={sd_u:.4f} N={u.size}; per-bin "
               f"(mean,sd) p = {np.round(p_bins, 3).tolist()} -> corrected min "
-              f"{p_corr:.3f}  [pooled chi2 cal_p={cal_p:.4f}, not drawn]")
+              f"{p_corr:.3f}  [vs {'uniform' if null is None else 'exact null'}; "
+              f"pooled chi2 cal_p={cal_p:.4f}, not drawn]")
     axes[0].set_ylabel("density")
     for ax in axes:
         ax.set_ylim(0, 2.35)       # headroom so the legend clears the bands
@@ -266,6 +324,11 @@ def plot_rank_histograms(records, n_draws, outpath):
     axes[1].legend(h[2:] + h[:2], lab[2:] + lab[:2], loc="upper right", ncol=3,
                    columnspacing=1.0)
     ps.save(fig, outpath)
+
+
+def records_bins(records, tag):
+    """The (lo, hi) ell bins present for `tag`, in ELL_BINS order."""
+    return [(lo, hi) for (t, lo, hi) in sorted(records, key=lambda k: k[1]) if t == tag]
 
 
 def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath):
@@ -336,6 +399,13 @@ def main():
     ap.add_argument("--n_rep", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
+        "--alm_null", choices=("effective", "nominal", "uniform"),
+        default="effective",
+        help=("What the a_lm row is read against. Default: the exact-sampler "
+              f"null in <indir>/{ALM_NULL_FILE} at chain-calibrated effective "
+              "noise (ROADMAP T0.1c). Falls back to uniform, with a notice, if "
+              "that file is absent."))
+    ap.add_argument(
         "--outdir",
         default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure1")
     args = ap.parse_args()
@@ -345,8 +415,19 @@ def main():
     print(f"{len(files)} chains from {args.indir}, thin={args.thin}")
 
     records, n_draws = collect_field_ranks(files, args.thin)
+    alm_null = None
+    if args.alm_null != "uniform":
+        lmax = int(np.load(files[0])["lmax"])
+        alm_null = load_alm_null(args.indir, n_draws, args.alm_null, lmax)
+        if alm_null is None:
+            print(f"  ! no {ALM_NULL_FILE} in {args.indir}: the a_lm row is read "
+                  "against UNIFORM, which is non-uniform by construction under "
+                  "the flat C_l prior -- run null_alm_power_rank_flat_prior.py.")
+        else:
+            print(f"  a_lm row read against the {args.alm_null} exact-sampler null")
     plot_rank_histograms(records, n_draws,
-                         os.path.join(args.outdir, "rank_histograms.pdf"))
+                         os.path.join(args.outdir, "rank_histograms.pdf"),
+                         alm_null=alm_null)
 
     us, clpp_draws, nu = collect_clpp_ranks(files, args.thin)
     if us is None:
