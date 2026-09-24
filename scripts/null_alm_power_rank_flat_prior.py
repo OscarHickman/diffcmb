@@ -27,9 +27,10 @@ D_l = sum_j d_j^2 / v_j, k_l = packed dof, shape from
 
 Two noise levels:
   nominal    N_l = sigma^2 * 4 pi / N_pix (white pixel noise, no lensing)
-  effective  N_l chosen so that W_l matches the per-l posterior variance
-             fraction measured on the ensemble's own chains,
-             W_l = <var_sweeps(a_j) / (C_l^true v_j)>. This carries the
+  effective  N_l chosen so that the model's posterior variance ratio
+             matches the one measured on the ensemble's own chains,
+             f_l = <var_sweeps(a_j) / (C_l^true v_j)> = N/(C+N) = 1 - W_l,
+             so N_eff = C f / (1 - f). This carries the
              information the lensing (phi uncertainty) removes. It uses the
              chains' marginal variance, which includes C_l scatter, so it
              slightly overstates N_eff -- i.e. errs toward a LARGER null
@@ -94,10 +95,12 @@ def nominal_noise(lmax, noisesig, nside):
 
 
 def effective_noise(files, lmax):
-    """N_eff,l from the posterior variance fraction W_l measured on chains.
+    """(N_eff,l, Wiener weight W_l) from the posterior variance measured on chains.
 
-    W_l = mean over chains and components at l of var_sweeps(a_j)/(C_l v_j);
-    W = C/(C+N) inverts to N = C (1 - W) / W. W is clipped to (0, 0.999].
+    f_l = mean over chains and components at l of var_sweeps(a_j)/(C_l v_j).
+    In the model, var(a_j | C, d) = W N_l v_j with W = C/(C+N), so
+    f = W N / C = N/(C+N) = 1 - W: small f means data-dominated. It inverts to
+    N = C f / (1 - f). f is clipped to [1e-6, 0.999].
     """
     L_arr, v = packed_layout(lmax)
     w_sum = np.zeros(lmax)
@@ -108,11 +111,11 @@ def effective_noise(files, lmax):
         frac = var / (cl[L_arr] * v)
         w_sum += np.bincount(L_arr, weights=frac, minlength=lmax) / np.maximum(
             np.bincount(L_arr, minlength=lmax), 1)
-    w = np.clip(w_sum / len(files), 1e-6, 0.999)
+    f = np.clip(w_sum / len(files), 1e-6, 0.999)
     cl = np.asarray(np.load(files[0], allow_pickle=True)["cl_true"])[:lmax]
     n = np.zeros(lmax)
-    n[2:] = cl[2:] * (1.0 - w[2:]) / w[2:]
-    return n, w
+    n[2:] = cl[2:] * f[2:] / (1.0 - f[2:])
+    return n, 1.0 - f
 
 
 def exact_posterior_draws(d, cl_noise, lmax, n_draws, rng):
@@ -170,8 +173,11 @@ def report(indir, n_null, seed):
     n_eff, w = effective_noise(files, lmax)
     print(f"\n######## {indir}: {len(files)} chains, lmax {lmax}, "
           f"{nd + 1} draws/chain at thin {OBS_THIN} ########")
-    print("  posterior variance fraction W_l (chains) at l = 5, 20, 45, 62: "
-          + ", ".join(f"{w[L]:.3f}" for L in (5, 20, 45, 62) if L < lmax))
+    ells = [L for L in (5, 20, 45, 62) if L < lmax]
+    print("  chain variance ratio f_l = 1 - W_l at l = 5, 20, 45, 62: "
+          + ", ".join(f"{1.0 - w[L]:.3f}" for L in ells))
+    print("  effective N_l / C_l at the same l:                     "
+          + ", ".join(f"{n_eff[L] / cl[L]:.3f}" for L in ells))
     results = {}
     for mode, cl_noise in (("nominal", nominal_noise(lmax, float(d0["noisesig"]), nside)),
                            ("effective", n_eff)):

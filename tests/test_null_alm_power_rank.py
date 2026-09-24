@@ -91,17 +91,26 @@ def test_noise_dominated_flat_prior_makes_truth_rank_low():
     assert u.mean() < 0.5 - 4 * 0.289 / np.sqrt(len(u))
 
 
-def test_effective_noise_recovers_known_variance_fraction(tmp_path):
+@pytest.mark.parametrize("noise_ratio", [0.01, 0.5, 3.0])
+def test_effective_noise_round_trips_the_model(tmp_path, noise_ratio):
+    # Chains drawn from the model's own a_j | C, d posterior at a KNOWN N_l:
+    # var(a_j) = W N_l v_j with W = C/(C+N), so var/(C v) = N/(C+N) = 1 - W,
+    # not W. Low noise must give low N_eff: inverting the ratio as if it were
+    # W sent a data-dominated l (ratio 0.008) to N_eff ~ 124 C and a
+    # degenerate null (every truth ranked at the floor).
     rng = np.random.default_rng(3)
     cl = _cl()
+    noise = np.zeros(LMAX)
+    noise[2:] = noise_ratio * cl[2:]
     L_arr, v = nul.packed_layout(LMAX)
-    w_true = np.linspace(0.2, 0.9, LMAX)
+    W = cl[L_arr] / (cl[L_arr] + noise[L_arr])
     for c in range(6):
-        samp = np.sqrt(w_true[L_arr] * cl[L_arr] * v) * rng.standard_normal(
+        d = np.sqrt((cl[L_arr] + noise[L_arr]) * v) * rng.standard_normal(L_arr.size)
+        samp = W * d + np.sqrt(W * noise[L_arr] * v) * rng.standard_normal(
             (4000, L_arr.size))
         np.savez(tmp_path / f"chain_r{c:03d}.npz", lmax=LMAX, cl_true=cl,
                  alm_samples=np.hstack([np.zeros((4000, LMAX - 2)), samp]))
     files = sorted(str(p) for p in tmp_path.glob("chain_r*.npz"))
     n_eff, w = nul.effective_noise(files, LMAX)
-    assert np.allclose(w[2:], w_true[2:], rtol=0.03)
-    assert np.allclose(n_eff[2:], cl[2:] * (1 - w_true[2:]) / w_true[2:], rtol=0.1)
+    assert np.allclose(w[2:], (cl / (cl + noise))[2:], rtol=0.03)
+    assert np.allclose(n_eff[2:], noise[2:], rtol=0.1)
