@@ -1,15 +1,16 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=0
+#SBATCH --mem=16G
 #SBATCH --time=01:00:00
 #SBATCH -J compare_cl_bias192
 #SBATCH -o logs/compare_cl_bias192_%j.out
 #SBATCH -e logs/compare_cl_bias192_%j.err
-#SBATCH --exclusive
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # 2026-09-11. The C_l^TT bias-reduction comparison (ROADMAP.md section 2).
 # Analysis only; loads ~900 MB of chains, so it runs under SLURM rather than
@@ -32,4 +33,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
     --lmax 192 \
     --out results/analysis/figures/cl_bias_reduction_lmax192
 
-echo "Exited with status $?"
+rc=$?
+echo "Exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

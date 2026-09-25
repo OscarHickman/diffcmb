@@ -1,14 +1,16 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=96G
 #SBATCH --time=08:00:00
 #SBATCH -J msgr_inner_conv_L300
 #SBATCH -o logs/msgr_inner_conv_L300_%j.out
 #SBATCH -e logs/msgr_inner_conv_L300_%j.err
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # Phase 0c Step 6 diagnostic: does the messenger sampler's inner Gibbs loop
 # converge within n_messenger_iter=100 at production scale? The production

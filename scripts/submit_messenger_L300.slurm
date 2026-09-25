@@ -1,16 +1,17 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=0
+#SBATCH --mem=128G
 #SBATCH --time=72:00:00
 #SBATCH -J cmb_msgr_L300
 #SBATCH -o logs/cmb_msgr_L300_%j_%a.out
 #SBATCH -e logs/cmb_msgr_L300_%j_%a.err
 #SBATCH --array=1-4
-#SBATCH --exclusive
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # Phase 0c Step 6: production validation chain for the messenger-field
 # alm|C_l sampler (block-diagonal-by-m A^T A correction, m_group_size=5 --

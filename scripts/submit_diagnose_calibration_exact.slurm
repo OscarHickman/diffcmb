@@ -13,6 +13,12 @@
 # burn-in, or the sampler? Field ranks at thin 10/40 by chain half, rank mean
 # per chain quarter, drift z of the power traces (numpy only), then the
 # joint-likelihood SBC at thin 40 and on the second half at thin 10.
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
@@ -35,4 +41,7 @@ for D in $ON $OFF; do
   .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $D --thin 10 \
       --burn_frac 0.5 --out $D/sbc_joint_likelihood_thin10_half2.npz
 done
-echo "Exited with status $?"
+rc=$?
+echo "Exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

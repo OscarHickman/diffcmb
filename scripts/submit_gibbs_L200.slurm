@@ -26,6 +26,12 @@ DATA_MODE="real"
 DATA_DIR="/cosma8/data/dp004/dc-hick2/Plank"
 OUTPUT_DIR="$(pwd)/results/lmax${LMAX}_nside${NSIDE}_${SAMPLER}_${DATA_MODE}"
 
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 mkdir -p logs
 mkdir -p $OUTPUT_DIR
 

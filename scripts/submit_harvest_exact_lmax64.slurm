@@ -13,6 +13,12 @@
 # C_L^phiphi SBC, Block 4 exactness PIT (with lag controls that must fail),
 # phi power bias and coverage nulls, and the joint-likelihood SBC (replayed
 # through each chain's own recorded operator and noise) -- both ensembles.
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
@@ -32,4 +38,7 @@ for D in ens_exact_l64_A3000_n30 ens_exact_l64_A3000_n30_nocl4; do
       --indir results/analysis/$D --thin 10 \
       --out results/analysis/$D/sbc_joint_likelihood_thin10.npz
 done
-echo "Exited with status $?"
+rc=$?
+echo "Exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

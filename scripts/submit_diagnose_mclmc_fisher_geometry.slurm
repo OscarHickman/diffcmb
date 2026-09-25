@@ -74,6 +74,12 @@ PHI_MCLMC_L=100.0
 PHI_FISHER_WARMUP_ITER=20
 PHI_FISHER_N_PROBES=8
 
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 

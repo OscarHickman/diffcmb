@@ -17,6 +17,12 @@
 # splits) also affects GPU/CPU splits, which the existing regression test
 # (tests/test_cg_matvec.py) and validation job 11552527 never exercised.
 
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 echo "===="
 echo "Starting debug_cg_1gpu $SLURM_JOB_ID at $(date)"
 echo "Running on nodes: $SLURM_NODELIST"

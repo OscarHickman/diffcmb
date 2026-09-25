@@ -1,14 +1,16 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=0
+#SBATCH --mem=16G
 #SBATCH --time=00:30:00
 #SBATCH -J cov_ens_smoke
 #SBATCH -o logs/cov_ens_smoke_%j.out
 #SBATCH -e logs/cov_ens_smoke_%j.err
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # Fast plumbing smoke test for coverage_ensemble_chain.py's new
 # --phi_mass_matrix / --no_sample_cl_phiphi arguments. Tiny lmax, a handful of

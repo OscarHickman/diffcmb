@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2,cosma5
+#SBATCH -p cosma5,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -13,14 +13,17 @@
 # flat C_l prior with a fixed-spectrum truth (nominal and chain-calibrated
 # effective noise), against the observed rank mean of both exact-operator
 # ensembles. numpy/scipy only.
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount.
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 mkdir -p logs
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4
 .venv/bin/python -u scripts/null_alm_power_rank_flat_prior.py \
     --indir results/analysis/ens_exact_l64_A3000_n30_nocl4 \
     --indir results/analysis/ens_exact_l64_A3000_n30 --n_null 2000
-echo "Exited with status $?"
+status=$?
+echo "Exited with status $status"
+exit $status

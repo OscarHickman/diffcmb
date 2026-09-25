@@ -89,6 +89,12 @@ SAMPLES=600
 N_LFS=10
 PHI_N_LFS=240
 
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 
@@ -117,4 +123,7 @@ $PYTHON -u scripts/coverage_ensemble_chain.py \
     --outdir results/analysis/coverage_ensemble_lmax64_mapfix_val \
     --checkpoint_every 50
 
-echo "Realization ${SLURM_ARRAY_TASK_ID} exited with status $?"
+rc=$?
+echo "Realization ${SLURM_ARRAY_TASK_ID} exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

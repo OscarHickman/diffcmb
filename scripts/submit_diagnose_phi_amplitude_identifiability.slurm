@@ -1,14 +1,16 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=0
+#SBATCH --mem=16G
 #SBATCH --time=01:00:00
 #SBATCH -J diag_phi_amp_ident
 #SBATCH -o logs/diag_phi_amp_ident_%j.out
 #SBATCH -e logs/diag_phi_amp_ident_%j.err
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # Root-cause diagnostic for the 2026-08-28 coverage-ensemble failure
 # (job 11887897): phi and C_L^phiphi ranked 0/8 in every ell-bin of every
@@ -49,4 +51,7 @@ echo "Using Python: $($PYTHON --version 2>&1)"
 $PYTHON -u scripts/diagnose_phi_amplitude_identifiability.py \
     --lmax 64 --nside 64 --realization 0
 
-echo "Exited with status $?"
+rc=$?
+echo "Exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

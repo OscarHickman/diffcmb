@@ -91,6 +91,12 @@ MAP_STEPS=2000
 MAP_LR=0.01
 SEED=0
 
+# results/analysis is a symlink into /cosma5, which dine2 does not mount (ROADMAP
+# 2026-09-24). Fail loudly here rather than at the first write.
+if [ ! -d /cosma/apps/durham/dc-hick2/diffcmb/results/analysis/ ]; then
+    echo "results/analysis (/cosma5) is not mounted on $(hostname); relocate outputs before running on dine2" >&2
+    exit 1
+fi
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 
@@ -127,4 +133,7 @@ $PYTHON -u scripts/pilot_coverage_equilibration.py \
     --checkpoint_every 50 \
     --out results/analysis/pilot_coverage_lmax128_postfix_hmc.npz
 
-echo "Exited with status $?"
+rc=$?
+echo "Exited with status $rc"
+# Propagate the status so sacct shows FAILED rather than COMPLETED.
+exit $rc

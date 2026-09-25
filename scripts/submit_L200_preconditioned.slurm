@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -A durham
-#SBATCH -p dine2
+#SBATCH -p cosma5,cosma8-shm,cosma8-shm2,cosma8-shm3,cosma8-ska,bluefield1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -10,7 +10,8 @@
 #SBATCH -o logs/cmb_L200_prec_%j_%a.out
 #SBATCH -e logs/cmb_L200_prec_%j_%a.err
 #SBATCH --array=1-4
-#SBATCH --exclusive
+# Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount
+# (ROADMAP 2026-09-24). Memory sized from past MaxRSS instead of a whole node.
 
 # L=200 run with diagonal mass matrix preconditioning.
 # Centered parameterization so the mass matrix (1/sqrt(Cl)) correctly
