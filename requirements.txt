@@ -5,6 +5,7 @@ matplotlib>=3.3
 scipy>=1.5
 tensorflow>=2.6
 tensorflow-probability>=0.14
+tf-keras  # required by tensorflow-probability on TF >= 2.16
 astropy>=4.2
 emcee>=3.0
 pyyaml>=5.4
