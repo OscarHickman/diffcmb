@@ -63,8 +63,9 @@ def test_trace_rank_equals_rank_of_power_against_truth(tmp_path):
     traces = _traces(tmp_path)
     table = dcs.rank_table(traces, thin=1, window="full")
     ranks, n_draws = table[("alm_power", 2, 10)]
-    assert n_draws == 399
-    assert ranks.min() >= 0 and ranks.max() <= 400
+    # 400 draws -> rank in {0..400}: n_draws is the draw count, u = (r+0.5)/(n+1)
+    assert n_draws == 400
+    assert ranks.min() >= 0 and ranks.max() <= n_draws
 
 
 def test_stationary_correct_sampler_shows_no_drift(tmp_path):

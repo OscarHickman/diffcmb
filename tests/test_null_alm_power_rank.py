@@ -114,3 +114,41 @@ def test_effective_noise_round_trips_the_model(tmp_path, noise_ratio):
     n_eff, w = nul.effective_noise(files, LMAX)
     assert np.allclose(w[2:], (cl / (cl + noise))[2:], rtol=0.03)
     assert np.allclose(n_eff[2:], noise[2:], rtol=0.1)
+
+
+def test_null_ranks_live_on_the_observed_grid():
+    # M posterior draws -> ranks {0..M}; report() writes u = (r+0.5)/(M+1),
+    # which fig1_validation.load_alm_null must accept at the same M.
+    ranks = nul.null_ranks(_cl(), 1e3 * _cl(), LMAX, n_null=300, n_draws=20, seed=4)
+    for r in ranks.values():
+        assert r.min() >= 0 and r.max() <= 20
+        u = (r + 0.5) / 21.0
+        assert u.max() < 1.0
+
+
+def test_observed_mean_u_uses_the_requested_thin(tmp_path, monkeypatch):
+    # The null must be built on the same draw count as the observed ranks:
+    # observed_mean_u reports nd at the thin it was asked for, not OBS_THIN.
+    seen = {}
+
+    def fake_rank_table(traces, thin, window):
+        seen["thin"] = thin
+        nd = 3600 // thin
+        return {("alm_power", 2, 10): (np.zeros(4, dtype=int), nd)}
+
+    monkeypatch.setattr(nul, "rank_table", fake_rank_table)
+    monkeypatch.setattr(nul, "load_traces", lambda files: None)
+    obs, nd = nul.observed_mean_u(["x"], thin=50)
+    assert seen["thin"] == 50 and nd == 72
+    assert obs[(2, 10)] == (pytest.approx(0.5 / 73.0), 4)
+
+
+def test_main_accepts_thin_and_writes_the_thin_keyed_file(monkeypatch):
+    import fig1_validation as f1
+
+    calls = []
+    monkeypatch.setattr(nul, "report", lambda indir, n_null, seed, thin: calls.append(thin))
+    monkeypatch.setattr(sys, "argv", ["x", "--indir", "d", "--thin", "50"])
+    nul.main()
+    assert calls == [50]
+    assert nul.null_path("d", 50) == os.path.join("d", f1.alm_null_file(50))

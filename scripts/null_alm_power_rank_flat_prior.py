@@ -62,7 +62,7 @@ from diagnose_calibration_stationarity import (  # noqa: E402
     load_traces,
     rank_table,
 )
-from fig1_validation import ELL_BINS  # noqa: E402
+from fig1_validation import ELL_BINS, alm_null_file  # noqa: E402
 
 from diffcmb.alm_utils import (  # noqa: E402
     invgamma_shape_for_spectrum,
@@ -164,15 +164,20 @@ def observed_mean_u(files, thin=OBS_THIN):
     return out, nd
 
 
-def report(indir, n_null, seed):
+def null_path(indir, thin):
+    """Where the null for this thinning lives (fig1_validation reads the same)."""
+    return os.path.join(indir, alm_null_file(thin))
+
+
+def report(indir, n_null, seed, thin=OBS_THIN):
     files = chain_files(indir)
     d0 = np.load(files[0], allow_pickle=True)
     lmax, nside = int(d0["lmax"]), int(d0["nside"])
     cl = np.asarray(d0["cl_true"], dtype=np.float64)[:lmax]
-    obs, nd = observed_mean_u(files)
+    obs, nd = observed_mean_u(files, thin)
     n_eff, w = effective_noise(files, lmax)
     print(f"\n######## {indir}: {len(files)} chains, lmax {lmax}, "
-          f"{nd + 1} draws/chain at thin {OBS_THIN} ########")
+          f"{nd} draws/chain at thin {thin} ########")
     ells = [L for L in (5, 20, 45, 62) if L < lmax]
     print("  chain variance ratio f_l = 1 - W_l at l = 5, 20, 45, 62: "
           + ", ".join(f"{1.0 - w[L]:.3f}" for L in ells))
@@ -182,7 +187,7 @@ def report(indir, n_null, seed):
     for mode, cl_noise in (("nominal", nominal_noise(lmax, float(d0["noisesig"]), nside)),
                            ("effective", n_eff)):
         # same draw count and u = (r+0.5)/(nd+1) as the observed ranks
-        ranks = null_ranks(cl, cl_noise, lmax, n_null, nd + 1, seed)
+        ranks = null_ranks(cl, cl_noise, lmax, n_null, nd, seed)
         print(f"\n  {mode} null ({n_null} exact realizations):")
         print("    bin        null mean_u  se(N_obs)   observed   z")
         for b, r in ranks.items():
@@ -195,7 +200,7 @@ def report(indir, n_null, seed):
             results[f"{mode}_{b[0]}_{b[1]}_u"] = u
             results[f"{mode}_{b[0]}_{b[1]}_obs"] = o
         results[f"{mode}_cl_noise"] = cl_noise
-    out = os.path.join(indir, "null_alm_power_rank_flat_prior.npz")
+    out = null_path(indir, thin)
     np.savez(out, w=w, **results)
     print(f"\nSaved {out}")
 
@@ -205,9 +210,14 @@ def main():
     ap.add_argument("--indir", action="append", required=True)
     ap.add_argument("--n_null", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=20260924)
+    ap.add_argument(
+        "--thin", type=int, default=OBS_THIN,
+        help=("Thinning of the observed ranks; must match fig1_validation.py "
+              "--thin. Set it near the a_lm tau_int so the draws are close to "
+              "independent. Thin 10 writes the legacy filename, others _thin<N>."))
     args = ap.parse_args()
     for indir in args.indir:
-        report(indir, args.n_null, args.seed)
+        report(indir, args.n_null, args.seed, thin=args.thin)
 
 
 if __name__ == "__main__":

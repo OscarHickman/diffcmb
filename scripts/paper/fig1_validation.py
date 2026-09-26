@@ -82,6 +82,12 @@ N_HIST_BINS = 10
 ALM_NULL_FILE = "null_alm_power_rank_flat_prior.npz"
 
 
+def alm_null_file(thin):
+    """Null filename for a thinning: the legacy name at thin 10, else _thin<N>."""
+    return ALM_NULL_FILE if thin == 10 else ALM_NULL_FILE.replace(
+        ".npz", f"_thin{thin}.npz")
+
+
 def chain_files(indir):
     files = sorted(f for f in glob.glob(os.path.join(indir, "chain_r*.npz"))
                    if not f.endswith("_ckpt.npz"))
@@ -126,7 +132,7 @@ def collect_field_ranks(files, thin):
                     continue
                 records.setdefault((tag, lo, hi), []).append(rank_of(tru, post))
 
-    n_draws = alm_part.shape[0] - 1  # rank lives in {0..n_draws}
+    n_draws = alm_part.shape[0]  # draw count; rank lives in {0..n_draws}
     return records, n_draws
 
 
@@ -160,11 +166,11 @@ def collect_clpp_ranks(files, thin):
             tru = np.asarray(d["cl_phiphi_true"], dtype=np.float64)[ells].mean()
             rank = int(np.sum(post < tru))
             us.append((rank + 0.5) / (len(post) + 1.0))
-            n_draws = len(post) - 1
+            n_draws = len(post)
     return np.asarray(us), n_draws, nu
 
 
-def load_alm_null(indir, n_draws, mode, lmax):
+def load_alm_null(indir, n_draws, mode, lmax, thin=10):
     """{(lo,hi): null u pool} for the a_lm power rank, or None if not computed.
 
     Under the flat C_l prior with a fixed-spectrum truth the a_lm power rank is
@@ -174,7 +180,7 @@ def load_alm_null(indir, n_draws, mode, lmax):
     has a different draw count, and comparing against it would be wrong
     without any visible sign, so that is refused.
     """
-    path = os.path.join(indir, ALM_NULL_FILE)
+    path = os.path.join(indir, alm_null_file(thin))
     if not os.path.exists(path):
         return None
     d = np.load(path)
@@ -418,9 +424,10 @@ def main():
     alm_null = None
     if args.alm_null != "uniform":
         lmax = int(np.load(files[0])["lmax"])
-        alm_null = load_alm_null(args.indir, n_draws, args.alm_null, lmax)
+        alm_null = load_alm_null(args.indir, n_draws, args.alm_null, lmax,
+                                 thin=args.thin)
         if alm_null is None:
-            print(f"  ! no {ALM_NULL_FILE} in {args.indir}: the a_lm row is read "
+            print(f"  ! no {alm_null_file(args.thin)} in {args.indir}: the a_lm row is read "
                   "against UNIFORM, which is non-uniform by construction under "
                   "the flat C_l prior -- run null_alm_power_rank_flat_prior.py.")
         else:
@@ -438,7 +445,7 @@ def main():
         plot_clpp_sbc(us, clpp_draws, nu, len(files),
                       os.path.join(args.outdir, "clpp_sbc.pdf"))
 
-    plot_power_curve(len(files), n_draws + 1, args.n_rep, args.seed,
+    plot_power_curve(len(files), n_draws, args.n_rep, args.seed,
                      os.path.join(args.outdir, "validation_power.pdf"))
 
 

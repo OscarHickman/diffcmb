@@ -36,6 +36,9 @@ mkdir -p logs $OUT
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
+# Cap every pool at the allocation (AGENTS.md: pools size to the node, not SLURM).
+export OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 DUCC0_NUM_THREADS=8
+export TF_NUM_INTRAOP_THREADS=8 TF_NUM_INTEROP_THREADS=2
 export TF_ENABLE_ONEDNN_OPTS=0
 # /cosma5-mounting partitions only (probe-verified 2026-09-07; NOT dine2, and
 # not cosma7-shm/ska2, whose mad01 lacks /cosma5): results/analysis is a

@@ -437,12 +437,50 @@ def test_load_alm_null_refuses_a_draw_count_mismatch(tmp_path):
     comparing against it would be silently wrong, so the loader must refuse."""
     import fig1_validation as f1
 
-    u = (np.arange(60) + 0.5) / 60.0                       # 59 draws + 1
+    u = (np.arange(61) + 0.5) / 61.0                       # 60 draws: ranks 0..60
     np.savez(tmp_path / f1.ALM_NULL_FILE, effective_2_10_u=u, effective_2_10_obs=0.5)
-    assert f1.load_alm_null(str(tmp_path), 59, "effective", lmax=10) is not None
+    assert f1.load_alm_null(str(tmp_path), 60, "effective", lmax=10) is not None
     with pytest.raises(SystemExit, match="draw"):
-        f1.load_alm_null(str(tmp_path), 119, "effective", lmax=10)
-    assert f1.load_alm_null(str(tmp_path / "missing"), 59, "effective", lmax=10) is None
+        f1.load_alm_null(str(tmp_path), 120, "effective", lmax=10)
+    assert f1.load_alm_null(str(tmp_path / "missing"), 60, "effective", lmax=10) is None
+
+
+def test_alm_null_file_is_keyed_by_thin(tmp_path):
+    """Thin 10 keeps the legacy filename; any other thin gets its own file, so
+    a null regenerated at thin ~ tau_int does not overwrite the thin-10 one and
+    fig1 at --thin N reads the file made at N."""
+    import fig1_validation as f1
+
+    assert f1.alm_null_file(10) == f1.ALM_NULL_FILE
+    assert f1.alm_null_file(50) == "null_alm_power_rank_flat_prior_thin50.npz"
+    u10 = (np.arange(361) + 0.5) / 361.0                   # 360 draws (thin 10)
+    u50 = (np.arange(73) + 0.5) / 73.0                     # 72 draws (thin 50)
+    np.savez(tmp_path / f1.alm_null_file(10), effective_2_10_u=u10)
+    np.savez(tmp_path / f1.alm_null_file(50), effective_2_10_u=u50)
+    got = f1.load_alm_null(str(tmp_path), 72, "effective", lmax=10, thin=50)
+    assert np.array_equal(got[(2, 10)], u50)
+    got = f1.load_alm_null(str(tmp_path), 360, "effective", lmax=10)
+    assert np.array_equal(got[(2, 10)], u10)
+    assert f1.load_alm_null(str(tmp_path), 72, "effective", lmax=10, thin=40) is None
+
+
+def test_rank_grid_counts_every_draw_and_accepts_the_top_rank(tmp_path):
+    """M draws give ranks {0..M} (M+1 values). n_draws must be M, so the truth
+    above every draw (rank M) sits at u = (M+0.5)/(M+1) < 1 and a null pool
+    that contains it loads. It used to be M-1: u reached (M+0.5)/M > 1 and the
+    loader refused the production null (job 12062385)."""
+    import fig1_validation as f1
+
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=4, n_samp=120, bias=0.0, seed=3)
+    _, n_draws = f1.collect_field_ranks(f1.chain_files(str(ens)), 2)
+    assert n_draws == 60
+
+    u = (np.arange(n_draws + 1) + 0.5) / (n_draws + 1.0)  # includes rank M
+    np.savez(ens / f1.ALM_NULL_FILE, effective_2_10_u=u, effective_2_10_obs=0.5)
+    assert f1.load_alm_null(str(ens), n_draws, "effective", lmax=10) is not None
+    assert u.max() < 1.0
 
 
 def _alm_ranks_of_synthetic_ensemble(dirpath, n_chains, n_samp, bias, seed, thin):
@@ -463,7 +501,7 @@ def test_fig1_alm_row_passes_an_offset_that_the_null_predicts(tmp_path, capsys, 
     null_r, n_draws = _alm_ranks_of_synthetic_ensemble(
         tmp_path / "null", 300, 120, bias=1.0, seed=99, thin=2)
     import fig1_validation as f1
-    np.savez(ens / f1.ALM_NULL_FILE,
+    np.savez(ens / f1.alm_null_file(2),                  # fig1 runs at --thin 2
              **{f"effective_{lo}_{hi}_u": (r + 0.5) / (n_draws + 1.0)
                 for (lo, hi), r in null_r.items()})
 

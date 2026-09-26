@@ -109,6 +109,28 @@ All alm and most φ coordinates have fewer effective draws than the rank test us
 
 Rank *means* are unbiased under autocorrelation if the chain is stationary, so a surviving mean offset would indict stationarity or the sampler, not the thinning.
 
+### T0.1 calibration diagnosis (2026-09-24/25): a_ℓm is the statistic, φ is funnel mixing, and ν = 30 passes
+
+Sources:
+- job 12040935 (stationarity; `logs/diag_calib_exact_12040935.out`);
+- job 12042747 (a_ℓm null);
+- job 12062700 (long-chain harvest; `logs/harvest_t01c_12062700.out`).
+
+Full tables: `results/analysis/dashboard.md`.
+
+- **a_ℓm `[30,60)` offset = the statistic, not the sampler.** The truth is drawn at a fixed C_ℓ^fid while Block 1's prior is flat, so the power rank is non-uniform by construction. Against the exact-sampler null (`null_alm_power_rank_flat_prior.py`, effective noise), every a_ℓm bin in all four exact-operator ensembles is within |z| < 3. **The three-block core (Block-4-OFF) is certified on the exact operator.**
+- **Block-4-ON low-L φ burn-in resolved by length** (ν = 6, 1000 + 3600 sweeps, job 12047785): φ `[2,10)` drift z 4.05 → 1.27, logp flat, and the joint-likelihood SBC no longer rejects (0.648, KS_p 0.058). But low-L φ τ_int is **~430 sweeps**. The 1200-sweep estimate of 173 was truncated.
+- **The φ `[30,60)` offset depends on ν**: 0.685 (p 0.002) at ν = 6 vs 0.574 (p 0.20) at ν = 30 (job 12047786). The truth is drawn from each ν's own prior, so an exact sampler is uniform at any ν. This is therefore a **mixing defect of the centred (φ, C_L^φφ) hierarchy under a weak hyperprior**, not a prior mismatch. Block 4's own conditional is exact at both ν: PIT KS_p 0.26 / 0.47, with the lag-10/50 controls rejected.
+- **ν = 30, 3600 sweeps passes every calibrated test:**
+  - joint-likelihood SBC 0.474, KS_p 0.49;
+  - all φ field-rank bins;
+  - strict C_L^φφ SBC pooled 0.487, KS_p 0.69;
+  - Block 4 PIT;
+  - a_ℓm within the null.
+  
+  Which ν the paper adopts awaits sign-off (ROADMAP T0.1d).
+- Open, not yet evidence: a_ℓm `[60,64)` sits at +2.3 to +2.9σ against the null in all four ensembles, but they share the same 24 unlensed skies.
+
 ### Figures and statistics reworked (2026-09-22)
 
 - **`figure_maps` was wrong.** Author-ordered alms were passed to healpy, producing zonal stripes and a meaningless r = 0.815. It now routes through `lensing._alm_packed_to_hp` and has six panels, including the noise-free lensing signal and a residual normalised per mode. Its stat box is the per-mode sd, because the pixel sd of one sky is a statistic of ~10 low-L modes.
@@ -206,6 +228,7 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 - **Return-tuple arity depends on the enabled blocks**; a hardcoded unpack crashed after a completed chain with SLURM reporting `COMPLETED 0:0`.
 - **Coverage statistic ranks the truth against its conditional's mode**, which is non-uniform for a correct sampler; read it against `validate_coverage_rank_nulls.py`.
 - **Block 4 PIT control passing vacuously at lag 1**; controls are now required to fail at lags 1, 10 and 50.
+- **Rank grid off by one in three scripts (2026-09-25):** `fig1_validation.py`, `diagnose_calibration_stationarity.py` and `null_alm_power_rank_flat_prior.py` set `n_draws = M − 1` for M draws, although the rank of the truth runs over 0..M. So u = (r+0.5)/M reached (M+0.5)/M > 1. Figure 1's simulated uniform null never produced rank M. And figure 1 refused the production a_ℓm null the moment a truth ranked above every draw (job 12062385). The shift in mean_u is +0.5/M: +0.004 at 120 draws, +0.0014 at 360. That is immaterial to every verdict, but every null file was regenerated on the corrected grid (job 12062823). `aggregate_coverage_ranks.py` and `validate_coverage_rank_nulls.py` were already right. Tests: `test_rank_grid_counts_every_draw_and_accepts_the_top_rank`, `test_null_ranks_live_on_the_observed_grid`, and the corrected `test_trace_rank_equals_rank_of_power_against_truth`, which had encoded the bug.
 - Smaller:
   - m>0 alm precision weight;
   - SHT m-weights;

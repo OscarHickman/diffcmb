@@ -1,10 +1,170 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-24*
+*Last updated: 2026-09-26*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-09-24): exact-operator ensembles — a_ℓm row explained by the null; Block-4-ON φ still open (T0.1c long runs queued)
+## CURRENT (2026-09-26): T0.2 figure checks; 24 fresh skies running
+
+**Running: 24 new skies r024–r047 at ν = 30**, 1000 + 3600 sweeps into `_nu30_long`:
+Block-4-ON job **12065119** (about 13–16 h per task, still running) and lensing-blind pair job
+**12065120**, which is already done: 24/24 COMPLETED in minutes, no tracebacks, `blind_r024–r047.npz` written.
+The wrapper now caps OPENBLAS/MKL/DUCC0/TF thread pools too. Spot-check: 52 threads per
+process, mostly idle, about 145 % CPU against 800 %.
+
+**Harvest checklist (N = 48)**, for when 12065119 finishes (12065120 already done):
+1. **Confirm the chains really finished.** `sacct` says COMPLETED even when a task died at a
+   checkpoint write (see the dine2 incident in `ROADMAP.md`). Run
+   `sacct -j 12065119,12065120 --format=JobID,State,Elapsed -X`, check that every 12065119 task ran
+   ~12–16 h rather than minutes (12065120 blind tasks legitimately take 5–11 min), and look for `Traceback` in
+   `logs/ens_exact_l64_1206511{9,20}_*.{out,err}`. `ls results/analysis/ens_exact_l64_A3000_n30_nu30_long/{chain,blind}_r0{2[4-9],3[0-9],4[0-7]}.npz | wc -l`
+   must give 48 (r024–r047, both kinds). Resubmit any missing realization with
+   `sbatch --array=<ids> -J ens_exact_l64 --export=ALL,<export> scripts/submit_ensemble_exact_lmax64.slurm`, where the export is `MODE=cl4|blind,AMP=3000,NOISE=30,BURNIN=1000,SAMPLES=3600,NU=30.0,TAG=_nu30_long`.
+2. **Nulls at N = 48:** `THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`. It rewrites
+   the `_thin50` nulls in all four ensembles; only `_nu30_long` changes. Read its
+   `[60,64)` effective z, which is +2.55 at N = 24: does it survive the fresh skies?
+3. **Figures:** `sbatch --dependency=afterok:<null job> scripts/submit_make_figures.slurm`.
+   All figure scripts glob every `chain_rNNN.npz`, so they pick up N = 48 automatically. Check the
+   log says "48 chains"; `fig_maps` still uses r000 only.
+4. **Checks:** `PYTHONPATH=diffcmb .venv/bin/python scripts/inspect_fig4_cells.py` and
+   `scripts/expected_aware_bias_flat_prior.py`. Run them on a compute node or with `srun`, since
+   each takes a few minutes. Compare with the N = 24 tables below.
+5. **Write up:** replace the N = 24 numbers in the tables below and in `ROADMAP.md` T0.2
+   (figures 1, 2, 4 and T0.1e). Then `plots/STORY.md` caption numbers (held back until N = 48),
+   the AGENTS.md "RESUME HERE" line, and `achievements.md` if `[60,64)` resolves either way.
+6. **Ask the user** for the T0.2 decisions: the figure 2 reference band (exact-sampler
+   expectation, not zero), the Block-4-OFF panel vs a caption number, and the power table.
+
+Pass/fail reading: `[60,64)` falling to |z| < 2 at N = 48 means it was sky-sample noise. Holding at
+z ≳ 3 with fresh skies means a real high-ℓ a_ℓm defect: stop and diagnose it before the figures are
+final. For figure 2, the `[30,45)` mean should stay inside the nominal–effective bracket.
+
+**Figure 1 at thin 50** (≈ a_ℓm τ_int 47; `--thin` added to the null script, null file
+`_thin50`, Makefile `FIG1_THIN=50`). Null job 12065179, `make figures` job 12065180, both exit 0.
+
+| figure 1 | thin 10 (360 draws) | **thin 50 (72 draws)** |
+|---|---|---|
+| `p_bin` φ / a_ℓm (vs exact null) / C_L^φφ | 0.221 / 0.143 / 0.631 | **0.275 / 0.080 / 0.484** |
+| a_ℓm null z, effective: `[2,10)/[10,30)/[30,60)/[60,64)` | … / −0.47 / +2.34 | −0.52 / −0.25 / −0.55 / **+2.55** |
+| 50 % power | 0.410 σ | 0.436 σ |
+
+All three rows pass. The weakest is a_ℓm, driven by `[60,64)` (per-bin mean p 0.01), which
+holds at every thinning in every ensemble. The fresh skies test it.
+
+**Figure 2 `[30,45)` (+1.19 ± 0.43 %): zero is the wrong reference.** Under the flat C_ℓ prior an
+*exact* sampler's posterior-mean C_ℓ exceeds S_true/(k−4), because noise inflates E[S|d]. This is
+the figure 1 a_ℓm offset seen from the other side. Expected aware bias on these 24 skies
+(`scripts/expected_aware_bias_flat_prior.py`):
+
+| bin | observed aware | expected, nominal noise | expected, effective noise |
+|---|---|---|---|
+| `[2,10)` | −0.70 ± 1.10 | +0.06 | +0.18 |
+| `[10,20)` | +1.33 ± 0.63 | +0.13 | +0.85 |
+| `[20,30)` | +1.03 ± 0.85 | +0.17 | +1.17 |
+| `[30,45)` | +1.19 ± 0.43 | +0.19 | +1.37 |
+| `[45,64)` | +0.60 ± 0.34 | +0.28 | +1.62 |
+
+The truth lies between the two noise models. Nominal noise ignores the φ uncertainty; effective
+noise treats it as data noise, which overstates both the offset and the scatter. `[30,45)` sits
+inside the bracket (z −0.4 vs effective). Action for the paper: draw the exact-sampler expectation
+as the figure 2 reference, or quote the residual against it, not against zero.
+
+**Figure 4, 2/16 cells: chance** (`scripts/inspect_fig4_cells.py`). `C_ℓ[30,60)×C_L^φφ[10,30)`
+has r +0.049 against a null of 0.045 (ratio 1.07). `[60,64)×[60,64)` has +0.046 against 0.045
+(1.02). The cells are not adjacent. A chain-level z, robust to autocorrelation, gives +2.56 /
++1.77, not significant over 16 cells. At thin 150, 0/16 cells clear the null. Every |r| ≤ 0.05:
+no C_ℓ^TT–C_L^φφ posterior correlation is detected.
+
+## 2026-09-25 record: T0.1 resolved — ν = 30 adopted (D5), figures rebuilt from it
+
+Harvest job **12062700** (35 min, cosma8-ska; `scripts/submit_harvest_t01c_long.slurm`,
+log `logs/harvest_t01c_12062700.out`). It ran stationarity, the joint-likelihood SBC,
+the rank nulls + strict SBC + Block 4 PIT, and the a_ℓm null on both long ensembles.
+Both long ensembles are complete, 24/24 tasks each, with no tracebacks. Tasks took
+12.4–16 h on cosma5/cosma8-shm/shm2.
+
+| ensemble | job | directory | φ power / truth (final) | alm accept | φ accept |
+|---|---|---|---|---|---|
+| Block-4-ON ν = 6, 1000 + 3600 | 12047785 | `ens_exact_l64_A3000_n30_long/` | median 1.10 (0.67–2.30) | 0.71 (r000) | 0.64 (r000) |
+| Block-4-ON ν = 30, 1000 + 3600 | 12047786 | `ens_exact_l64_A3000_n30_nu30_long/` | median 0.96 (0.71–2.32) | 0.68 (r000) | 0.69 (r000) |
+
+⚠ **The ν = 30 skies are not the ν = 6 skies.** Their unlensed T (`alm_true`, `cl_true`)
+is identical, but `cl_phiphi_true` is drawn from the ν prior, so φ_true and the lensed
+data differ. The existing lensing-blind chains (`blind_rNNN.npz`) pair with **ν = 6** only.
+Block-4-OFF (`_nocl4`) uses the fiducial C_L^φφ and pairs with neither exactly.
+
+**Results** (thin 10 unless stated; uniform mean_u = 0.5 ± 0.059 at N = 24):
+
+| test | short ν = 6 (1200) | **long ν = 6 (3600)** | **long ν = 30 (3600)** |
+|---|---|---|---|
+| joint-likelihood SBC, thin 40 | 0.724, KS_p 0.001 ✗ | 0.648, KS_p 0.058 (pass, mean +2.5σ) | **0.474, KS_p 0.49 ✓** |
+| joint-likelihood SBC, 2nd half | 0.695, KS_p 0.003 ✗ | 0.620, KS_p 0.13 (pass, +2.0σ) | **0.460, KS_p 0.41 ✓** |
+| φ field rank `[2,10)` | 0.771→0.661 by quarter | 0.459 (p 0.48) | 0.495 (p 0.93) |
+| φ field rank `[10,30)` | — | 0.577 (p 0.19) | 0.507 (p 0.92) |
+| φ field rank `[30,60)` | 0.70 (thin 40 0.707) | **0.685 (p 0.002) ✗**; thin 40 0.699 | **0.574 (p 0.20) ✓**; thin 40 0.591 |
+| φ field rank `[60,64)` | — | 0.431 (p 0.23) | 0.406 (p 0.11) |
+| φ `[2,10)` drift z / τ_int | +4.05 / 173 | **+1.27** / **427** | +0.12 / 278 |
+| logp drift z | −3.56 | **+0.13** | −1.75 |
+| strict C_L^φφ SBC pooled | 0.552, KS_p 0.067 | 0.520, KS_p 0.43 | 0.487, KS_p 0.69 |
+| strict C_L^φφ `[30,60)` | 0.666, KS_p 0.020 | 0.654, KS_p 0.061 | 0.594, KS_p 0.41 |
+| strict C_L^φφ `[60,64)` | — | 0.456, KS_p 0.83 | 0.397, KS_p 0.015 (1 of 4 bins; Bonferroni 0.06) |
+| Block 4 PIT, aligned (lag-10/50 controls) | KS_p 0.937 (rejected) | KS_p 0.263 (both KS_p 0) | KS_p 0.474 (both KS_p 0) |
+| a_ℓm null (effective), max \|z\| | 2.92 (`[60,64)`) | 2.29 (`[60,64)`); `[30,60)` −0.61 | 2.34 (`[60,64)`); `[30,60)` −0.47 |
+| φ power bias `[2,10)/[10,30)/[30,60)/[60,64)` | 0.85/0.95/0.98/1.02 | 1.04/0.98/0.98/1.01 | 1.03/1.00/0.99/1.03 |
+
+**Reading:**
+1. **c2: the low-L φ burn-in is resolved.** φ `[2,10)` drift z fell from +4.05 to +1.27,
+   logp is flat, and the joint-likelihood SBC no longer rejects at ν = 6. But the low-L φ
+   τ_int **grew from 173 to 427**, i.e. about 8 effective draws per 3600-sweep chain. The
+   1200-sweep estimate was truncated. The drift test has little power at that ESS, and the
+   ν = 6 quarter means still slide (0.593 → 0.382). Low-L φ mixing at ν = 6 remains the weak point.
+2. **c3: the φ `[30,60)` offset is set by ν.** It fell from 0.685 at ν = 6 to 0.574 at ν = 30,
+   and the joint-likelihood SBC went from +2.5σ to −0.4σ. The truth is drawn from the sampler's
+   own prior at *each* ν, so an exact sampler is uniform at every ν. A ν-dependent offset is
+   therefore **not** "the prior's fault": the hierarchy mixes worse when the hyperprior is weak.
+   This is the classic φ–C_L^φφ funnel of a centred parameterisation, and it tightens at ν = 30.
+   Block 4's own conditional is exact at both ν (PIT). The defect is joint (φ, C_L^φφ) mixing,
+   not a wrong conditional.
+3. **The a_ℓm row is explained by the null in all four ensembles.** `[60,64)` sits at +2.3 to
+   +2.9 in every ensemble. These share the same 24 unlensed skies, so they are not independent
+   evidence; more skies would settle it.
+4. φ `[10,30)` drift at ν = 30 is z +3.02, 1 of 18 drift tests. Its quarter means trend
+   *toward* 0.5 (0.562 → 0.471). Note it, but don't act on it alone.
+
+### D5 adopted (2026-09-25): ν = 30 is the paper's Block-4-ON ensemble; figures rebuilt
+
+- **Blind pair on the ν = 30 skies:** job 12062768, 24/24 COMPLETED →
+  `ens_exact_l64_A3000_n30_nu30_long/blind_rNNN.npz` (1000 + 3600 sweeps, same seeds).
+- **Rank-grid off-by-one fixed** (`achievements.md` → Real bugs). Figure 1's run 12062385 had
+  refused the a_ℓm null for it. All four null files were regenerated (job 12062823); every z is
+  unchanged to 2 d.p.
+- **`make figures` from `_nu30_long`:** job 12062824, `logs/make_figures_12062824.out`.
+
+| figure | number (ν = 30 long) | first harvest (ν = 6, 1200) |
+|---|---|---|
+| fig 1 `p_bin` φ / a_ℓm (vs exact null) / C_L^φφ | **0.221 / 0.143 / 0.631** | 0.004 / < 0.001 / 0.038 |
+| fig 2 mean \|bias\| blind → aware | 12.3 % → 0.97 % (92.1 %) | 13.9 % → 1.37 % (90.2 %) |
+| fig 2 aware `[2,10)/[10,20)/[20,30)/[30,45)/[45,64)` | −0.70±1.10 / +1.33±0.63 / +1.03±0.85 / **+1.19±0.43** / +0.60±0.34 % | −2.96±1.05 / … |
+| fig 3 width ratio, L ~ 15/25/38/55 | 0.60 / 0.62 / 0.66 / 0.72 | 0.61 / 0.63 / 0.68 / 0.74 |
+| maps r / per-mode z sd (pooled) | 0.910 / **1.027** | 0.82 / 1.108 |
+| convergence R̂ > 1.01, Block 1 / 4 | 26.5 % / 20.1 % | 48 % / 55 % |
+| median ESS, Blocks 1–4 per chain | 257 / 77 / 187 / 353 per 3600 | 123 / 35 / 65 / 80 per 1200 |
+| fig 4 cells above null | 2/16 (0.8 expected) | 0/16 |
+
+**Open items from the rebuild (ROADMAP T0.2):**
+- The aware C_ℓ^TT residual is positive in 4 of 5 bins, with `[30,45)` at +2.7σ (≈ p 0.03 after
+  5 bins). It is scored against the correct flat-prior posterior mean S/(k−4). Check before
+  claiming "consistent with zero".
+- Block 2 ESS (median 77 per 3600) is below the 360 rank draws everywhere, so figure 1's thin 10
+  over-counts a_ℓm draws. Rank means are unbiased under stationarity, but the per-bin
+  spread tests assume independent draws. Re-derive `--thin` from τ_int (≈ 47) and regenerate
+  the null at the same thin.
+- Figure 4: 2/16 cells above null. Inspect the pattern before calling it signal or chance.
+
+Jobs 12062384/12062385 (queued by the previous session) finished: the null re-run completed, and
+fig1 failed on the rank-grid bug above. Both are superseded by 12062823/12062824.
+
+## 2026-09-24 record: exact-operator ensembles — a_ℓm row explained by the null; Block-4-ON φ open (T0.1c long runs then queued)
 
 Everything below the line further down was made with the **legacy forward model**:
 bilinear-interpolation lensing on an nside = lmax grid, lensing by −∇φ, and a
@@ -516,13 +676,26 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Nothing.** The queue holds no diffcmb jobs. The last three to land:
+**Running (2026-09-26):** 12065119 (24 Block-4-ON skies r024–r047, ν = 30). Their blind pairs,
+12065120, are done (24/24, minutes). See "CURRENT (2026-09-26)" for the harvest steps. Landed today:
+12065179 (a_ℓm nulls at thin 50) and 12065180 (`make figures`, figure 1 at thin 50), both exit 0.
+
+Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 
 | Job | What | Result |
 |---|---|---|
-| 12015546 (2026-09-18) | `submit_validate_qe_noise.slurm` — Monte Carlo validation of `diffcmb/qe.py`'s QE noise `N_L^φφ` against the estimator's own definition, 64 sims | **PASS**: noise ratio 0.992, response 0.883. Artifact `results/analysis/qe_noise_validation.npz`. **Valid only at (lmax=64, nside=64, σ_pix=1.0)** — `fig3` checks this and refuses on a mismatch |
-| 12015488 (2026-09-17) | `submit_compare_cl_bias_reduction_lmax192.slurm` — lmax=192 bias-reduction harvest | **98.4%** reduction over five reliable bins; blind deficit to −8.0% at `[160,192)`. **Bias reduction only — NOT an exactness claim** (φ gate NO-GO at 192) |
-| 12015538 (2026-09-18) | First, **invalid** QE validation design (vs `estimate_phi_diag_fisher`) | **Superseded — do not cite.** Compared two different quantities (fixed-alm Fisher vs CMB-marginalised noise); ratio 132, trend +0.66 in ln L. `achievements.md` records why |
+| 12062824 (2026-09-25) | `submit_make_figures.slurm`: `make figures` from `ens_exact_l64_A3000_n30_nu30_long` | Exit 0; all figures rebuilt. Numbers are in the "D5 adopted" table. fig 3 QE validation re-PASSED (ratio 0.995, response 0.971) |
+| 12062823 (2026-09-25) | `submit_null_alm_power_rank.slurm`: all four a_ℓm nulls regenerated on the corrected rank grid | Every z unchanged to 2 d.p. |
+| 12062768 (2026-09-25) | `ens_blind_nu30`: lensing-blind pair on the ν = 30 skies | 24/24 COMPLETED → `blind_rNNN.npz` in `_nu30_long` |
+
+Superseded without results: 12062381 (8 s test of the null script) and 12062783 (`make_figures`,
+cancelled and replaced by 12062824). Harvest 12062700 and the long arrays 12047785/12047786 are
+covered in the 2026-09-25 record.
+
+**Previously landed (2026-09-17/18):** 12015546 (QE noise validation, PASS: ratio 0.992,
+response 0.883, valid only at lmax=64, nside=64, σ_pix=1.0), 12015488 (lmax=192 bias reduction,
+98.4 %; bias reduction only, not an exactness claim) and 12015538 (invalid first QE design,
+superseded, do not cite).
 
 **Previously in flight, now complete: job 11980637** — `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
 extending the Block-4-ON proper-prior ensemble from N=12 to N=24 (realizations

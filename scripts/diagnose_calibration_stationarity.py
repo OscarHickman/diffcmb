@@ -111,7 +111,7 @@ def rank_table(traces, thin, window):
             if key == "logp":
                 continue
             s = tr[window_slice(len(tr), window)][::thin]
-            table.setdefault(key, [[], len(s) - 1])[0].append(rank_of(1.0, s))
+            table.setdefault(key, [[], len(s)])[0].append(rank_of(1.0, s))
     return {k: (np.asarray(r), n) for k, (r, n) in table.items()}
 
 
@@ -178,7 +178,7 @@ def report(indir, thins, n_seg):
                 ranks, nd = table[key]
                 u = (ranks + 0.5) / (nd + 1.0)
                 p_m, p_s = mean_sd_p(ranks, nd, n_rep=5000)
-                print(f"    {key[0]:9s} [{key[1]:2d},{key[2]:2d})  draws {nd + 1:4d}  "
+                print(f"    {key[0]:9s} [{key[1]:2d},{key[2]:2d})  draws {nd:4d}  "
                       f"mean_u {u.mean():.3f} (p {p_m:.3f}) | sd_u {u.std():.3f} "
                       f"(p {p_s:.3f})")
 

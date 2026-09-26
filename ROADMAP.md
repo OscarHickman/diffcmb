@@ -6,7 +6,7 @@
 
 ---
 
-## Where the project stands (2026-09-23)
+## Where the project stands (2026-09-25)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -14,19 +14,19 @@
 - **At lmax ≤ 300 a physical sky carries almost no lensing information in temperature.** The QE S/N on C_L^φφ is 0.002 at lmax = 64 and 0.13 at 300. The legacy figure 3 sat exactly there.
 
 **Already positive:**
-- **A four-block joint sampler that passed calibration on the legacy model**, which nobody else has. Certification on the exact-operator model is **not yet achieved**: it is the blocking item below (T0.1).
+- **A four-block joint sampler that passed calibration on the legacy model**, which nobody else has. **On the exact operator (2026-09-25):** the three-block core is certified. The Block-4-ON ensemble passes every calibrated test **at ν = 30**, but not at ν = 6 (T0.1c). Which ν the paper uses awaits sign-off (T0.1d).
 - **An exact, differentiable, geodesic curved-sky lensing operator**, with FD-checked gradients and physical sign conventions.
 - **Exact-operator production ensembles** on identical skies, all complete (24/24 each: Block-4-ON, lensing-blind, Block-4-OFF).
 - **Physics validated (figure 2):** on 24 same-sky pairs the blind fit lands on the lensing each sky received (−45.6 vs −46.0 % at ℓ ∈ [45,64)), while the joint fit stays within ~1–3 %.
 - **A QE validated at that configuration**: noise 0.995, response 0.971.
 - **A test suite that covers the scripts as well as the package.**
 
-**⚠ Blocking as of the 2026-09-23 harvest:** the exact-operator ensembles do **not** pass calibration.
+**⚠ Blocking as of the 2026-09-23 harvest** (largely resolved 2026-09-25; see T0.1c/d. The ν = 30 long ensemble passes, so what remains is the ν sign-off). The 1200-sweep ν = 6 ensembles did **not** pass calibration:
 - Block-4-ON rejects on the joint-likelihood SBC (0.716, p = 0.001) and on φ/a_ℓm field ranks.
 - Block-4-OFF passes the joint-likelihood and φ tests but fails a_ℓm `[30,60)`, the same bin that fails in the ON ensemble.
 - Alm ESS is ~35 per 1200 sweeps.
 
-Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is citable** (`achievements.md` → First harvest).
+Until the ν sign-off (T0.1d) and the rebuild from the adopted ensemble, **no exactness claim, no figure 1/3/maps result is citable** (the current figures are built from the failing 1200-sweep ν = 6 chains; `achievements.md` → First harvest).
 
 **Handling the caution in the paper:**
 - The retraction becomes one methods paragraph: validate an operator on the observable you report, not only its gradients.
@@ -50,6 +50,7 @@ Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is cita
 - **D2:** journal PRD (2026-09-22); it is the `paper_style.py` default.
 - **D3:** exact lensing operator (2026-09-23).
 - **D4:** amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64 (2026-09-23, chosen by pilots; `achievements.md`).
+- **D5:** the paper's Block-4-ON ensemble uses the proper hyperprior **ν = 30**, 1000 + 3600 sweeps (`ens_exact_l64_A3000_n30_nu30_long`). It is the only Block-4-ON configuration that passes every calibrated test (T0.1c). ν = 6 is reported as a limitation: the centred (φ, C_L^φφ) hierarchy under a weak hyperprior is not certifiable in 3600 sweeps (2026-09-25, option A of T0.1d).
 
 ---
 
@@ -86,19 +87,36 @@ Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is cita
      - **Block-4-OFF** passes φ and the joint likelihood at every thinning.
    - a. ✅ Re-scored at thin 40, with the joint-likelihood SBC at thin 40 and on the second half.
    - b. ✅ Stationarity by chain quarter and drift z.
-   - c. **c1 done; c2/c3 re-queued (2026-09-24). Read each job as `dashboard.md` → "How to read them" says:**
+   - c. **All done (c1 2026-09-24; c2/c3 harvested 2026-09-25, job 12062700):**
      - ✅ **c1 — a_ℓm null: PASS (job 12042747; the first run, 12041984, had an effective-noise bug).** Every a_ℓm bin in both ensembles is within |z| < 3 of the effective null (`[30,60)`: −1.35 OFF, −1.09 ON), so the offset is the statistic and the three-block core is not rejected by it. `[60,64)` is marginal (+2.36 / +2.92) and worth watching. Figure 1's a_ℓm row is now drawn and tested against this null (`fig1_validation.py --alm_null`, default `effective`; tests in `tests/test_paper_figures.py`). Method: `scripts/null_alm_power_rank_flat_prior.py` (tests: `tests/test_null_alm_power_rank.py`, mutation-checked for prior shape, truncation and conditional variance). It draws what an *exact* sampler gives for the a_ℓm power rank under the flat C_ℓ prior with a fixed-spectrum truth. It uses nominal noise and an effective noise calibrated to the chains' own posterior variance. If the observed offset sits within the effective null, the three-block core is certified on the exact operator: redraw figure 1's a_ℓm row against that null (as the C_ℓ coverage rows already are). If not, it is a Block 2 defect.
-     - **c2 — longer Block-4-ON chains, job 12047785** (the first attempt died at its first checkpoint; see below). ν = 6, 1000 burn-in + 3600 samples, output `ens_exact_l64_A3000_n30_long/`. On it, re-run `diagnose_calibration_stationarity.py`, `sbc_joint_likelihood.py`, the c1 null and the strict/PIT checks. Success means φ `[2,10)` drift |z| < 3, logp flat, and the joint-likelihood SBC passes.
-     - **c3 — Block-4 prior sensitivity, job 12047786.** ν = 30, same length and skies, output `ens_exact_l64_A3000_n30_nu30_long/`. Does the φ `[30,60)` offset shrink as ν rises? This is a diagnosis of the prior and hierarchy, not φ tuning.
-   - d. If c2 still drifts at 3600 samples, **pilot a lower A_φ** (e.g. 1000, QE S/N ≈ 1.8) and restate D4. If c3 shows the offset is set by ν, decide (sign-off needed) whether the paper's Block-4 ensemble uses a different ν and why.
+     - ✅ **c2 — longer Block-4-ON chains, ν = 6 (job 12047785; harvested 2026-09-25 by job 12062700): burn-in resolved, but the φ `[30,60)` offset remains.** φ `[2,10)` drift z +1.27 (was +4.05). logp is flat (+0.13). The joint-likelihood SBC passes, though its mean is high: 0.648, KS_p 0.058 at thin 40. **φ `[30,60)` still fails (0.685, p 0.002).** Low-L φ τ_int grew to **427**, about 8 ESS per 3600-sweep chain.
+     - ✅ **c3 — ν = 30 (job 12047786; same harvest): the φ `[30,60)` offset is set by ν, and at ν = 30 every calibrated test passes.**
+       - φ `[30,60)` 0.574 (p 0.20); the other φ bins pass.
+       - Joint-likelihood SBC 0.474, KS_p 0.49.
+       - Strict SBC pooled 0.487, KS_p 0.69.
+       - Block 4 PIT KS_p 0.47, with its controls rejected.
+       - a_ℓm within the null.
+       - The truth is drawn from each ν's own prior, so the ν-dependence is a **mixing defect of the centred (φ, C_L^φφ) hierarchy** (a funnel, worse under a weak hyperprior), not a prior mismatch. Full table: `dashboard.md` → CURRENT (2026-09-25).
+       - ⚠ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so the existing blind chains do not pair with them.
+   - d. ✅ **Decided 2026-09-25: option A (D5, ν = 30).** Blind pair on the ν = 30 skies: job 12062768 (24/24 COMPLETED). Nulls regenerated on the corrected rank grid: job 12062823. `make figures`, now pointed at `_nu30_long` via the Makefile `ENSEMBLE`: job 12062824 (`scripts/submit_make_figures.slurm`). Options as weighed: c2 did not drift, so the lower-A_φ pilot is **not** triggered.
+     - **Option A (chosen): adopt ν = 30** as the certified Block-4-ON configuration (decision D5). Report ν = 6 openly as a limitation: under a weak hyperprior the centred hierarchy mixes too slowly to certify at 3600 sweeps. Cost:
+       - a 24-task lensing-blind re-run on the ν = 30 skies for figure 2 (`MODE=blind NU=30 TAG=_nu30_long`, same BURNIN/SAMPLES as the ON run for pairing);
+       - a `make figures` rebuild pointed at `_nu30_long`;
+       - a caveat on C_L^φφ: at ν = 30 the prior carries 30 dof per L against the data's 2L+1, which is a third of the information at L = 30. Figure 3's QE⊕prior reference must use the ν = 30 prior.
+     - **Option B:** keep ν = 6 and fix the mixing with a non-centred φ parameterisation (φ = √C_L^φφ · z). That is sampler development: it needs gate → production → harvest, about 2–3 days, and falls under the "no φ-equilibration tuning without sign-off" rule.
+     - **Option C:** run ν = 6 much longer. Not recommended: at τ_int ≈ 427, reaching about 60 ESS per chain would take ~25k sweeps, about 100 h per task.
+   - e. **Running (2026-09-26): 24 fresh skies r024–r047 at ν = 30, jobs 12065119 (Block-4-ON, running) + 12065120 (blind pair, done 24/24), same 1000 + 3600 sweeps, into `_nu30_long`.** Harvest: rerun the thin-50 null (`THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`), then `make figures` at N = 48. Settles a_ℓm `[60,64)`, and tightens figure 2 `[30,45)` and figure 4. Originally optional, to settle a_ℓm `[60,64)`: it is +2.3 to +2.9 against the null in all four ensembles, but they share the same 24 unlensed skies. Adding 24 fresh skies (r024–r047) to whichever ensemble is adopted would test it under the "survives more realizations" rule.
    - Wrapper change: `scripts/submit_ensemble_exact_lmax64.slurm` now takes optional `NU` (default 6.0) and `TAG` (output-directory suffix, default none). The defaults reproduce the original runs.
    - Wrapper change (2026-09-24): it now runs on the /cosma5-mounting partitions (cosma5, cosma8-shm/shm2/shm3, cosma8-ska), not dine2, and exits with Python's status. `results/analysis` became a symlink into `/cosma5` (commit `115e6da`), which dine2 does not mount, so all 48 tasks of the first c2/c3 attempt (12041916 = ν 30, 12041917 = ν 6) died at their first checkpoint while `sacct` reported COMPLETED. **Every other dine2 wrapper that writes to `results/analysis/` needs the same move before reuse.** Done 2026-09-25 (uncommitted): the 14 CPU-only wrappers now run on the /cosma5-mounting partitions (plus `bluefield1`, which mounts /cosma5) with `--mem` sized from past MaxRSS instead of `--exclusive`/`--mem=0`. The 57 GPU wrappers must stay on dine2 (the only partition with usable GPUs), so they now fail at start if `results/analysis` is not mounted; running them needs the outputs relocated to a filesystem dine2 mounts (e.g. /cosma7). Every wrapper that ended in `echo ... $?` now exits with Python's status.
 2. **Only after T0.1 passes: read the rebuilt figures against the checklist.**
-   - **figure 1:** `p_bin` for both ensembles; the power curve at the final draws per chain.
-   - **figure 2:** the aware residuals (`[2,10)` is −2.96 ± 1.05 % now); the A_L = 1 wording.
-   - **figure 3:** the width ratio 0.61–0.74 must be re-derived from calibrated chains before it means anything.
-   - **convergence:** re-derive `--thin` from τ_int.
-   - **maps:** per-mode z sd (1.108 now, too narrow).
+   **▶ Next session (2026-09-26):** wait for job 12065119 (T0.1e; the blind pair 12065120 is done), then run the harvest checklist in `docs/dashboard.md` → "CURRENT (2026-09-26)" and redo figures 1, 2 and 4 at N = 48.
+   Rebuilt 2026-09-25 from `_nu30_long` (job 12062824; numbers in `dashboard.md` → "D5 adopted"). Remaining per figure:
+   - **figure 1:** `p_bin` φ 0.221 / a_ℓm 0.143 / C_L^φφ 0.631 all pass at thin 10. But a_ℓm ESS (median 77 per 3600) is below the 360 rank draws. **2026-09-26: `--thin` is now an argument of `null_alm_power_rank_flat_prior.py` (null file `_thin<N>`, read by `fig1_validation.py --thin N`), and the Makefile sets `FIG1_THIN=50`.** Null at thin 50 (job 12065179) and `make figures` (job 12065180): **φ 0.275 / a_ℓm 0.080 / C_L^φφ 0.484, all pass**. The a_ℓm weak point is `[60,64)` (effective-null z +2.55, per-bin p 0.01). 50 % power at 0.436σ. Redo at N = 48.
+   - **figure 2:** aware residuals are positive in 4/5 bins, and `[30,45)` is +1.19 ± 0.43 % (+2.7σ against zero). **Checked 2026-09-26: zero is the wrong reference.** Under the flat C_ℓ prior an *exact* sampler's posterior-mean C_ℓ sits above S_true/(k−4), the same effect as the figure 1 a_ℓm offset. Its expected aware bias on these 24 skies is +0.2 % (nominal noise) to +1.4 % (chain-calibrated effective noise) in `[30,45)`, and `[30,45)` sits inside that bracket (z −0.4 vs effective). Do not write "consistent with zero": either draw the exact-sampler expectation as the reference band, or quote the residual against it. Redo at N = 48. Also the A_L = 1 wording.
+   - **figure 3:** 0.60 / 0.62 / 0.66 / 0.72, now from calibrated chains (z sd 1.027). Caption: the φ prior is hierarchical at ν = 30.
+   - **figure 4:** 2/16 cells above null (0.8 by chance). **Inspected 2026-09-26: chance.** The two cells (`C_ℓ[30,60)×C_L^φφ[10,30)`, r/null 1.07; `[60,64)×[60,64)`, 1.02) barely clear the null and are not adjacent. A chain-level test (robust to autocorrelation) gives z +2.56 / +1.77 at thin 45, not significant over 16 cells. At thin 150, 0/16 clear it. Every |r| ≤ 0.05. Caption: "no correlation detected". Recheck at N = 48.
+   - **convergence:** R̂ > 1.01 for 26.5 % / 20.1 % (Blocks 1/4). Carry the ESS numbers into the caption.
+   - **maps:** z sd 1.027, r = 0.910. Passes the calibration check; do the checklist read.
 3. **Figure 1 and the Block-4-OFF ensemble:** decide whether the three-block certification gets its own panel or a caption number (the figure is currently built from Block-4-ON only).
 4. **Power statement:** decide whether the paper needs a table as well as figure 1's curve; if so, generate it from the same script.
 5. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
@@ -109,7 +127,7 @@ Until this is diagnosed, **no exactness claim, no figure 1/3/maps result is cita
     - exactness above lmax = 64 (low-L φ NO-GO at 128/192);
     - A_φ above ~3000 at lmax = 64 (Gibbs stalls);
     - physical-sky lensing information at lmax ≤ 300;
-    - whatever T0.1 establishes about mixing at A_φ = 3000;
+    - mixing at A_φ = 3000: low-L φ τ_int ≈ 280–430 sweeps; the centred (φ, C_L^φφ) hierarchy is not certifiable at ν = 6 in 3600 sweeps (T0.1c);
     - no further φ-equilibration tuning without sign-off.
 
 ## T1 — Extension figures (by impact per effort)
