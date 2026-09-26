@@ -8,6 +8,10 @@ chain-calibrated effective noise, take exact posterior draws
 (null_alm_power_rank_flat_prior.exact_posterior_draws), and form fig2's bins.
 The two noise models bracket the expectation.
 
+Writes <indir>/expected_aware_bias_flat_prior.npz (per-bin expected mean for
+each noise model, plus the sky files used), which fig2_bias_reduction.py draws
+as the aware-fit reference band when its skies match the figure's.
+
 Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/expected_aware_bias_flat_prior.py [--indir DIR]
 """
 import os
@@ -26,6 +30,7 @@ from fig2_bias_reduction import BINS
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("--indir", default="results/analysis/ens_exact_l64_A3000_n30_nu30_long")
 ind = ap.parse_args().indir
+OUT_NAME = "expected_aware_bias_flat_prior.npz"
 files = chain_files(ind)
 d0 = np.load(files[0])
 lmax = int(d0["lmax"])
@@ -52,6 +57,7 @@ def bias(a, noise, n_d=20, n_post=200):
     return np.mean(out, 0) * 100, np.std(out, 0) * 100
 
 
+saved = {}
 for name, noise in (("effective", n_eff), ("nominal", n_nom)):
     per = []
     sd = []
@@ -62,9 +68,16 @@ for name, noise in (("effective", n_eff), ("nominal", n_nom)):
         sd.append(s)
     per = np.array(per)
     sd = np.array(sd)
-    print(f"\n{name} noise: expected aware bias (%) over 24 skies; per-sky data scatter")
+    saved[f"{name}_mean"] = per.mean(0)
+    saved[f"{name}_per_sky_sd"] = np.sqrt((sd**2).mean(0))
+    print(f"\n{name} noise: expected aware bias (%) over {len(files)} skies; per-sky data scatter")
     for i, (lo, hi) in enumerate(BINS):
         print(
             f"  [{lo:2d},{hi:2d})  expected mean {per[:, i].mean():+.3f}   per-sky noise sd {np.sqrt((sd[:, i]**2).mean()):.3f}"
-            f"  -> SEM(24) {np.sqrt((sd[:, i]**2).mean())/np.sqrt(24):.3f}"
+            f"  -> SEM({len(files)}) {np.sqrt((sd[:, i]**2).mean())/np.sqrt(len(files)):.3f}"
         )
+
+out = os.path.join(ind, OUT_NAME)
+np.savez(out, bins=np.array(BINS), files=np.array([os.path.basename(f) for f in files]),
+         **saved)
+print(f"\nSaved {out}")

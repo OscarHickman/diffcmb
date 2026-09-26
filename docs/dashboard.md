@@ -13,6 +13,12 @@ The wrapper now caps OPENBLAS/MKL/DUCC0/TF thread pools too. Spot-check: 52 thre
 process, mostly idle, about 145 % CPU against 800 %.
 
 **Harvest checklist (N = 48)**, for when 12065119 finishes (12065120 already done):
+
+> **Steps 1–4 are automated (queued 2026-09-26):** job **12065737**, `scripts/submit_harvest_t01e.slurm`,
+> `--dependency=afterany:12065119`, log `logs/harvest_t01e_12065737.out`. It checks that all 48 files exist, all 24 new
+> chains have 3600 samples and no task log has a Traceback, otherwise exits 2. It saves the N = 24 `_thin50` null and SBC files as
+> `*_n24.npz`, redoes the null, SBC and rank nulls on `_nu30_long` only, then runs `expected_aware_bias_flat_prior` (before the figures, so figure 2's band is
+> the N = 48 one), `make figures` and `inspect_fig4_cells`. The N = 24 expected-bias result is kept as `expected_aware_bias_flat_prior_n24.npz`. If it exits 2, resubmit per step 1, then `sbatch` the wrapper again.
 1. **Confirm the chains really finished.** `sacct` says COMPLETED even when a task died at a
    checkpoint write (see the dine2 incident in `ROADMAP.md`). Run
    `sacct -j 12065119,12065120 --format=JobID,State,Elapsed -X`, check that every 12065119 task ran
@@ -32,8 +38,12 @@ process, mostly idle, about 145 % CPU against 800 %.
 5. **Write up:** replace the N = 24 numbers in the tables below and in `ROADMAP.md` T0.2
    (figures 1, 2, 4 and T0.1e). Then `plots/STORY.md` caption numbers (held back until N = 48),
    the AGENTS.md "RESUME HERE" line, and `achievements.md` if `[60,64)` resolves either way.
-6. **Ask the user** for the T0.2 decisions: the figure 2 reference band (exact-sampler
-   expectation, not zero), the Block-4-OFF panel vs a caption number, and the power table.
+6. **Ask the user** for the T0.2 decisions. The figure 2 reference band is **built** and drawn by default; confirm it, and decide
+   whether it needs a zoomed aware-only inset. For Block-4-OFF, a panel or a caption number (number ready, see below)? And whether to add a power table.
+
+**Figure 2 band (built 2026-09-26, awaiting user sign-off):** `expected_aware_bias_flat_prior.py` now saves `<indir>/expected_aware_bias_flat_prior.npz`, and `fig2_bias_reduction.py` shades the nominal–effective exact-sampler expectation per bin ("exact-sampler expectation (aware)") when that file covers exactly the figure's skies, otherwise it prints a warning and skips the band. It also prints aware z against both expectations. At N = 24: z (nominal / effective) `[2,10)` −0.69/−0.80, `[10,20)` +1.90/+0.76, `[20,30)` +1.01/−0.17, `[30,45)` +2.32/−0.40, `[45,64)` +0.93/**−3.04**. Every bin lies inside or near the bracket, but `[45,64)` sits at the nominal end, well below the effective one. The stat box moved to upper right because it overlapped the legend. **Open design point:** at the panel's −40…+10 % scale the band is a thin sliver. It may want a zoomed aware-only inset or panel.
+
+**Block-4-OFF caption number (computed 2026-09-26, `_nocl4`, thin 50, N = 24, against its own `_thin50` null):** p_bin φ 0.190 / a_ℓm 0.094 (all pass); lowest a_ℓm per-bin p 0.023 and 0.012, corrected min 0.094; 50 % power 0.427σ. The C_L^φφ SBC is not defined with Block 4 OFF (the panel is skipped).
 
 Pass/fail reading: `[60,64)` falling to |z| < 2 at N = 48 means it was sky-sample noise. Holding at
 z ≳ 3 with fresh skies means a real high-ℓ a_ℓm defect: stop and diagnose it before the figures are

@@ -86,6 +86,29 @@ def test_nl_scales_as_inverse_square_of_cmb_gradient_power():
     assert np.allclose(scaled[2:], base[2:] / 9.0, rtol=1e-10)
 
 
+def test_nl_absolute_normalisation_is_frozen_at_lmax16():
+    """N_L itself, not just its scalings, on the toy spectra at lmax = 16.
+
+    The scaling tests above are blind to a constant factor (16pi vs 4pi, the
+    1/2 in the filter, 2L+1). These values were produced on 2026-09-26 by an
+    independent implementation of the module-docstring formula -- sympy's
+    exact 3j symbols and plain loops, no ducc0 -- and matched qe_tt_noise_nl
+    to 4e-16. Change them only with a re-derivation and a fresh
+    scripts/validate_qe_noise.py run.
+    """
+    lmax = 16
+    cl = _toy_cl(lmax)
+    nl = qe.qe_tt_noise_nl(cl, cl + _toy_noise(lmax), lmax)
+    frozen = np.array([
+        9.758425462509e-03, 2.100348230669e-03, 7.158501588118e-04,
+        3.193399628227e-04, 1.636409466955e-04, 9.428045209439e-05,
+        5.799361311565e-05, 3.817662574128e-05, 2.606780998845e-05,
+        1.861700857188e-05, 1.359062068725e-05, 1.024443586195e-05,
+        7.825239093938e-06, 6.122106988316e-06, 4.760295097652e-06])
+    assert np.all(np.isinf(nl[:2]))
+    np.testing.assert_allclose(nl[2:], frozen, rtol=1e-9)
+
+
 def test_noise_cl_from_pixel_sigma_matches_white_normalisation():
     """N_l = sigma_pix^2 * Omega_pix, flat in l."""
     nside = 16

@@ -26,6 +26,13 @@ S_l(alm_true)/(k_l - 4) per multipole, summed over a bin. (Using the realized
 S/k or the fiducial adds an l-dependent offset common to both chains that
 buries the signal; compare_cl_bias_reduction.py records the history.)
 
+AWARE REFERENCE BAND. Zero is not what an exact sampler gives: under the flat
+C_l prior noise inflates E[S|d], so an exact sampler's aware residual is
+positive (ROADMAP T0.2; the figure 1 a_lm offset seen from the other side).
+scripts/expected_aware_bias_flat_prior.py computes it per bin for nominal and
+chain-calibrated effective noise, which bracket the truth, and this script
+shades that bracket when the saved result covers exactly the figure's skies.
+
 EXPECTED LENSING. For each sky the in-band power of its lensed truth map
 (exact operator, same phi, noise-free) over that of the unlensed truth, minus
 one. That is what an unlensed model fitted to lensed data should report, so the
@@ -61,6 +68,32 @@ from diffcmb.lensing import _alm_packed_to_hp, exact_lens_np  # noqa: E402
 
 BINS = [(2, 10), (10, 20), (20, 30), (30, 45), (45, 64)]
 DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure2"
+
+
+EXPECTED_AWARE_FILE = "expected_aware_bias_flat_prior.npz"
+
+
+def expected_aware_band(indir, chain_names):
+    """(nominal, effective) expected aware bias per BINS entry, in %, or None.
+
+    Refuses a result made from another set of skies (e.g. N = 24 while the
+    figure has N = 48): a band that silently described different skies would
+    mislead exactly where the figure is read.
+    """
+    path = os.path.join(indir, EXPECTED_AWARE_FILE)
+    if not os.path.exists(path):
+        print(f"  no {EXPECTED_AWARE_FILE}: aware reference band not drawn")
+        return None
+    d = np.load(path)
+    if sorted(map(str, d["files"])) != sorted(chain_names):
+        print(f"  {path} was made from {len(d['files'])} skies, the figure has "
+              f"{len(chain_names)}: re-run scripts/expected_aware_bias_flat_prior.py; "
+              "band not drawn")
+        return None
+    if [tuple(b) for b in d["bins"]] != BINS:
+        print(f"  {path} uses other l-bins; band not drawn")
+        return None
+    return np.asarray(d["nominal_mean"]), np.asarray(d["effective_mean"])
 
 
 def pairs(indir):
@@ -133,7 +166,9 @@ def main():
     os.makedirs(a.outdir, exist_ok=True)
 
     sky = []
-    for fa, fb in pairs(a.indir):
+    sky_pairs = pairs(a.indir)
+    band = expected_aware_band(a.indir, [os.path.basename(fa) for fa, _ in sky_pairs])
+    for fa, fb in sky_pairs:
         rows, lmax = sky_biases(fa, fb)
         sky.append(rows)
     sky = np.array(sky)                       # (n_sky, n_bin, [aware, blind, expected])
@@ -146,6 +181,12 @@ def main():
     # (a) bias by bin ------------------------------------------------------
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
     ax.axhline(0.0, color="0.3", lw=0.6)
+    if band is not None:
+        for n_i, i in enumerate(keep):
+            lo, hi = BINS[i][0], min(BINS[i][1], lmax)
+            b_lo, b_hi = sorted((band[0][i], band[1][i]))
+            ax.fill_between([lo, hi], b_lo, b_hi, color=ps.COL_AWARE, alpha=0.18, lw=0,
+                            label="exact-sampler expectation (aware)" if n_i == 0 else None)
     ax.plot(centres, mean[:, 2], color=ps.COL_TRUTH, lw=0.9, ls="--",
             label="lensing received (expected blind)")
     ax.errorbar(centres - 0.6, mean[:, 1], sem[:, 1], fmt="o", ms=3.5, capsize=2,
@@ -159,7 +200,7 @@ def main():
     blind_abs = np.nanmean(np.abs(mean[:, 1]))
     aware_abs = np.nanmean(np.abs(mean[:, 0]))
     ps.stat_box(ax, f"{n} skies\nreduction {100 * (1 - aware_abs / blind_abs):.0f}%",
-                loc="lower left")
+                loc="upper right")
     ps.save(fig, os.path.join(a.outdir, "bias_by_bin.pdf"))
 
     # (b) per sky, bin with the largest lensing effect ----------------------
@@ -188,6 +229,15 @@ def main():
         print(f"  [{lo:2d},{min(hi, lmax):2d})  aware {np.nanmean(sky[:, i, 0]):+6.3f}%  "
               f"blind {np.nanmean(sky[:, i, 1]):+6.3f}%  expected {np.nanmean(sky[:, i, 2]):+6.3f}%"
               f"  (SEM aware {np.nanstd(sky[:, i, 0], ddof=1) / np.sqrt(n):.3f})")
+    if band is not None:
+        print("  aware residual against the exact-sampler expectation (z = (aware - expected)/SEM):")
+        for i in keep:
+            lo, hi = BINS[i]
+            m = np.nanmean(sky[:, i, 0])
+            e = np.nanstd(sky[:, i, 0], ddof=1) / np.sqrt(n)
+            print(f"  [{lo:2d},{min(hi, lmax):2d})  expected nominal {band[0][i]:+6.3f}%  "
+                  f"effective {band[1][i]:+6.3f}%  -> z {(m - band[0][i]) / e:+.2f} / "
+                  f"{(m - band[1][i]) / e:+.2f}")
     print(f"  mean |bias| over bins: blind {blind_abs:.3f}%, aware {aware_abs:.3f}% "
           f"-> reduction {100 * (1 - aware_abs / blind_abs):.1f}%")
     print(f"  panel (b) bin [{jlo},{jhi}): corr(blind bias, lensing received) = {r_blind:.3f}")
