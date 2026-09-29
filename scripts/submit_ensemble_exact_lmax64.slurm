@@ -20,12 +20,19 @@
 # Submit: sbatch --export=ALL,MODE=cl4,AMP=...,NOISE=...,BURNIN=...,SAMPLES=... this.slurm
 # Optional: NU (Block-4 prior nu, default 6.0) and TAG (suffix on the output
 # directory, default none), e.g. TAG=_long for the T0.1c longer-chain re-run.
+# LMAX (default 64) sets lmax = nside and the l<LMAX> in the directory name;
+# used by ROADMAP T0.1 (band-limit test at a smaller lmax = nside).
+# NSIDE (default LMAX) decouples the pixel scale from the band limit; when it
+# differs from LMAX the directory gets an _ns<NSIDE> suffix.
 set -u
 NU=${NU:-6.0}
 TAG=${TAG:-}
+LMAX=${LMAX:-64}
+NSIDE=${NSIDE:-$LMAX}
+NSTAG=""; [ "$NSIDE" != "$LMAX" ] && NSTAG="_ns${NSIDE}"
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
-BASE=results/analysis/ens_exact_l64_A${AMP}_n${NOISE}${TAG}
+BASE=results/analysis/ens_exact_l${LMAX}_A${AMP}_n${NOISE}${NSTAG}${TAG}
 case $MODE in
   cl4)   OUT=$BASE;        EXTRA="--cl_phiphi_prior_nu $NU" ;;
   nocl4) OUT=${BASE}_nocl4; EXTRA="--no_sample_cl_phiphi" ;;
@@ -46,9 +53,9 @@ export TF_ENABLE_ONEDNN_OPTS=0
 # does not mount (every T0.1c task, jobs 12041916/12041917, died at its first
 # checkpoint write for that reason). The chains are CPU-bound anyway: on dine2
 # TF logged CUDA_ERROR_NO_DEVICE and never used the GPU.
-echo "MODE=$MODE nu=$NU tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
+echo "MODE=$MODE lmax=$LMAX nside=$NSIDE nu=$NU tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
 .venv/bin/python -u scripts/coverage_ensemble_chain.py \
-    --realization ${SLURM_ARRAY_TASK_ID} --lmax 64 --nside 64 \
+    --realization ${SLURM_ARRAY_TASK_ID} --lmax $LMAX --nside $NSIDE \
     --n_burnin $BURNIN --n_samples $SAMPLES --n_lfs 10 --phi_n_lfs 240 \
     --phi_mass_matrix prior --noisesig $NOISE --phi_amplitude $AMP \
     --lensing_operator exact --fiducial corrected \

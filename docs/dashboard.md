@@ -1,45 +1,122 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-26*
+*Last updated: 2026-09-27*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-09-26): T0.2 figure checks; 24 fresh skies running
+## CURRENT (2026-09-27, evening): the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
 
-**Running: 24 new skies r024–r047 at ν = 30**, 1000 + 3600 sweeps into `_nu30_long`:
-Block-4-ON job **12065119** (about 13–16 h per task, still running) and lensing-blind pair job
-**12065120**, which is already done: 24/24 COMPLETED in minutes, no tracebacks, `blind_r024–r047.npz` written.
-The wrapper now caps OPENBLAS/MKL/DUCC0/TF thread pools too. Spot-check: 52 threads per
-process, mostly idle, about 145 % CPU against 800 %.
+**Diagnostic** `scripts/diagnose_alm_band_edge.py` (job 12066643, log `logs/alm_band_edge_12066643.out`;
+results in `<ensemble>/diagnose_alm_band_edge.npz`; tests in `tests/test_diagnose_alm_band_edge.py`). Per-ℓ z against the effective null, thin 50:
 
-**Harvest checklist (N = 48)**, for when 12065119 finishes (12065120 already done):
+| ensemble | ℓ = 60 | 61 | 62 | **63** | `[56,60)` | quarters of `[60,64)` u |
+|---|---|---|---|---|---|---|
+| ν = 30 long, N = 48 (adopted) | +0.70 | +1.05 | +1.49 | **+3.76** | −0.75 | 0.604 / 0.582 / 0.595 / 0.570 |
+| ν = 6 long, N = 24 | +0.54 | +0.67 | +1.83 | **+2.86** | −0.13 | flat |
+| ν = 6 short (1200 sweeps) | +0.62 | +0.13 | +1.58 | **+4.20** | +0.54 | 0.667 → 0.577 |
+| Block-4-OFF, N = 24 (1200 sweeps) | +0.66 | +1.74 | +0.52 | **+1.99** | −0.35 | — |
+| **exact dense reference** (φ = truth), N = 48 | +0.05 | −0.63 | −0.07 | **+0.78** | −0.66 | flat |
 
-> **Steps 1–4 are automated (queued 2026-09-26):** job **12065737**, `scripts/submit_harvest_t01e.slurm`,
-> `--dependency=afterany:12065119`, log `logs/harvest_t01e_12065737.out`. It checks that all 48 files exist, all 24 new
-> chains have 3600 samples and no task log has a Traceback, otherwise exits 2. It saves the N = 24 `_thin50` null and SBC files as
-> `*_n24.npz`, redoes the null, SBC and rank nulls on `_nu30_long` only, then runs `expected_aware_bias_flat_prior` (before the figures, so figure 2's band is
-> the N = 48 one), `make figures` and `inspect_fig4_cells`. The N = 24 expected-bias result is kept as `expected_aware_bias_flat_prior_n24.npz`. If it exits 2, resubmit per step 1, then `sbatch` the wrapper again.
-1. **Confirm the chains really finished.** `sacct` says COMPLETED even when a task died at a
-   checkpoint write (see the dine2 incident in `ROADMAP.md`). Run
-   `sacct -j 12065119,12065120 --format=JobID,State,Elapsed -X`, check that every 12065119 task ran
-   ~12–16 h rather than minutes (12065120 blind tasks legitimately take 5–11 min), and look for `Traceback` in
-   `logs/ens_exact_l64_1206511{9,20}_*.{out,err}`. `ls results/analysis/ens_exact_l64_A3000_n30_nu30_long/{chain,blind}_r0{2[4-9],3[0-9],4[0-7]}.npz | wc -l`
-   must give 48 (r024–r047, both kinds). Resubmit any missing realization with
-   `sbatch --array=<ids> -J ens_exact_l64 --export=ALL,<export> scripts/submit_ensemble_exact_lmax64.slurm`, where the export is `MODE=cl4|blind,AMP=3000,NOISE=30,BURNIN=1000,SAMPLES=3600,NU=30.0,TAG=_nu30_long`.
-2. **Nulls at N = 48:** `THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`. It rewrites
-   the `_thin50` nulls in all four ensembles; only `_nu30_long` changes. Read its
-   `[60,64)` effective z, which is +2.55 at N = 24: does it survive the fresh skies?
-3. **Figures:** `sbatch --dependency=afterok:<null job> scripts/submit_make_figures.slurm`.
-   All figure scripts glob every `chain_rNNN.npz`, so they pick up N = 48 automatically. Check the
-   log says "48 chains"; `fig_maps` still uses r000 only.
-4. **Checks:** `PYTHONPATH=diffcmb .venv/bin/python scripts/inspect_fig4_cells.py` and
-   `scripts/expected_aware_bias_flat_prior.py`. Run them on a compute node or with `srun`, since
-   each takes a few minutes. Compare with the N = 24 tables below.
-5. **Write up:** replace the N = 24 numbers in the tables below and in `ROADMAP.md` T0.2
-   (figures 1, 2, 4 and T0.1e). Then `plots/STORY.md` caption numbers (held back until N = 48),
-   the AGENTS.md "RESUME HERE" line, and `achievements.md` if `[60,64)` resolves either way.
-6. **Ask the user** for the T0.2 decisions. The figure 2 reference band is **built** and drawn by default; confirm it, and decide
-   whether it needs a zoomed aware-only inset. For Block-4-OFF, a panel or a caption number (number ready, see below)? And whether to add a power table.
+It holds at thin 100 and 150 (ν = 30: +3.46 / +3.70) and in both sky halves (+3.08 / +2.23). By m: m = 0 is clean
+(−0.57), while 0 < m ≤ ℓ/2 is +3.23 and m > ℓ/2 +2.69; real parts +4.17, imaginary parts +2.07.
+
+**Exact dense reference** (`scripts/exact_dense_alm_reference.py`, job 12066700, 48/48;
+`results/analysis/exact_dense_alm_reference_l64_nu30/`; tests in `tests/test_exact_dense_alm_reference.py`).
+It builds the full 49152 × 4092 lensed operator at φ_true from `lens_map_tf` (linearity check 6e-15),
+rebuilds the production data from the production seeds, and runs an exact Gibbs sampler: a Cholesky a | C draw,
+then Block 1's own InvGamma C draw, 1100 sweeps, thin 5. Per-mode sd(z) is 0.99–1.02 and the shrinkage slope matches W at every ℓ.
+**Pixelisation, the lensing geometry and the diagonal null are not the cause.** With φ known, the effective noise is only
+1.3× nominal (f_ℓ ≈ 0.10); in production it is 5× (f_ℓ ≈ 0.30).
+
+**Posterior C_ℓ / (S_true/(k−4)), mean over chains, by quarter** (r036 excluded):
+
+| ℓ | production ν = 30 | dense exact |
+|---|---|---|
+| 45–61 | 0.99–1.02, flat | 0.99–1.02, flat |
+| 62 | 0.973 → 0.987 → 0.990 → 0.993 | 1.00 |
+| **63** | **0.934 → 0.940 → 0.946 → 0.947** | 0.99 |
+
+The shrinkage slope ⟨mean · a_true⟩/⟨a_true²⟩ at ℓ = 63 is 0.637 against W_eff 0.698 (ν = 30); ν = 6 short gives 0.565 against 0.712.
+The lower ℓ track W. The median τ_int(ln C_ℓ) is 42 at ℓ = 63 (35–49 at ℓ 55–62), so the slow direction is collective.
+
+**The start:** replaying the MAP start (job 12066670, r035/r036, into `/cosma5/data/durham/dc-hick2/diffcmb/scratch_r036/`)
+puts ln C_ℓ − ln C_true ≈ −0.8 to −1.6 at every ℓ, and −2.06 at ℓ = 62 for r036. The replay used no burn-in, so the
+step size never adapted (acceptance 1.00); only its sweep-0 values are meaningful.
+
+**C_ℓ collapse (separate defect):** ν = 30 r036 has C_62 ≈ 2e-5 of the realized power for all 3600 sweeps (ln C −10.0 → −9.6;
+a_62 posterior sd 3e-3 against 1.1 prior). ν = 6 long r021 collapsed the same way at ℓ = 62 and recovered only late (ln C −14.5 → −0.3).
+No other chain in any exact ensemble has a C_ℓ below 0.1 of its realized power.
+
+**Broader:** a_ℓm per-mode sd(z), median by bin, is 1.03–1.08 at ν = 30 (N = 48) and 1.09–1.13 in `_nocl4` / ν = 6 long,
+against ≈ 1.00–1.02 exact. Posteriors are slightly too narrow, and less so in longer chains.
+
+**Sky-level correlates of the ℓ = 63 rank:** none. Spearman ρ with deflection power, φ power ratio, C_L^φφ amplitude and
+logp scatter are all |ρ| ≤ 0.27 with p ≥ 0.06.
+
+**In flight at 17:00:**
+- 12066584: Block-4-OFF r024–r047 → `_nocl4`, 20/24 done.
+- 12066585: lmax = nside = 32 → `ens_exact_l32_A3000_n30_nu30_long`, 31/48 done.
+- 12066667: lmax 32, nside 64 → `ens_exact_l32_A3000_n30_ns64_nu30_long`, running, ~3 h left.
+
+Next steps: `ROADMAP.md` T0.1 a–c.
+
+**Also landed:** 12066719 (`make figures`), which added `figure1/validation_power_table.{csv,tex}` and `figure2/bias_aware_zoom.pdf`.
+
+## 2026-09-27 (morning) record: N = 48 harvested — everything passes except a_ℓm `[60,64)`
+
+Harvest job **12065737** (36 min, m5005; `scripts/submit_harvest_t01e.slurm`, log
+`logs/harvest_t01e_12065737.out`, exit 0). Guard: 48 chain + blind files present, all chains 3600
+samples. Block-4-ON tasks 12065119 ran 14.0–15.1 h each; blind pairs 12065120 ran 3–9 min. The
+N = 24 products are kept as `*_n24.npz` in `ens_exact_l64_A3000_n30_nu30_long/`.
+
+| test (thin 10 unless stated) | N = 24 | **N = 48** |
+|---|---|---|
+| joint-likelihood SBC, thin 40 | 0.474, KS_p 0.49 | **0.528, KS_p 0.45 ✓** |
+| joint-likelihood SBC, 2nd half | 0.460, KS_p 0.41 | **0.512, KS_p 0.77 ✓** |
+| strict C_L^φφ SBC pooled | 0.487, KS_p 0.69 | **0.495, KS_p 0.65 ✓** |
+| strict C_L^φφ `[2,10)/[10,30)/[30,60)/[60,64)` KS_p | — / — / 0.41 / 0.015 | 0.85 / 1.00 / 0.22 / 0.064 |
+| Block 4 PIT aligned (lag-10/50 controls) | KS_p 0.474 (0) | **KS_p 0.224 (0) ✓** |
+| figure 1 `p_bin` φ / a_ℓm / C_L^φφ, thin 50 | 0.275 / 0.080 / 0.484 | **0.386 ✓ / 0.005 ✗ / 0.501 ✓** |
+| figure 1 50 % power | 0.436σ | 0.281σ |
+| φ power bias (median) by bin | 1.03/1.00/0.99/1.03 | 1.007/1.006/0.991/1.017 |
+
+**a_ℓm null, thin 50** (`null_alm_power_rank_flat_prior_thin50.npz`, 2000 exact realizations):
+
+| bin | observed | null nominal / effective | z nominal | z effective | z effective, r000–r023 only | **z effective, r024–r047 only** |
+|---|---|---|---|---|---|---|
+| `[2,10)` | 0.446 | 0.490 / 0.470 | −1.05 | −0.57 | −0.52 | — |
+| `[10,30)` | 0.376 | 0.448 / 0.389 | −1.73 | −0.31 | −0.25 | — |
+| `[30,60)` | 0.338 | 0.417 / 0.338 | −1.89 | +0.01 | −0.55 | — |
+| `[60,64)` | **0.592** | 0.475 / 0.448 | **+2.80** | **+3.45** | +2.55 | **+2.33** |
+
+The fresh-sky z comes from 2 × obs(48) − obs(24) = 0.585 against the same null. **Reading:** the
+`[60,64)` offset reproduces on independent skies at the same amplitude. It met the pre-registered stop
+rule (z ≳ 3 with fresh skies), so it is a defect to diagnose (`ROADMAP.md` T0.1) before figure 1 is
+final. The posterior a_ℓm power sits *low* against the truth at the band limit. Figure 2's `[45,64)`
+aware residual (−2.97 vs effective) points the same way.
+
+**Figure 2** (48 pairs; aware ± SEM, expected exact-sampler bias nominal / effective, z):
+
+| bin | blind | lensing received | aware | expected nom / eff | z nom / eff |
+|---|---|---|---|---|---|
+| `[2,10)` | −0.30 % | +1.21 % | −0.40 ± 0.76 | +0.05 / +0.23 | −0.59 / −0.83 |
+| `[10,20)` | +5.68 % | +5.38 % | +0.99 ± 0.43 | +0.14 / +0.82 | +1.99 / +0.40 |
+| `[20,30)` | +3.31 % | +3.00 % | +1.06 ± 0.56 | +0.19 / +1.18 | +1.57 / −0.23 |
+| `[30,45)` | −11.62 % | −11.74 % | +0.84 ± 0.40 | +0.25 / +1.33 | +1.47 / −1.25 |
+| `[45,64)` | −41.12 % | −41.48 % | +0.72 ± 0.27 | +0.36 / +1.54 | +1.31 / **−2.97** |
+
+Mean |bias| 12.4 % blind, 0.80 % aware. In `[45,64)`, corr(blind bias, lensing received) = 0.892.
+
+**Figure 3:** 0.606 / 0.621 / 0.663 / 0.721 at L ~ 15 / 25 / 38 / 55 (QE validation re-passed:
+0.995 / 0.971). **Figure 4:** 1/16 cells above null at thin 45: `C_ℓ[30,60)×C_L^φφ[10,30)`, ratio
+1.03, chain z +2.34, the same cell as at N = 24. None at thin 150; all |r| ≤ 0.054: no correlation
+detected. **Convergence:** R̂ > 1.01 for 28.6 % / 20.1 % (Blocks 1/4); median ESS per 3600 sweeps
+252 / 74 / 181 / 342 (Blocks 1–4), min 5 / 17 / 5 / 14. **Maps (r000):** r 0.910, per-mode z sd 1.028 pooled over 48.
+
+**Open for the user:** the T0.1 diagnosis order, the figure 2 band sign-off and inset, Block-4-OFF
+panel vs caption number, and a power table (`ROADMAP.md` T0.1–T0.4).
+
+## 2026-09-26 record: T0.2 figure checks at N = 24
 
 **Figure 2 band (built 2026-09-26, awaiting user sign-off):** `expected_aware_bias_flat_prior.py` now saves `<indir>/expected_aware_bias_flat_prior.npz`, and `fig2_bias_reduction.py` shades the nominal–effective exact-sampler expectation per bin ("exact-sampler expectation (aware)") when that file covers exactly the figure's skies, otherwise it prints a warning and skips the band. It also prints aware z against both expectations. At N = 24: z (nominal / effective) `[2,10)` −0.69/−0.80, `[10,20)` +1.90/+0.76, `[20,30)` +1.01/−0.17, `[30,45)` +2.32/−0.40, `[45,64)` +0.93/**−3.04**. Every bin lies inside or near the bracket, but `[45,64)` sits at the nominal end, well below the effective one. The stat box moved to upper right because it overlapped the legend. **Open design point:** at the panel's −40…+10 % scale the band is a thin sliver. It may want a zoomed aware-only inset or panel.
 
@@ -686,9 +763,7 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Running (2026-09-26):** 12065119 (24 Block-4-ON skies r024–r047, ν = 30). Their blind pairs,
-12065120, are done (24/24, minutes). See "CURRENT (2026-09-26)" for the harvest steps. Landed today:
-12065179 (a_ℓm nulls at thin 50) and 12065180 (`make figures`, figure 1 at thin 50), both exit 0.
+**Running (2026-09-27, 17:00):** 12066584 (Block-4-OFF r024–r047), 12066585 (lmax 32), 12066667 (lmax 32 / nside 64); see "CURRENT (2026-09-27, evening)". Landed today: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

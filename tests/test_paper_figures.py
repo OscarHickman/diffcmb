@@ -262,6 +262,27 @@ def test_fig1_end_to_end_passes_a_correct_sampler(tmp_path, capsys, monkeypatch)
         assert (tmp_path / "out" / f"{name}.pdf").exists()
 
 
+def test_fig1_power_table_matches_the_curve(tmp_path, capsys, monkeypatch):
+    """The paper's power table is written by the same run as the curve."""
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=24, n_samp=120)
+    import fig1_validation as f1
+
+    monkeypatch.setattr(sys, "argv", ["fig1", "--indir", str(ens), "--outdir",
+                                      str(tmp_path / "out"), "--thin", "2", "--n_rep", "50"])
+    f1.main()
+    out = capsys.readouterr().out
+    printed = {float(s): float(p) / 100 for s, p in
+               re.findall(r"shift=([\d.]+) sigma\s+power=\s*([\d.]+)%", out)}
+    rows = np.loadtxt(tmp_path / "out" / "validation_power_table.csv", delimiter=",",
+                      skiprows=1)
+    assert {round(s, 1): p for s, p in rows} == pytest.approx(printed, abs=1e-3)
+    tex = (tmp_path / "out" / "validation_power_table.tex").read_text()
+    assert r"\begin{tabular}" in tex and "24 chains" in tex
+    assert tex.count(r"\\") >= len(rows) + 1
+
+
 def test_fig1_end_to_end_rejects_a_biased_sampler(tmp_path, capsys, monkeypatch):
     ens = tmp_path / "ens"
     ens.mkdir()

@@ -6,27 +6,21 @@
 
 ---
 
-## Where the project stands (2026-09-25)
+## Where the project stands (2026-09-27)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
 - **Exactness is capped at lmax = 64.** The low-L φ mode fails at 128 and 192.
-- **At lmax ≤ 300 a physical sky carries almost no lensing information in temperature.** The QE S/N on C_L^φφ is 0.002 at lmax = 64 and 0.13 at 300. The legacy figure 3 sat exactly there.
+- **At lmax ≤ 300 a physical sky carries almost no lensing information in temperature.** The QE S/N on C_L^φφ is 0.002 at lmax = 64 and 0.13 at 300.
 
-**Already positive:**
-- **A four-block joint sampler that passed calibration on the legacy model**, which nobody else has. **On the exact operator (2026-09-25):** the three-block core is certified. The Block-4-ON ensemble passes every calibrated test **at ν = 30**, but not at ν = 6 (T0.1c). Which ν the paper uses awaits sign-off (T0.1d).
+**Already positive** (details in `achievements.md`):
 - **An exact, differentiable, geodesic curved-sky lensing operator**, with FD-checked gradients and physical sign conventions.
-- **Exact-operator production ensembles** on identical skies, all complete (24/24 each: Block-4-ON, lensing-blind, Block-4-OFF).
-- **Physics validated (figure 2):** on 24 same-sky pairs the blind fit lands on the lensing each sky received (−45.6 vs −46.0 % at ℓ ∈ [45,64)), while the joint fit stays within ~1–3 %.
+- **The adopted Block-4-ON ensemble (ν = 30, 1000 + 3600 sweeps, D5), N = 48, passes the joint-likelihood SBC (0.528, KS_p 0.45), the strict C_L^φφ SBC (pooled 0.495, KS_p 0.65), the Block 4 PIT (KS_p 0.22, controls rejected) and every φ field-rank bin (p_bin 0.386).**
+- **Physics validated (figure 2, 48 same-sky pairs):** the blind fit lands on the lensing each sky received (−41.1 vs −41.5 % at ℓ ∈ [45,64)), while the joint fit stays within ~1 %.
 - **A QE validated at that configuration**: noise 0.995, response 0.971.
 - **A test suite that covers the scripts as well as the package.**
 
-**⚠ Blocking as of the 2026-09-23 harvest** (largely resolved 2026-09-25; see T0.1c/d. The ν = 30 long ensemble passes, so what remains is the ν sign-off). The 1200-sweep ν = 6 ensembles did **not** pass calibration:
-- Block-4-ON rejects on the joint-likelihood SBC (0.716, p = 0.001) and on φ/a_ℓm field ranks.
-- Block-4-OFF passes the joint-likelihood and φ tests but fails a_ℓm `[30,60)`, the same bin that fails in the ON ensemble.
-- Alm ESS is ~35 per 1200 sweeps.
-
-Until the ν sign-off (T0.1d) and the rebuild from the adopted ensemble, **no exactness claim, no figure 1/3/maps result is citable** (the current figures are built from the failing 1200-sweep ν = 6 chains; `achievements.md` → First harvest).
+**⚠ Blocking (2026-09-27): the a_ℓm `[60,64)` offset survived the fresh skies.** It was diagnosed the same day as a slow, non-stationary C_63 deficit left by the MAP start (T0.1 below; a fix needs sign-off). Figure 1's a_ℓm row fails until then, so **no exactness claim is citable**.
 
 **Handling the caution in the paper:**
 - The retraction becomes one methods paragraph: validate an operator on the observable you report, not only its gradients.
@@ -35,22 +29,15 @@ Until the ν sign-off (T0.1d) and the rebuild from the adopted ensemble, **no ex
 
 ## Positive routes (these organise T1)
 
-1. **Exact operator, then measure the real thing — in progress.** The operator is done and the ensembles have landed. Do **not** rebuild the retracted headline on physical lensing: at these ℓ the physical C_ℓ^TT effect is +0.05–0.2 %. Figure 2 now shows a blind fit absorbing exactly the lensing each (amplified) sky received while the joint fit does not. Put the positive claim where exact inference is actually needed.
-2. **Certify a learned posterior (T1.1): the highest-impact positive use.** Score a learned CMB-lensing posterior (`2603.04535`, or a trained NPE/diffusion model) against the exact one, including the correlation structure that marginals miss. Either it passes (the first certification of one) or it fails in a quantified way. In both cases the positive deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
+1. **Measure where exact inference is needed.** Do **not** rebuild the retracted headline on physical lensing: at these ℓ the physical C_ℓ^TT effect is +0.05–0.2 %. Figure 2 already shows the blind fit absorbing the (amplified) lensing each sky received while the joint fit does not.
+2. **Certify a learned posterior (T1.1): the highest-impact positive use.** Score a learned CMB-lensing posterior (`2603.04535`, or a trained NPE/diffusion model) against the exact one, including the correlation structure that marginals miss. It either passes (the first certification of one) or fails in a quantified way. In both cases the positive deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
 3. **Science where exactness is certified: low-L lensing on Planck (T1.2b), conditional on scale.**
-   - **The idea:** low-L C_L^φφ is where the QE has its largest reconstruction noise and mask/mean-field problems. Use that weakness as the claim: "an exact joint posterior on C_L^φφ at L < 30 from Planck temperature, where the QE is noise-dominated", on real data with the real mask.
+   - **The idea:** low-L C_L^φφ is where the QE has its largest reconstruction noise and mask/mean-field problems. The claim would be "an exact joint posterior on C_L^φφ at L < 30 from Planck temperature, where the QE is noise-dominated", on real data with the real mask.
    - **⚠ Feasibility check first.** Planck's low-L lensing information comes from temperature at ℓ ≳ 1000. At the certified lmax = 64 the physical S/N is 0.002, so the posterior would return the prior. The route needs the sampler at lmax ≳ 1000 (Parked: scaling), or a formulation where low-L φ is inferred from high-ℓ T.
    - **Scope this before building anything**, starting from what Planck's own low-L lensing analysis reports there.
 4. **A_L post-mortem (T1.2)** as a real-data consistency test on Planck 2018 vs PR4, framed as a demonstration, not a competitive measurement.
 
-## Decisions (all resolved)
-
-- **D1:** one paper, all extensions included (2026-09-22).
-- **D1b:** all figures final before any paper text (2026-09-22).
-- **D2:** journal PRD (2026-09-22); it is the `paper_style.py` default.
-- **D3:** exact lensing operator (2026-09-23).
-- **D4:** amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64 (2026-09-23, chosen by pilots; `achievements.md`).
-- **D5:** the paper's Block-4-ON ensemble uses the proper hyperprior **ν = 30**, 1000 + 3600 sweeps (`ens_exact_l64_A3000_n30_nu30_long`). It is the only Block-4-ON configuration that passes every calibrated test (T0.1c). ν = 6 is reported as a limitation: the centred (φ, C_L^φφ) hierarchy under a weak hyperprior is not certifiable in 3600 sweeps (2026-09-25, option A of T0.1d).
+Decisions D1–D5 (one paper, figures first, PRD, exact operator, A_φ = 3000 / σ = 30, ν = 30) are all taken; see `achievements.md` → Decisions taken.
 
 ---
 
@@ -76,59 +63,47 @@ Until the ν sign-off (T0.1d) and the rebuild from the adopted ensemble, **no ex
 
 ## T0 — Core figures from the exact-operator ensembles
 
-*Done 2026-09-23 (recorded in `achievements.md`): the work was committed on branch `exact-operator-rerun` in both repos; all three ensembles harvested; `make figures` rebuilt all seven figures; the strict SBC, Block 4 PIT and joint-likelihood SBC ran on both ensembles (job 12040798).*
+*Done so far (details in `achievements.md`): the calibration diagnosis (T0.1 a–d: a_ℓm is the statistic, φ is funnel mixing, ν = 30 adopted as D5); the ν = 30 blind pair; figure 1 at thin 50; the figure 2 exact-sampler band; the figure 4 cell inspection; the N_L normalisation test; and the N = 48 extension (r024–r047) with its harvest (job 12065737). Source of every number below: `logs/harvest_t01e_12065737.out`; tables in `docs/dashboard.md`.*
 
-1. **⚠ BLOCKING — diagnose the calibration failure** before anything else touches the figures. The standing rules apply: a localised anomaly must survive more realizations *and* finer resolution *and* a calibrated test; and no φ-equilibration tuning without sign-off (this is a stationarity check first, not tuning). In order:
-   - **(a) and (b) are done (job 12040935; harvested 2026-09-24; numbers in `results/analysis/dashboard.md` → "T0.1 (a, b) result").** There are two separate failures:
-     - **a_ℓm `[30,60)`, both ensembles:** a stationary mean offset (about 0.28). It survives thin 40 and is flat across chain quarters, so it is not thinning and not burn-in. Suspected cause: the statistic, not the sampler. The truth is drawn at a fixed C_ℓ^fid while Block 1's prior is flat.
-     - **Block-4-ON φ:**
-       - `[2,10)` is still burning in: drift z +4.05, τ_int ≈ 173, and logp is still falling.
-       - `[30,60)` has a stationary offset of about 0.70 that is absent in Block-4-OFF.
-     - **Block-4-OFF** passes φ and the joint likelihood at every thinning.
-   - a. ✅ Re-scored at thin 40, with the joint-likelihood SBC at thin 40 and on the second half.
-   - b. ✅ Stationarity by chain quarter and drift z.
-   - c. **All done (c1 2026-09-24; c2/c3 harvested 2026-09-25, job 12062700):**
-     - ✅ **c1 — a_ℓm null: PASS (job 12042747; the first run, 12041984, had an effective-noise bug).** Every a_ℓm bin in both ensembles is within |z| < 3 of the effective null (`[30,60)`: −1.35 OFF, −1.09 ON), so the offset is the statistic and the three-block core is not rejected by it. `[60,64)` is marginal (+2.36 / +2.92) and worth watching. Figure 1's a_ℓm row is now drawn and tested against this null (`fig1_validation.py --alm_null`, default `effective`; tests in `tests/test_paper_figures.py`). Method: `scripts/null_alm_power_rank_flat_prior.py` (tests: `tests/test_null_alm_power_rank.py`, mutation-checked for prior shape, truncation and conditional variance). It draws what an *exact* sampler gives for the a_ℓm power rank under the flat C_ℓ prior with a fixed-spectrum truth. It uses nominal noise and an effective noise calibrated to the chains' own posterior variance. If the observed offset sits within the effective null, the three-block core is certified on the exact operator: redraw figure 1's a_ℓm row against that null (as the C_ℓ coverage rows already are). If not, it is a Block 2 defect.
-     - ✅ **c2 — longer Block-4-ON chains, ν = 6 (job 12047785; harvested 2026-09-25 by job 12062700): burn-in resolved, but the φ `[30,60)` offset remains.** φ `[2,10)` drift z +1.27 (was +4.05). logp is flat (+0.13). The joint-likelihood SBC passes, though its mean is high: 0.648, KS_p 0.058 at thin 40. **φ `[30,60)` still fails (0.685, p 0.002).** Low-L φ τ_int grew to **427**, about 8 ESS per 3600-sweep chain.
-     - ✅ **c3 — ν = 30 (job 12047786; same harvest): the φ `[30,60)` offset is set by ν, and at ν = 30 every calibrated test passes.**
-       - φ `[30,60)` 0.574 (p 0.20); the other φ bins pass.
-       - Joint-likelihood SBC 0.474, KS_p 0.49.
-       - Strict SBC pooled 0.487, KS_p 0.69.
-       - Block 4 PIT KS_p 0.47, with its controls rejected.
-       - a_ℓm within the null.
-       - The truth is drawn from each ν's own prior, so the ν-dependence is a **mixing defect of the centred (φ, C_L^φφ) hierarchy** (a funnel, worse under a weak hyperprior), not a prior mismatch. Full table: `dashboard.md` → CURRENT (2026-09-25).
-       - ⚠ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so the existing blind chains do not pair with them.
-   - d. ✅ **Decided 2026-09-25: option A (D5, ν = 30).** Blind pair on the ν = 30 skies: job 12062768 (24/24 COMPLETED). Nulls regenerated on the corrected rank grid: job 12062823. `make figures`, now pointed at `_nu30_long` via the Makefile `ENSEMBLE`: job 12062824 (`scripts/submit_make_figures.slurm`). Options as weighed: c2 did not drift, so the lower-A_φ pilot is **not** triggered.
-     - **Option A (chosen): adopt ν = 30** as the certified Block-4-ON configuration (decision D5). Report ν = 6 openly as a limitation: under a weak hyperprior the centred hierarchy mixes too slowly to certify at 3600 sweeps. Cost:
-       - a 24-task lensing-blind re-run on the ν = 30 skies for figure 2 (`MODE=blind NU=30 TAG=_nu30_long`, same BURNIN/SAMPLES as the ON run for pairing);
-       - a `make figures` rebuild pointed at `_nu30_long`;
-       - a caveat on C_L^φφ: at ν = 30 the prior carries 30 dof per L against the data's 2L+1, which is a third of the information at L = 30. Figure 3's QE⊕prior reference must use the ν = 30 prior.
-     - **Option B:** keep ν = 6 and fix the mixing with a non-centred φ parameterisation (φ = √C_L^φφ · z). That is sampler development: it needs gate → production → harvest, about 2–3 days, and falls under the "no φ-equilibration tuning without sign-off" rule.
-     - **Option C:** run ν = 6 much longer. Not recommended: at τ_int ≈ 427, reaching about 60 ESS per chain would take ~25k sweeps, about 100 h per task.
-   - e. **Running (2026-09-26): 24 fresh skies r024–r047 at ν = 30, jobs 12065119 (Block-4-ON, running) + 12065120 (blind pair, done 24/24), same 1000 + 3600 sweeps, into `_nu30_long`.** Harvest: rerun the thin-50 null (`THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`), then `make figures` at N = 48. Settles a_ℓm `[60,64)`, and tightens figure 2 `[30,45)` and figure 4. Originally optional, to settle a_ℓm `[60,64)`: it is +2.3 to +2.9 against the null in all four ensembles, but they share the same 24 unlensed skies. Adding 24 fresh skies (r024–r047) to whichever ensemble is adopted would test it under the "survives more realizations" rule.
-   - Wrapper change: `scripts/submit_ensemble_exact_lmax64.slurm` now takes optional `NU` (default 6.0) and `TAG` (output-directory suffix, default none). The defaults reproduce the original runs.
-   - Wrapper change (2026-09-24): it now runs on the /cosma5-mounting partitions (cosma5, cosma8-shm/shm2/shm3, cosma8-ska), not dine2, and exits with Python's status. `results/analysis` became a symlink into `/cosma5` (commit `115e6da`), which dine2 does not mount, so all 48 tasks of the first c2/c3 attempt (12041916 = ν 30, 12041917 = ν 6) died at their first checkpoint while `sacct` reported COMPLETED. **Every other dine2 wrapper that writes to `results/analysis/` needs the same move before reuse.** Done 2026-09-25 (uncommitted): the 14 CPU-only wrappers now run on the /cosma5-mounting partitions (plus `bluefield1`, which mounts /cosma5) with `--mem` sized from past MaxRSS instead of `--exclusive`/`--mem=0`. The 57 GPU wrappers must stay on dine2 (the only partition with usable GPUs), so they now fail at start if `results/analysis` is not mounted; running them needs the outputs relocated to a filesystem dine2 mounts (e.g. /cosma7). Every wrapper that ended in `echo ... $?` now exits with Python's status.
-2. **Only after T0.1 passes: read the rebuilt figures against the checklist.**
-   **▶ Next session:** the N = 48 harvest is queued as job **12065737** (`scripts/submit_harvest_t01e.slurm`, `afterany:12065119`). It runs checklist steps 1–4 in `docs/dashboard.md` → "CURRENT (2026-09-26)" and refuses to run (exit 2) if any r024–r047 chain or blind file is missing or short. Read `logs/harvest_t01e_12065737.out`, then do steps 5–6 (write-up, then ask the user).
-   Rebuilt 2026-09-25 from `_nu30_long` (job 12062824; numbers in `dashboard.md` → "D5 adopted"). Remaining per figure:
-   - **figure 1:** `p_bin` φ 0.221 / a_ℓm 0.143 / C_L^φφ 0.631 all pass at thin 10. But a_ℓm ESS (median 77 per 3600) is below the 360 rank draws. **2026-09-26: `--thin` is now an argument of `null_alm_power_rank_flat_prior.py` (null file `_thin<N>`, read by `fig1_validation.py --thin N`), and the Makefile sets `FIG1_THIN=50`.** Null at thin 50 (job 12065179) and `make figures` (job 12065180): **φ 0.275 / a_ℓm 0.080 / C_L^φφ 0.484, all pass**. The a_ℓm weak point is `[60,64)` (effective-null z +2.55, per-bin p 0.01). 50 % power at 0.436σ. Redo at N = 48.
-   - **figure 2:** aware residuals are positive in 4/5 bins, and `[30,45)` is +1.19 ± 0.43 % (+2.7σ against zero). **Checked 2026-09-26: zero is the wrong reference.** Under the flat C_ℓ prior an *exact* sampler's posterior-mean C_ℓ sits above S_true/(k−4), the same effect as the figure 1 a_ℓm offset. Its expected aware bias on these 24 skies is +0.2 % (nominal noise) to +1.4 % (chain-calibrated effective noise) in `[30,45)`, and `[30,45)` sits inside that bracket (z −0.4 vs effective). Do not write "consistent with zero": either draw the exact-sampler expectation as the reference band, or quote the residual against it. Redo at N = 48. Also the A_L = 1 wording.
-     **Figure 2 band (built 2026-09-26, awaiting user sign-off):** `expected_aware_bias_flat_prior.py` now saves `<indir>/expected_aware_bias_flat_prior.npz`, and `fig2_bias_reduction.py` shades the nominal–effective exact-sampler expectation per bin ("exact-sampler expectation (aware)") when that file covers exactly the figure's skies, otherwise it prints a warning and skips the band. It also prints aware z against both expectations. At N = 24: z (nominal / effective) `[2,10)` −0.69/−0.80, `[10,20)` +1.90/+0.76, `[20,30)` +1.01/−0.17, `[30,45)` +2.32/−0.40, `[45,64)` +0.93/**−3.04**. Every bin lies inside or near the bracket, but `[45,64)` sits at the nominal end, well below the effective one. The stat box moved to upper right because it overlapped the legend. **Open design point:** at the panel's −40…+10 % scale the band is a thin sliver. It may want a zoomed aware-only inset or panel.
-   - **figure 3:** 0.60 / 0.62 / 0.66 / 0.72, now from calibrated chains (z sd 1.027). Caption: the φ prior is hierarchical at ν = 30.
-   - **figure 4:** 2/16 cells above null (0.8 by chance). **Inspected 2026-09-26: chance.** The two cells (`C_ℓ[30,60)×C_L^φφ[10,30)`, r/null 1.07; `[60,64)×[60,64)`, 1.02) barely clear the null and are not adjacent. A chain-level test (robust to autocorrelation) gives z +2.56 / +1.77 at thin 45, not significant over 16 cells. At thin 150, 0/16 clear it. Every |r| ≤ 0.05. Caption: "no correlation detected". Recheck at N = 48.
-   - **convergence:** R̂ > 1.01 for 26.5 % / 20.1 % (Blocks 1/4). Carry the ESS numbers into the caption.
-   - **maps:** z sd 1.027, r = 0.910. Passes the calibration check; do the checklist read.
-3. **Figure 1 and the Block-4-OFF ensemble:** decide whether the three-block certification gets its own panel or a caption number (the figure is currently built from Block-4-ON only). Recommended: caption number. **Block-4-OFF caption number (computed 2026-09-26, `_nocl4`, thin 50, N = 24, against its own `_thin50` null):** p_bin φ 0.190 / a_ℓm 0.094 (all pass); lowest a_ℓm per-bin p 0.023 and 0.012, corrected min 0.094; 50 % power 0.427σ. The C_L^φφ SBC is not defined with Block 4 OFF (the panel is skipped).
-4. **Power statement:** decide whether the paper needs a table as well as figure 1's curve; if so, generate it from the same script.
+1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: diagnosed 2026-09-27 as a slow, non-stationary C_63 deficit left by the MAP start. A fix needs sign-off.** Numbers: `docs/dashboard.md` → "CURRENT (2026-09-27, evening)".
+   - **Found:**
+     - **It is ℓ = 63 alone**, the band limit. Per-ℓ z is +3.5 to +3.8 at thin 50/100/150 on the ν = 30 ensemble, +2 to +4 in every other exact ensemble, and ≤ +1.5 at ℓ = 60–62.
+     - **It is not pixelisation or the null.** An exact dense Gibbs reference on the same 48 skies and data (`scripts/exact_dense_alm_reference.py`, φ fixed at truth, job 12066700) shows none of it: ℓ = 63 z is +0.3/+0.8, the shrinkage slope is 0.891 against W 0.894, and sd(z) is 1.006.
+     - **In production, C_63 sits ~6 % low and is still rising:** by chain quarter, 0.934 → 0.947 of S_true/(k−4), against 0.99 in the dense reference. ℓ = 62 started low too but has recovered (0.973 → 0.993).
+     - **The MAP start sets every C_ℓ low**, at about e^−1 × truth: `find_map_estimate`'s joint (ln C, a) MAP is the usual hierarchical-MAP shrinkage. The replay is job 12066670, in `/cosma5/.../scratch_r036/`.
+     - So the chains have not finished climbing out of that start at the band edge. The quarter test on the *rank* was too weak to see it. The single-coordinate τ_int(ln C_63) ≈ 42 does not show the slow direction either, which looks collective (a–C–φ at the edge).
+   - **A separate defect: C_ℓ collapse.** In ν = 30 r036, C_62 sits at ~1e-5 of the realized power for the whole chain (a_62 sd ≈ 3e-3). In ν = 6 long r021 the same happened and recovered only late. It is seeded by the low MAP start (r036's MAP had C_62 at e^−2, the lowest of any ℓ). Once C is tiny, HMC can hardly move the stiff a_ℓm. It is the only collapse in any exact ensemble (all were scanned).
+   - **Broader, milder:** per-mode sd(z) of a_ℓm is 1.03–1.08 across all ℓ at ν = 30 (1.18–1.25 in the 1200-sweep chains) against 1.00 exact. So posteriors are slightly too narrow, and this improves with chain length. The a_ℓm rank test cannot see it, because its effective null is calibrated from the chains' own variance. Quote sd(z), not only the rank.
+   - **Still running when the session closed (17:00, 2026-09-27):**
+     - 12066584: Block-4-OFF r024–r047 into `_nocl4` (400 + 1200), 20/24 done;
+     - 12066585: lmax = nside = 32, ν = 30, 1000 + 3600, 48 skies → `ens_exact_l32_A3000_n30_nu30_long`, 31/48 done;
+     - 12066667: lmax 32 / nside 64, same config → `ens_exact_l32_A3000_n30_ns64_nu30_long`, all running, ~3 h left.
+   - **Next, in order:**
+     - a. When they finish, run `INDIRS="<the three dirs>" sbatch scripts/submit_diagnose_alm_band_edge.slurm` (for `_nocl4`, N = 48). The script now also prints posterior C_ℓ / (S_true/(k−4)) by chain quarter; an exact sampler is flat across quarters. Question: does the top multipole (ℓ = 31) lag the same way at lmax 32, and at both nsides? Does Block-4-OFF show it on the fresh skies?
+     - b. **Proposed fix (needs user sign-off; it changes the production initialisation):** start ln C_ℓ from a data-driven, unshrunk estimate instead of the joint-MAP value, e.g. ln[S_ℓ(a_MAP)/(k_ℓ − 4) / W_ℓ²]. Or add a burn-in guard that checks C_ℓ has reached S/(k−4) at every ℓ. Pilot it on ~8 skies at lmax = 64 (C_62/C_63 by quarter against the dense reference) before any re-run. A re-run of the adopted ensemble would be 48 × ~14 h.
+     - c. Decide what to do with r036 (C_62 collapsed): drop it with a stated reason, or re-run it with the fixed initialisation.
+   - Until then figure 1's a_ℓm row is not final and no exactness claim is citable.
+2. **Figure checklist read at N = 48** (rebuilt by job 12065737 from `_nu30_long`, 48 chains):
+   - **figure 1 (thin 50):** `p_bin` φ 0.386 ✓ / **a_ℓm 0.005 ✗** (T0.1) / C_L^φφ 0.501 ✓. 50 % power is now at **0.281σ** (it was 0.436σ at N = 24).
+   - **figure 2:** mean |bias| is 12.4 % blind and 0.80 % aware; corr(blind bias, lensing received) in `[45,64)` is 0.892. Aware z against the exact-sampler expectation (nominal / effective): `[2,10)` −0.59/−0.83, `[10,20)` +1.99/+0.40, `[20,30)` +1.57/−0.23, `[30,45)` +1.47/−1.25, `[45,64)` +1.31/**−2.97**. All bins are inside the nominal–effective bracket except `[45,64)`, which sits below the effective end, the same as at N = 24. The band is built and drawn. Since 2026-09-27 there is also a zoomed aware-only panel (c), `figure2/bias_aware_zoom.pdf`, drawn separately rather than as an inset because an inset would be unreadable at 3.375 in. Still to do: the user's look at both, and the A_L = 1 wording. `[45,64)` probably shares the T0.1 cause (the posterior C is low at the edge), so re-read it after the fix.
+   - **figure 3:** 0.606 / 0.621 / 0.663 / 0.721 at L ~ 15 / 25 / 38 / 55. Caption: the φ prior is hierarchical at ν = 30.
+   - **figure 4:** 1/16 cells above null (0.8 expected by chance), 0/16 at thin 150, all |r| ≤ 0.054. Caption: "no correlation detected". The one cell, `C_ℓ[30,60)×C_L^φφ[10,30)` (ratio 1.03, chain z +2.34), is the same cell as at N = 24. Watch it, but it is not significant over 16 cells.
+   - **convergence:** R̂ > 1.01 for 28.6 % / 20.1 % of (chain, multipole) pairs (Blocks 1/4). Median ESS per 3600 sweeps is 252 / 74 / 181 / 342 (Blocks 1–4). Carry these into the caption.
+   - **maps:** r = 0.910; per-mode z sd 1.028 pooled over 48 skies. Do the checklist read.
+   - Then write the caption numbers into `plots/STORY.md`. They are held back until T0.1 resolves.
+3. **Figure 1 and the Block-4-OFF ensemble: a caption number (adopted 2026-09-27, per the recommendation; the user can overrule).** At N = 24 it was p_bin φ 0.190 / a_ℓm 0.094. Recompute at N = 48 once job 12066584 finishes: run `THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`, then `fig1_validation.py --indir ..._nocl4 --thin 50 --outdir <scratch>`.
+4. ✅ **Power table built (2026-09-27):** `fig1_validation.py` writes `figure1/validation_power_table.{csv,tex}` from the same run as the curve (test: `test_fig1_power_table_matches_the_curve`). At N = 48, thin 50, 50 % power is at 0.281σ. Whether the paper uses it is for T2.
 5. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
-6. **Keep `plots/STORY.md` and `results/analysis/dashboard.md` current** with every harvest number (both were updated 2026-09-23 with the first harvest).
-7. **Merge `exact-operator-rerun` into `main` in both repos** once T0.1 is resolved, then **re-tag** the finalised core-figure state (the stale `methods-paper-v1` tag points at `d9979b7`).
-8. ✅ **Small test gap (done 2026-09-26):** N_L's absolute normalisation is frozen at lmax = 16 in `tests/test_qe.py` (`test_nl_absolute_normalisation_is_frozen_at_lmax16`). The values come from an independent sympy-3j loop implementation that matches `qe_tt_noise_nl` to 4e-16.
+6. **Keep `plots/STORY.md` and `docs/dashboard.md` current** with every harvest number.
+7. **Merge `exact-operator-rerun` into `main` in both repos** once T0.1 is resolved, then **re-tag** the finalised core-figure state. The stale `methods-paper-v1` tag points at `d9979b7`.
+8. **Housekeeping before reusing old GPU wrappers:** the 57 GPU wrappers must stay on dine2, which does not mount `/cosma5` (where `results/analysis` lives). They now fail at start, so relocate their outputs (e.g. to `/cosma7`) before running any of them.
 9. **Limitations to carry into T2:**
     - exactness above lmax = 64 (low-L φ NO-GO at 128/192);
     - A_φ above ~3000 at lmax = 64 (Gibbs stalls);
     - physical-sky lensing information at lmax ≤ 300;
-    - mixing at A_φ = 3000: low-L φ τ_int ≈ 280–430 sweeps; the centred (φ, C_L^φφ) hierarchy is not certifiable at ν = 6 in 3600 sweeps (T0.1c);
+    - mixing at A_φ = 3000: low-L φ τ_int ≈ 280–430 sweeps; the centred (φ, C_L^φφ) hierarchy is not certifiable at ν = 6 in 3600 sweeps;
+    - the ν = 30 prior carries 30 dof per L against the data's 2L+1, a third of the information at L = 30 (figure 3's QE⊕prior reference uses the ν = 30 prior);
+    - whatever T0.1 concludes about a_ℓm at the band limit;
     - no further φ-equilibration tuning without sign-off.
 
 ## T1 — Extension figures (by impact per effort)
@@ -167,7 +142,7 @@ Each extension is validated to the core's standard (gate → production → cali
      - vs Darwish 2025;
      - the scale paragraph, where the comparison set is 10²–10⁴× larger and the answer is certified correctness, not scale.
    - f. Figure 3 near the front of the results if the rebuilt version supports a positive claim.
-   - g. Limitations from T0.10.
+   - g. Limitations from T0.9.
 2. Captions from `plots/STORY.md`.
 3. Panels assembled into `figure*` environments, no rescaling past column width.
 4. The literature actions below.

@@ -2,11 +2,68 @@
 
 *Condensed record of what is validated, closed out, retracted or fixed — current state, not a change log. Full history is in git. Forward plan: `ROADMAP.md`.*
 
-**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is being re-derived from the exact-operator ensembles (first section below).
+**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is re-derived from the exact-operator ensembles; the adopted one is `ens_exact_l64_A3000_n30_nu30_long` (D5, first section below).
+
+## Decisions taken
+
+| | decision | date |
+|---|---|---|
+| D1 | one paper, all extensions included | 2026-09-22 |
+| D1b | all figures final before any paper text | 2026-09-22 |
+| D2 | journal PRD (the `paper_style.py` default) | 2026-09-22 |
+| D3 | exact lensing operator | 2026-09-23 |
+| D4 | amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64, chosen by the pilots below | 2026-09-23 |
+| D5 | the paper's Block-4-ON ensemble uses the proper hyperprior **ν = 30**, 1000 + 3600 sweeps (`ens_exact_l64_A3000_n30_nu30_long`), the only Block-4-ON configuration that passes every calibrated test. ν = 6 is reported as a limitation. Rejected alternatives: a non-centred φ parameterisation (sampler development, 2–3 days, needs φ-tuning sign-off) and ~25k-sweep ν = 6 chains (~100 h per task) | 2026-09-25 |
 
 ---
 
-## 2026-09-22/23 — operator retraction, physics fixes, and the exact-operator re-run
+## 2026-09-25/27 — the adopted ensemble (ν = 30), extended to N = 48
+
+### What was run
+
+| step | job(s) | result |
+|---|---|---|
+| lensing-blind pair on the ν = 30 skies r000–r023 (figure 2) | 12062768 | 24/24 |
+| nulls regenerated on the corrected rank grid | 12062823 | every z unchanged to 2 d.p. |
+| `make figures` pointed at `_nu30_long` (Makefile `ENSEMBLE`) | 12062824 | all figures rebuilt |
+| a_ℓm null at thin 50 (`--thin`, null file `_thin<N>`, Makefile `FIG1_THIN=50`) + figures | 12065179, 12065180 | figure 1 passes at N = 24 |
+| 24 fresh skies r024–r047, Block-4-ON + blind pair | 12065119, 12065120 | 48/48, Block-4-ON tasks 14.0–15.1 h |
+| N = 48 harvest (`scripts/submit_harvest_t01e.slurm`, with a completeness guard) | 12065737 | log `logs/harvest_t01e_12065737.out`; the N = 24 files are kept as `*_n24.npz` |
+
+### N = 48 results (thin 10 unless stated; uniform mean_u = 0.5 ± 0.042)
+
+- **Joint-likelihood SBC passes:** 0.528, KS_p 0.45 at thin 40; 0.512, KS_p 0.77 on the second half.
+- **Strict C_L^φφ SBC passes:** pooled 0.495, KS_p 0.65. Per bin, KS_p is 0.85 / 1.00 / 0.22 / 0.064; the `[60,64)` low reading of N = 24 (0.397, KS_p 0.015) relaxed to 0.437.
+- **Block 4 PIT passes:** aligned KS_p 0.22. The lag-10/50 controls are rejected (KS_p 0); lag 1 passes vacuously (φ lag-1 correlation +0.85).
+- **Figure 1 (thin 50):** φ p_bin 0.386 ✓, C_L^φφ 0.501 ✓, **a_ℓm 0.005 ✗**. 50 % power is at 0.281σ.
+- **φ power bias** per bin (median): 1.007 / 1.006 / 0.991 / 1.017.
+- **Figure 2 (48 pairs):** mean |bias| 12.4 % blind vs 0.80 % aware. Aware residuals sit inside the exact-sampler bracket in four of five bins; `[45,64)` is at −2.97 against the effective expectation (it was −3.04 at N = 24).
+- **Figure 3:** 0.606 / 0.621 / 0.663 / 0.721 of QE⊕prior. **Figure 4:** 1/16 cells, chance. **Maps:** r 0.910, z sd 1.028.
+
+### ⚠ Not passed: the a_ℓm `[60,64)` offset is reproducible
+
+Against the effective exact-sampler null it is +2.55 on r000–r023, **+2.33 on the fresh r024–r047 alone**, and +3.45 combined (nominal null: +2.80). Every other a_ℓm bin is at |z| ≤ 0.6. By the pre-registered rule (survives more realizations), this is now a defect to diagnose, not sky noise. Open in `ROADMAP.md` T0.1.
+
+### Band-edge diagnosis (2026-09-27): what is established
+
+- **The diagonal a_ℓm null is validated against an exact dense reference.** `scripts/exact_dense_alm_reference.py` builds the full lensed operator at φ_true from `lens_map_tf` (reproduces it to 6e-15) and rebuilds the production data from the production seeds. It then samples the (C_ℓ, a_ℓm) posterior exactly: a Cholesky a | C draw, then Block 1's InvGamma C draw (job 12066700, 48 skies). Result: no a_ℓm rank offset at any top ℓ, sd(z) 0.99–1.02, shrinkage slope = W. So pixelisation and the lensing geometry do not bias the statistic, and the null's diagonal model is adequate when φ is known.
+- **Hence the production ℓ = 63 offset is a sampler/mixing effect under φ uncertainty.** Posterior C_63 is ~6 % low and still rising by chain quarter (0.934 → 0.947), against 0.99 exact. The MAP start sets every C_ℓ low (about e^−1 × truth). The fix is open (`ROADMAP.md` T0.1).
+- **A rank-mean quarter test missed this non-stationarity; C_ℓ / (S_true/(k−4)) by quarter caught it.** `diagnose_alm_band_edge.py` now prints both.
+- **Tools, all tested:**
+  - `diagnose_alm_band_edge.py` (per-ℓ/m/part ranks against the null, thinning, quarters, per-mode sd(z), shrinkage slope, C by quarter; `tests/test_diagnose_alm_band_edge.py`, including a shrunk-sampler mutation);
+  - `exact_dense_alm_reference.py` (`tests/test_exact_dense_alm_reference.py`: a | C mean and covariance, and C | a against the InvGamma median);
+  - the ensemble wrapper takes `LMAX`/`NSIDE`.
+- **Figure outputs:** the figure 1 power table (`validation_power_table.{csv,tex}`, mutation-checked) and the zoomed aware-only figure 2 panel (`bias_aware_zoom.pdf`). The Block-4-OFF certification goes in figure 1's caption as a number, not a panel.
+
+### Figure work at N = 24 (2026-09-26) that carries over
+
+- **Figure 2's reference is not zero.** Under the flat C_ℓ prior an *exact* sampler's posterior-mean C_ℓ exceeds S_true/(k−4), because noise inflates E[S|d]. This is the figure 1 a_ℓm offset seen from the other side. `scripts/expected_aware_bias_flat_prior.py` computes the expected bias for nominal and chain-calibrated effective noise, and saves `expected_aware_bias_flat_prior.npz`. `fig2_bias_reduction.py` shades that bracket when the file covers exactly the figure's skies, and otherwise skips it with a warning.
+- **Figure 4's flagged cells were chance** (`scripts/inspect_fig4_cells.py`). A chain-level z, robust to autocorrelation, finds none significant over 16 cells, and none clear the null at thin 150.
+- **Block-4-OFF caption number** (`_nocl4`, thin 50, N = 24, own null): p_bin φ 0.190 / a_ℓm 0.094.
+
+---
+
+## 2026-09-22/25 — operator retraction, physics fixes, the exact-operator re-run and its diagnosis
 
 ### The retraction: the "lensing bias" was the interpolation operator
 
@@ -54,60 +111,27 @@ The lever: the QE S/N is cosmic-variance limited (A_φ = 3000: 5.0 at σ = 1, 4.
 | Block-4-ON, ν = 6 | 12038494 | `results/analysis/ens_exact_l64_A3000_n30/chain_rNNN.npz` | 24/24 complete |
 | lensing-blind (same data) | 12038496 | same dir, `blind_rNNN.npz` | 24/24 complete |
 | Block-4-OFF | 12038495 | `..._nocl4/chain_rNNN.npz` | 24/24 complete |
+| Block-4-ON, ν = 6, 1000 + 3600 | 12047785 | `..._n30_long/` | 24/24 (T0.1c2) |
+| **Block-4-ON, ν = 30, 1000 + 3600 (adopted, D5)** | 12047786 + 12065119 | `..._n30_nu30_long/chain_rNNN.npz` | **48/48** (r000–r047) |
+| lensing-blind on the ν = 30 skies | 12062768 + 12065120 | same dir, `blind_rNNN.npz` | 48/48 |
+
+The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν.
 
 **QE validated at the production configuration** (job 12038409, `results/analysis/qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response **0.971** (1.09 / 1.00 / 0.94 / 0.93 by bin). The QE weights and filter now use the lensed spectrum *measured* from exact-operator simulations. That, together with the sign fix, resolves the old 0.883 response.
 
-### First harvest of the exact-operator ensembles (2026-09-23) — physics validated, calibration NOT passed
+### First harvest (2026-09-23, 400 + 1200 sweeps, ν = 6): physics clean, calibration failed
 
-All 72 tasks completed; no tracebacks; `phi_calibration_ok` 24/24 in both sampled ensembles. Sources:
-- `make figures` (log `logs/make_figures_exact.log`);
-- harvest job 12040798 (`scripts/submit_harvest_exact_lmax64.slurm`, log `logs/harvest_exact_l64_12040798.out`);
-- figure 1's test run on the Block-4-OFF ensemble.
+Sources: `make figures` (`logs/make_figures_exact.log`) and harvest job 12040798 (`logs/harvest_exact_l64_12040798.out`). All 72 tasks completed, and `phi_calibration_ok` was 24/24.
 
-**The physics validation is clean (figure 2).** On 24 same-sky pairs, the blind fit lands on the lensing each sky actually received, bin by bin:
+- **Physics clean (figure 2):** on 24 same-sky pairs the blind fit landed on the lensing each sky received: −45.6 vs −46.0 % at `[45,64)`, −15.7 vs −16.0 % at `[30,45)`. Mean |bias| was 13.9 % blind vs 1.37 % aware.
+- **Calibration failed on Block-4-ON:**
+  - the joint-likelihood SBC rejected (0.716, KS_p 0.001);
+  - the φ field ranks failed (p_bin 0.004);
+  - the a_ℓm ranks failed (`[30,60)`, p_bin < 0.001).
+- **Block-4-OFF:** the joint likelihood and φ passed; a_ℓm `[30,60)` failed, the same bin as Block-4-ON.
+- **Mixing:** median bulk ESS per 1200 sweeps was 123 / **35** / 65 / 80 (Blocks 1–4), below the rank-test draws.
 
-| bin | blind bias | lensing received | aware bias (± SEM) |
-|---|---|---|---|
-| `[2,10)` | +0.90 % | +1.70 % | **−2.96 ± 1.05 %** |
-| `[10,20)` | +6.65 % | +6.42 % | +1.50 ± 0.69 % |
-| `[20,30)` | +0.55 % | +0.03 % | +0.76 ± 0.82 % |
-| `[30,45)` | −15.72 % | −15.96 % | +0.85 ± 0.56 % |
-| `[45,64)` | −45.64 % | −46.02 % | +0.75 ± 0.50 % |
-
-Mean |bias| over bins: blind 13.9 %, aware 1.37 % (90.2 % reduction). The aware residuals are within ~1.5σ except `[2,10)` (−2.8σ) and `[10,20)` (+2.2σ). Given the calibration results below, they are not yet citable as "consistent with zero".
-
-**Calibration fails on the Block-4-ON ensemble (the title's object):**
-- joint-likelihood SBC **rejected**: mean_u 0.716, KS_p 0.0011;
-- figure 1 field ranks: φ p_bin **0.004** (mean_u 0.625, i.e. posterior φ power sits low; `[2,10)`–`[30,60)` means all p ≤ 0.011); a_ℓm p_bin **< 0.001** (`[30,60)` mean);
-- strict C_L^φφ SBC borderline: pooled 0.552, KS_p 0.067; `[30,60)` 0.666, KS_p 0.020; figure 1 p_bin 0.038;
-- Block 4's own conditional exact: PIT aligned KS_p 0.937, with lag-10/50 controls rejected at KS_p = 0 (lag-1 passes vacuously, since φ lag-1 autocorrelation is +0.877);
-- φ power bias per bin 0.85 / 0.95 / 0.98 / 1.02.
-
-**Block-4-OFF ensemble:**
-- joint-likelihood SBC **passes** (0.480, KS_p 0.67);
-- φ ranks pass (mean_u 0.497, p_bin 0.039, from one spread test in `[2,10)`);
-- **a_ℓm ranks fail**: p_bin < 0.001, `[30,60)` mean (mean_u 0.426 overall, i.e. posterior power sits high);
-- φ power bias 1.07 / 0.99 / 1.00 / 1.00.
-
-**The a_ℓm `[30,60)` mean offset appears in both ensembles.** That rules out a single-ensemble fluke, but per standing discipline it is not yet a diagnosed defect.
-
-**Convergence (figure_convergence, Block-4-ON; rank draws 120/chain at thin 10):**
-- R̂ > 1.01 for 48 % (Block 1) and 55 % (Block 4) of (chain, multipole) pairs; max 1.54 / 1.44;
-- median bulk ESS per 1200 sweeps: Block 1 123, **Block 2 (a_ℓm) 35**, Block 3 (φ) 65, Block 4 80.
-
-All alm and most φ coordinates have fewer effective draws than the rank test uses. The per-mode normalised φ residual has sd 1.108 pooled over 24 skies, against ≈1.03–1.05 for a calibrated posterior, i.e. posteriors too narrow. Map recovery r = 0.82 on realization 0.
-
-**Figure 3 is not interpretable yet.** It reports joint-posterior width / (QE⊕prior) = 0.61 / 0.63 / 0.68 / 0.74 at L ~ 15 / 25 / 38 / 55, but those widths come from the same under-mixed chains, and too-narrow posteriors would produce exactly this.
-
-**Figure 4:** 0/16 cells above null.
-
-**Reading (hypothesis, not a finding):** the amplified-lensing configuration mixes too slowly for 400 + 1200 sweeps. The alms mix worst (ESS ~35), and non-stationarity from the MAP start would bias rank means in exactly this way. Candidates to test, in order:
-1. the rank tests at thin ≥ τ_int (≈ 35–40) — does the mean offset survive?
-2. first half vs second half of each chain (drift);
-3. longer chains (the ensemble costs ~5 h per task at 12 s/sweep);
-4. a lower A_φ.
-
-Rank *means* are unbiased under autocorrelation if the chain is stationary, so a surviving mean offset would indict stationarity or the sampler, not the thinning.
+That set up the T0.1 diagnosis below. Every number here is superseded by the adopted ensemble above.
 
 ### T0.1 calibration diagnosis (2026-09-24/25): a_ℓm is the statistic, φ is funnel mixing, and ν = 30 passes
 
@@ -127,9 +151,9 @@ Full tables: `results/analysis/dashboard.md`.
   - strict C_L^φφ SBC pooled 0.487, KS_p 0.69;
   - Block 4 PIT;
   - a_ℓm within the null.
-  
-  Which ν the paper adopts awaits sign-off (ROADMAP T0.1d).
-- Open, not yet evidence: a_ℓm `[60,64)` sits at +2.3 to +2.9σ against the null in all four ensembles, but they share the same 24 unlensed skies.
+
+  Adopted as D5. At N = 48 it still passes all of these except a_ℓm `[60,64)` (section above).
+- a_ℓm `[60,64)` sat at +2.3 to +2.9σ against the null in all four ensembles, which share the same 24 unlensed skies. The fresh skies reproduced it (section above).
 
 ### Figures and statistics reworked (2026-09-22)
 
@@ -163,7 +187,7 @@ Full tables: `results/analysis/dashboard.md`.
   - replay through the chain's own operator;
   - rank helpers, fiducial sanity, fp64 prior, beam/prior ordering, the Block 4 PIT with a failing misaligned control;
   - `validate_qe_noise` run; figures 2, 3 and maps end to end.
-- `tests/test_qe.py`: QE sign test on exact-lensed skies (response 0.85–1.15).
+- `tests/test_qe.py`: QE sign test on exact-lensed skies (response 0.85–1.15); N_L's absolute normalisation frozen at lmax = 16 (`test_nl_absolute_normalisation_is_frozen_at_lmax16`), from an independent sympy-3j loop that matches `qe_tt_noise_nl` to 4e-16 (2026-09-26).
 - Mutation checks were run by reintroducing the alm-ordering bug, the Block 4 −1, the tight bbox, the beamed prior and the old QE sign; each is caught.
 
 **Lessons (these are now standing discipline in `ROADMAP.md`):**
@@ -228,6 +252,7 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 - **Return-tuple arity depends on the enabled blocks**; a hardcoded unpack crashed after a completed chain with SLURM reporting `COMPLETED 0:0`.
 - **Coverage statistic ranks the truth against its conditional's mode**, which is non-uniform for a correct sampler; read it against `validate_coverage_rank_nulls.py`.
 - **Block 4 PIT control passing vacuously at lag 1**; controls are now required to fail at lags 1, 10 and 50.
+- **C_ℓ collapse from the MAP start (found 2026-09-27, not yet fixed):** in ν = 30 r036, C_62 is ~2e-5 of the realized power for the whole chain (ν = 6 long r021 likewise, until late). The joint (ln C, a) MAP starts C_ℓ low, and once C is tiny the stiff a_ℓm barely move under HMC. It was caught only by a per-mode z (|z| ≈ 700); the power ranks shift by only ~0.3σ.
 - **Rank grid off by one in three scripts (2026-09-25):** `fig1_validation.py`, `diagnose_calibration_stationarity.py` and `null_alm_power_rank_flat_prior.py` set `n_draws = M − 1` for M draws, although the rank of the truth runs over 0..M. So u = (r+0.5)/M reached (M+0.5)/M > 1. Figure 1's simulated uniform null never produced rank M. And figure 1 refused the production a_ℓm null the moment a truth ranked above every draw (job 12062385). The shift in mean_u is +0.5/M: +0.004 at 120 draws, +0.0014 at 360. That is immaterial to every verdict, but every null file was regenerated on the corrected grid (job 12062823). `aggregate_coverage_ranks.py` and `validate_coverage_rank_nulls.py` were already right. Tests: `test_rank_grid_counts_every_draw_and_accepts_the_top_rank`, `test_null_ranks_live_on_the_observed_grid`, and the corrected `test_trace_rank_equals_rank_of_power_against_truth`, which had encoded the bug.
 - Smaller:
   - m>0 alm precision weight;
@@ -275,3 +300,8 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 - **dine2 nodes need a job-private `$TMPDIR`** (autograph cache collisions).
 - **Packing several TF tasks per dine2 node:** drop `--exclusive` and `--mem=0`, and give each task one GPU (`CUDA_VISIBLE_DEVICES = task % 4`) with `TF_FORCE_GPU_ALLOW_GROWTH=true`. By default TF reserves all four GPUs' memory. `--exclusive` with 8 cores per task turned a 16 h campaign into a ~2-day queue.
 - **`set -u` in SLURM scripts:** write `${PYTHONPATH:-}`. `PYTHONPATH` is unset on compute nodes, and all 72 tasks failed in 1 s.
+- **SLURM wrappers and `/cosma5` (2026-09-24/25).** `results/analysis` is a symlink into `/cosma5` (commit `115e6da`), which dine2 does not mount. All 48 tasks of the first c2/c3 attempt (12041916/7) died at their first checkpoint while `sacct` said COMPLETED. Fixes:
+  - the 14 CPU-only wrappers run on the `/cosma5`-mounting partitions (cosma5, cosma8-shm/shm2/shm3, cosma8-ska, bluefield1), with `--mem` sized from past MaxRSS;
+  - the 57 GPU wrappers stay on dine2 and now fail at start if `results/analysis` is not mounted;
+  - every wrapper exits with Python's status.
+- **Thread caps (2026-09-26):** the ensemble wrapper caps the OMP/OPENBLAS/MKL/DUCC0/TF pools. Spot-check: 52 threads per process, ~145 % CPU against 800 % allocated.

@@ -8,7 +8,7 @@ sky lensed by the exact operator, and pairs each lensing-aware chain
 (chain_rNNN.npz) with a lensing-blind fit to the IDENTICAL data
 (blind_rNNN.npz, coverage_ensemble_chain.py --blind).
 
-Two panels:
+Three panels:
 
   (a) bias_by_bin.pdf   per l-bin, mean +/- SEM over skies of the fractional
                         bias of the posterior-mean C_l^TT, blind vs aware,
@@ -18,6 +18,9 @@ Two panels:
                         bias against that sky's own lensing effect. The blind
                         fit tracks the diagonal (it absorbs the lensing); the
                         aware fit sits on zero.
+  (c) bias_aware_zoom.pdf  the aware residual alone, zoomed, against the
+                        exact-sampler expectation band (panel (a)'s scale
+                        makes that band a sliver).
 
 REFERENCE. The bias of a chain is measured against the posterior mean a
 CORRECT unlensed-sky model would have: under the flat C_l prior the Block 1
@@ -157,6 +160,27 @@ def sky_biases(fa, fb):
     return np.array(rows) * 100.0, lmax
 
 
+def plot_aware_zoom(centres, mean, sem, band, keep, lmax, n, outpath):
+    """(c) the aware residual alone, at a scale where the exact-sampler band
+    is readable: at panel (a)'s -40..+10 % it is a sliver."""
+    fig, ax = plt.subplots(figsize=ps.FIG_1COL)
+    ax.axhline(0.0, color="0.3", lw=0.6)
+    if band is not None:
+        for n_i, i in enumerate(keep):
+            lo, hi = BINS[i][0], min(BINS[i][1], lmax)
+            b_lo, b_hi = sorted((band[0][i], band[1][i]))
+            ax.fill_between([lo, hi], b_lo, b_hi, color=ps.COL_AWARE, alpha=0.18, lw=0,
+                            label="exact-sampler expectation" if n_i == 0 else None)
+    ax.errorbar(centres, mean[:, 0], sem[:, 0], fmt="s", ms=3.5, capsize=2,
+                color=ps.COL_AWARE, label="lensing-aware (this work)")
+    ax.set_xlabel(r"multipole $\ell$ (bin centre)")
+    ax.set_ylabel(r"aware bias in $C_\ell^{TT}$ (%)")
+    ax.set_xlim(0, lmax)
+    ax.legend(loc="best")
+    ps.stat_box(ax, f"{n} skies", loc="lower right")
+    ps.save(fig, outpath)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -202,6 +226,8 @@ def main():
     ps.stat_box(ax, f"{n} skies\nreduction {100 * (1 - aware_abs / blind_abs):.0f}%",
                 loc="upper right")
     ps.save(fig, os.path.join(a.outdir, "bias_by_bin.pdf"))
+    plot_aware_zoom(centres, mean, sem, band, keep, lmax, n,
+                    os.path.join(a.outdir, "bias_aware_zoom.pdf"))
 
     # (b) per sky, bin with the largest lensing effect ----------------------
     j = keep[int(np.nanargmax(np.abs(mean[:, 2])))]

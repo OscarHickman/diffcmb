@@ -293,7 +293,7 @@ def test_fig2_end_to_end_on_same_sky_pairs(smoke_ensemble, tmp_path, monkeypatch
     f2.main()
     out = capsys.readouterr().out
     assert "2 sky pairs" in out
-    for name in ("bias_by_bin", "bias_per_sky"):
+    for name in ("bias_by_bin", "bias_per_sky", "bias_aware_zoom"):
         assert _pdf_width(tmp_path / f"{name}.pdf") == pytest.approx(paper_style.FIG_1COL[0], abs=1e-3)
 
 
