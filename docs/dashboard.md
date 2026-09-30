@@ -16,7 +16,9 @@ Jobs 12066584/85/67 (all 48/48, `.err` are TF warnings only) diagnosed by 120746
 
 Block-4-OFF figure 1 at N = 48, thin 50 (scratch): φ p_bin 0.180, a_ℓm min p_bin 0.000, `[60,64)` observed 0.592 vs effective null 0.448 (z +3.45); 50 % power at 0.314σ.
 
-Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is flat) and not Block 4. The fix pilot (ROADMAP T0.1 b) should include lmax 32 as a no-fix control.
+Pilot queued: job 12074650 (skies 32–39, `--cl_init data`), results next session; procedure in ROADMAP T0.1 b.
+
+Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is flat) and not Block 4. The no-fix controls already exist (`_nu30_long` r032–r039, and the clean lmax-32 ensembles).
 
 ## CURRENT (2026-09-27, evening): the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
 

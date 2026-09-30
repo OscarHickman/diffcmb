@@ -20,12 +20,15 @@
 # Submit: sbatch --export=ALL,MODE=cl4,AMP=...,NOISE=...,BURNIN=...,SAMPLES=... this.slurm
 # Optional: NU (Block-4 prior nu, default 6.0) and TAG (suffix on the output
 # directory, default none), e.g. TAG=_long for the T0.1c longer-chain re-run.
+# CL_INIT (default map = production) selects the ln C_l start; CL_INIT=data is the
+# ROADMAP T0.1 pilot (needs sign-off before production use).
 # LMAX (default 64) sets lmax = nside and the l<LMAX> in the directory name;
 # used by ROADMAP T0.1 (band-limit test at a smaller lmax = nside).
 # NSIDE (default LMAX) decouples the pixel scale from the band limit; when it
 # differs from LMAX the directory gets an _ns<NSIDE> suffix.
 set -u
 NU=${NU:-6.0}
+CL_INIT=${CL_INIT:-map}
 TAG=${TAG:-}
 LMAX=${LMAX:-64}
 NSIDE=${NSIDE:-$LMAX}
@@ -39,6 +42,7 @@ case $MODE in
   blind) OUT=$BASE;        EXTRA="--cl_phiphi_prior_nu $NU --blind" ;;
   *) echo "unknown MODE=$MODE"; exit 2 ;;
 esac
+EXTRA="$EXTRA --cl_init $CL_INIT"
 mkdir -p logs $OUT
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb

@@ -114,6 +114,24 @@ def _synalm_pair(cl_tt, cl_pp, lmax, seed):
     return alm_hp, phi_hp
 
 
+def data_driven_ln_cl(alm_packed, lmax):
+    """ln C_l (l = 2..lmax-1) from the packed alm's own power: S_l/(k_l - 4),
+    k_l = 2l+1, the flat-prior posterior mode scale used as the reference in
+    the band-edge diagnosis. Packing: real parts (m = 0..l) then imag (m = 1..l)."""
+    ls = np.arange(2, lmax)
+    n_real = int(np.sum(ls + 1))
+    re, im = np.asarray(alm_packed[:n_real]), np.asarray(alm_packed[n_real:])
+    s_l = np.empty(ls.size)
+    ir = ii = 0
+    for i, L in enumerate(ls):
+        r = re[ir:ir + L + 1]
+        m_im = im[ii:ii + L]
+        s_l[i] = r[0] ** 2 + 2.0 * (np.sum(r[1:] ** 2) + np.sum(m_im ** 2))
+        ir += L + 1
+        ii += L
+    return np.log(np.maximum(s_l, 1e-30) / (2 * ls + 1 - 4))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--realization", type=int, required=True,
@@ -138,6 +156,13 @@ def main():
                    help="Adam steps for the data-driven MAP alm start; 0 falls "
                         "back to the cold prior draw that broke job 11887897")
     p.add_argument("--map_lr", type=float, default=0.01)
+    p.add_argument("--cl_init", choices=("map", "data"), default="map",
+                   help="ln C_l start. 'map' (default, production) keeps the joint "
+                        "MAP value, which sits ~e^-1 low (hierarchical-MAP "
+                        "shrinkage) and leaves C_63 ~6%% low for the whole chain "
+                        "(ROADMAP T0.1). 'data' replaces it with the unshrunk "
+                        "S_l(a_MAP)/(2l+1-4) of the MAP alm. PILOT ONLY: needs "
+                        "sign-off before any production use.")
     # Matches the pilot's burn-in. The original 100 was never gated: the gate
     # ran on the pilot, which burns in 400 sweeps from a MAP start.
     p.add_argument("--n_burnin", type=int, default=400)
@@ -307,6 +332,10 @@ def main():
         )
         print(f"  MAP alm start found in {time.time() - t_map:.1f}s")
         map_alm = x0[lmax - 2:]
+        if args.cl_init == "data":
+            x0[:lmax - 2] = data_driven_ln_cl(map_alm, lmax)
+            print("  ! --cl_init data: ln C_l start replaced by S_l(a_MAP)/(2l-3) "
+                  "(pilot, not the production initialisation)")
         map_corr = float(
             np.dot(map_alm, alm_true_packed)
             / (np.linalg.norm(map_alm) * np.linalg.norm(alm_true_packed))
