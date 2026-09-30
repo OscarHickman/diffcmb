@@ -325,7 +325,10 @@ def main():
     # same pipeline.
     if args.map_steps > 0:
         t_map = time.time()
-        x0 = np.asarray(
+        # np.array, not np.asarray: the MAP comes back as a read-only view of
+        # a TF tensor, and --cl_init data writes into x0 (job 12074650 died
+        # on exactly that).
+        x0 = np.array(
             find_map_estimate(model, n_steps=args.map_steps,
                               learning_rate=args.map_lr),
             dtype=np.float64,
@@ -369,7 +372,7 @@ def main():
                  phi_true_packed=phi_true_packed, n_burnin=args.n_burnin,
                  seconds_total=elapsed, lensing_operator=args.lensing_operator,
                  fiducial=args.fiducial, noisesig=args.noisesig,
-                 phi_amplitude=args.phi_amplitude)
+                 phi_amplitude=args.phi_amplitude, cl_init=args.cl_init)
         print(f"  blind chain done in {elapsed / 3600:.2f}h; alm accept="
               f"{accepts.mean():.3f}; saved {out}")
         if os.path.exists(ckpt):
@@ -458,7 +461,7 @@ def main():
         "sample_cl_phiphi": sample_cl_phiphi,
         "seconds_total": elapsed,
         "seconds_per_sweep": elapsed / max(1, len(samples)),
-        "map_steps": args.map_steps,
+        "map_steps": args.map_steps, "cl_init": args.cl_init,
         "phi_power_ratio_to_truth": ratio,
         "phi_calibration_ok": phi_calibration_ok,
         "lensing_operator": args.lensing_operator, "fiducial": args.fiducial,

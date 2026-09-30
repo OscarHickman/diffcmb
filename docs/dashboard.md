@@ -1,5 +1,5 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-09-27*
+*Last updated: 2026-10-01*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
@@ -16,7 +16,7 @@ Jobs 12066584/85/67 (all 48/48, `.err` are TF warnings only) diagnosed by 120746
 
 Block-4-OFF figure 1 at N = 48, thin 50 (scratch): φ p_bin 0.180, a_ℓm min p_bin 0.000, `[60,64)` observed 0.592 vs effective null 0.448 (z +3.45); 50 % power at 0.314σ.
 
-Pilot queued: job 12074650 (skies 32–39, `--cl_init data`), results next session; procedure in ROADMAP T0.1 b.
+Pilot: job 12074650 (skies 32–39, `--cl_init data`) died at start on all 8 tasks (read-only MAP array; fixed and tested 2026-10-01). **Resubmitted as job 12078506**, same config, output `ens_exact_l64_A3000_n30_nu30_clinit_data/` (chains carry `cl_init`). Procedure in ROADMAP T0.1 b.
 
 Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is flat) and not Block 4. The no-fix controls already exist (`_nu30_long` r032–r039, and the clean lmax-32 ensembles).
 

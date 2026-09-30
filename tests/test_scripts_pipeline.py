@@ -100,6 +100,16 @@ def test_blind_chain_fits_the_same_sky_without_a_phi_block(smoke_ensemble):
     assert str(b["lensing_operator"]) == "exact"
 
 
+def test_cl_init_data_runs_end_to_end_and_is_recorded(tmp_path, smoke_ensemble):
+    # Job 12074650 (2026-09-30): every task died at start because the MAP
+    # vector was read-only and --cl_init data wrote into it. The helper had a
+    # unit test; the assignment in main() had none.
+    out = _run_chain(tmp_path, "--cl_init", "data")
+    assert "--cl_init data" in out
+    assert str(np.load(tmp_path / "chain_r001.npz")["cl_init"]) == "data"
+    assert str(np.load(smoke_ensemble / "chain_r001.npz")["cl_init"]) == "map"
+
+
 def test_chain_script_rejects_a_nonpositive_amplitude(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(

@@ -55,6 +55,16 @@ Against the effective exact-sampler null it is +2.55 on r000–r023, **+2.33 on 
   - the ensemble wrapper takes `LMAX`/`NSIDE`.
 - **Figure outputs:** the figure 1 power table (`validation_power_table.{csv,tex}`, mutation-checked) and the zoomed aware-only figure 2 panel (`bias_aware_zoom.pdf`). The Block-4-OFF certification goes in figure 1's caption as a number, not a panel.
 
+### Band-edge localisation (2026-09-30): lmax 64 only, and not caused by Block 4
+
+Jobs 12066584 (Block-4-OFF `_nocl4` extended to N = 48), 12066585 (lmax = nside = 32) and 12066667 (lmax 32, nside 64), all 48/48, run through `diagnose_alm_band_edge.py` by job 12074645 (log `logs/alm_band_edge_12074645.out`; tables in `docs/dashboard.md`).
+
+- **lmax 32 is clean at both pixel scales.** Top bin `[28,32)` z −0.5 (nside 32) / −0.3 (nside 64); ℓ = 31 z −1.2 / −0.3; C_31/(S_true/(k−4)) is flat at 0.99–1.04 across chain quarters. So the top-multipole lag is not a generic band-edge property of the sampler, nor of nside = lmax pixelisation.
+- **Block-4-OFF shows the same offset:** `[60,64)` z +3.4 to +3.9 (thin 50–150), ℓ = 63 z +3.1 to +3.7, C_63 at 0.926–0.943 of S_true/(k−4) in every quarter. It is not caused by Block 4 or the ν prior.
+- **Block-4-OFF also has a C_62-collapsed sky** (ℓ = 62 sd(z) 100.6 against 1.0), so the collapse is not specific to Block-4-ON r036.
+- **Block-4-OFF figure 1 at N = 48, thin 50** (scratch, not the paper figure): φ p_bin **0.180** ✓ (0.190 at N = 24), a_ℓm min p_bin **0.000** ✗ from `[60,64)` (0.094 at N = 24), 50 % power at 0.314σ. The a_ℓm failure is the T0.1 defect, not something specific to Block-4-OFF; the caption number waits for T0.1.
+- **Working hypothesis:** the joint-MAP start leaves C_ℓ further from equilibrium at lmax 64 (more ℓ, same sweep count). Under test by the `--cl_init data` pilot (`ROADMAP.md` T0.1 b).
+
 ### Figure work at N = 24 (2026-09-26) that carries over
 
 - **Figure 2's reference is not zero.** Under the flat C_ℓ prior an *exact* sampler's posterior-mean C_ℓ exceeds S_true/(k−4), because noise inflates E[S|d]. This is the figure 1 a_ℓm offset seen from the other side. `scripts/expected_aware_bias_flat_prior.py` computes the expected bias for nominal and chain-calibrated effective noise, and saves `expected_aware_bias_flat_prior.npz`. `fig2_bias_reduction.py` shades that bracket when the file covers exactly the figure's skies, and otherwise skips it with a warning.
@@ -253,6 +263,7 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 - **Coverage statistic ranks the truth against its conditional's mode**, which is non-uniform for a correct sampler; read it against `validate_coverage_rank_nulls.py`.
 - **Block 4 PIT control passing vacuously at lag 1**; controls are now required to fail at lags 1, 10 and 50.
 - **C_ℓ collapse from the MAP start (found 2026-09-27, not yet fixed):** in ν = 30 r036, C_62 is ~2e-5 of the realized power for the whole chain (ν = 6 long r021 likewise, until late). The joint (ln C, a) MAP starts C_ℓ low, and once C is tiny the stiff a_ℓm barely move under HMC. It was caught only by a per-mode z (|z| ≈ 700); the power ranks shift by only ~0.3σ.
+- **`--cl_init data` wrote into a read-only MAP vector (2026-09-30, job 12074650):** `np.asarray` on `find_map_estimate`'s result returned a read-only view of a TF tensor, and all 8 pilot tasks died 37 s in with `ValueError: assignment destination is read-only`. The helper `data_driven_ln_cl` had unit tests; the assignment in `main()` had none. Fixed with `np.array` (a copy); `test_cl_init_data_runs_end_to_end_and_is_recorded` runs the script with the flag and was confirmed to fail before the fix. Chains now record `cl_init` (absent = `map`). Resubmitted as job 12078506.
 - **Rank grid off by one in three scripts (2026-09-25):** `fig1_validation.py`, `diagnose_calibration_stationarity.py` and `null_alm_power_rank_flat_prior.py` set `n_draws = M − 1` for M draws, although the rank of the truth runs over 0..M. So u = (r+0.5)/M reached (M+0.5)/M > 1. Figure 1's simulated uniform null never produced rank M. And figure 1 refused the production a_ℓm null the moment a truth ranked above every draw (job 12062385). The shift in mean_u is +0.5/M: +0.004 at 120 draws, +0.0014 at 360. That is immaterial to every verdict, but every null file was regenerated on the corrected grid (job 12062823). `aggregate_coverage_ranks.py` and `validate_coverage_rank_nulls.py` were already right. Tests: `test_rank_grid_counts_every_draw_and_accepts_the_top_rank`, `test_null_ranks_live_on_the_observed_grid`, and the corrected `test_trace_rank_equals_rank_of_power_against_truth`, which had encoded the bug.
 - Smaller:
   - m>0 alm precision weight;
