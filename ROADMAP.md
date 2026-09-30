@@ -74,12 +74,13 @@ Decisions D1–D5 (one paper, figures first, PRD, exact operator, A_φ = 3000 / 
      - So the chains have not finished climbing out of that start at the band edge. The quarter test on the *rank* was too weak to see it. The single-coordinate τ_int(ln C_63) ≈ 42 does not show the slow direction either, which looks collective (a–C–φ at the edge).
    - **A separate defect: C_ℓ collapse.** In ν = 30 r036, C_62 sits at ~1e-5 of the realized power for the whole chain (a_62 sd ≈ 3e-3). In ν = 6 long r021 the same happened and recovered only late. It is seeded by the low MAP start (r036's MAP had C_62 at e^−2, the lowest of any ℓ). Once C is tiny, HMC can hardly move the stiff a_ℓm. It is the only collapse in any exact ensemble (all were scanned).
    - **Broader, milder:** per-mode sd(z) of a_ℓm is 1.03–1.08 across all ℓ at ν = 30 (1.18–1.25 in the 1200-sweep chains) against 1.00 exact. So posteriors are slightly too narrow, and this improves with chain length. The a_ℓm rank test cannot see it, because its effective null is calibrated from the chains' own variance. Quote sd(z), not only the rank.
-   - **Still running when the session closed (17:00, 2026-09-27):**
-     - 12066584: Block-4-OFF r024–r047 into `_nocl4` (400 + 1200), 20/24 done;
-     - 12066585: lmax = nside = 32, ν = 30, 1000 + 3600, 48 skies → `ens_exact_l32_A3000_n30_nu30_long`, 31/48 done;
-     - 12066667: lmax 32 / nside 64, same config → `ens_exact_l32_A3000_n30_ns64_nu30_long`, all running, ~3 h left.
+   - **Harvested 2026-09-30 (jobs 12066584/85/67, all 48/48; diagnosis job 12074645, log `logs/alm_band_edge_12074645.out`):**
+     - **The offset is specific to lmax = nside = 64.** At lmax 32 the top bin `[28,32)` is clean at both nside 32 (z −0.5) and nside 64 (z −0.3), ℓ = 31 z is −1.2 / −0.3, and C_ℓ/(S_true/(k−4)) is flat across chain quarters (0.99–1.04, no ℓ = 31 lag). So the top-multipole lag is not a generic band-edge property of the sampler.
+     - **Block-4-OFF (`_nocl4`, N = 48, 400 + 1200) shows it as well:** `[60,64)` z +3.4 to +3.9 at thin 50–150, ℓ = 63 z +3.1 to +3.7, C_63 at 0.926–0.943 of S_true/(k−4) in every quarter. It is not caused by Block 4.
+     - **Block-4-OFF has a C_62 collapse too** (ℓ = 62 sd(z) = 100.6 against a null of 1.0), so the collapse is not specific to Block-4-ON r036.
+     - **Block-4-OFF figure 1 at N = 48, thin 50** (scratch, not the paper figure): φ p_bin **0.180** ✓ (0.190 at N = 24); a_ℓm min p_bin **0.000** ✗, driven by `[60,64)` (0.094 at N = 24); 50 % power at 0.314σ. The a_ℓm result is the T0.1 defect again, not a Block-4-OFF-specific one.
    - **Next, in order:**
-     - a. When they finish, run `INDIRS="<the three dirs>" sbatch scripts/submit_diagnose_alm_band_edge.slurm` (for `_nocl4`, N = 48). The script now also prints posterior C_ℓ / (S_true/(k−4)) by chain quarter; an exact sampler is flat across quarters. Question: does the top multipole (ℓ = 31) lag the same way at lmax 32, and at both nsides? Does Block-4-OFF show it on the fresh skies?
+     - a. ✅ Done 2026-09-30 (see Harvested above). Open question it raises: why lmax 64 and not 32? Candidate: the MAP start is further from equilibrium at lmax 64 (more ℓ, the same sweep count), so the pilot in b should also run lmax 32 as a no-fix control.
      - b. **Proposed fix (needs user sign-off; it changes the production initialisation):** start ln C_ℓ from a data-driven, unshrunk estimate instead of the joint-MAP value, e.g. ln[S_ℓ(a_MAP)/(k_ℓ − 4) / W_ℓ²]. Or add a burn-in guard that checks C_ℓ has reached S/(k−4) at every ℓ. Pilot it on ~8 skies at lmax = 64 (C_62/C_63 by quarter against the dense reference) before any re-run. A re-run of the adopted ensemble would be 48 × ~14 h.
      - c. Decide what to do with r036 (C_62 collapsed): drop it with a stated reason, or re-run it with the fixed initialisation.
    - Until then figure 1's a_ℓm row is not final and no exactness claim is citable.
@@ -91,7 +92,7 @@ Decisions D1–D5 (one paper, figures first, PRD, exact operator, A_φ = 3000 / 
    - **convergence:** R̂ > 1.01 for 28.6 % / 20.1 % of (chain, multipole) pairs (Blocks 1/4). Median ESS per 3600 sweeps is 252 / 74 / 181 / 342 (Blocks 1–4). Carry these into the caption.
    - **maps:** r = 0.910; per-mode z sd 1.028 pooled over 48 skies. Do the checklist read.
    - Then write the caption numbers into `plots/STORY.md`. They are held back until T0.1 resolves.
-3. **Figure 1 and the Block-4-OFF ensemble: a caption number (adopted 2026-09-27, per the recommendation; the user can overrule).** At N = 24 it was p_bin φ 0.190 / a_ℓm 0.094. Recompute at N = 48 once job 12066584 finishes: run `THIN=50 sbatch scripts/submit_null_alm_power_rank.slurm`, then `fig1_validation.py --indir ..._nocl4 --thin 50 --outdir <scratch>`.
+3. ✅ **Figure 1 and the Block-4-OFF ensemble (2026-09-30):** N = 48, thin 50: φ p_bin 0.180 ✓, a_ℓm 0.000 ✗ (T0.1), 50 % power at 0.314σ (N = 24: 0.190 / 0.094). Rebuilt in scratch only; the caption number waits for T0.1.
 4. ✅ **Power table built (2026-09-27):** `fig1_validation.py` writes `figure1/validation_power_table.{csv,tex}` from the same run as the curve (test: `test_fig1_power_table_matches_the_curve`). At N = 48, thin 50, 50 % power is at 0.281σ. Whether the paper uses it is for T2.
 5. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
 6. **Keep `plots/STORY.md` and `docs/dashboard.md` current** with every harvest number.

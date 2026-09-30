@@ -4,6 +4,20 @@
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
+## CURRENT (2026-09-30): band-edge offset is lmax 64 only; Block-4-OFF shows it too
+
+Jobs 12066584/85/67 (all 48/48, `.err` are TF warnings only) diagnosed by 12074645 (`logs/alm_band_edge_12074645.out`), null rank 12074646.
+
+| ensemble | top bin z (thin 50, effective null) | top-ℓ C/(S_true/(k−4)) by quarter | note |
+|---|---|---|---|
+| l32 / nside 32, ν = 30 | `[28,32)` −0.52 | ℓ = 31: 1.021, 1.040, 1.038, 1.039 | clean |
+| l32 / nside 64, ν = 30 | `[28,32)` −0.33 | ℓ = 31: 1.012, 1.010, 1.012, 1.012 | clean |
+| l64 Block-4-OFF `_nocl4`, N = 48 | `[60,64)` +3.4 to +3.9 (thin 50–150) | ℓ = 63: 0.926, 0.943, 0.930, 0.940 | ℓ = 62 sd(z) 100.6 (collapsed sky) |
+
+Block-4-OFF figure 1 at N = 48, thin 50 (scratch): φ p_bin 0.180, a_ℓm min p_bin 0.000, `[60,64)` observed 0.592 vs effective null 0.448 (z +3.45); 50 % power at 0.314σ.
+
+Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is flat) and not Block 4. The fix pilot (ROADMAP T0.1 b) should include lmax 32 as a no-fix control.
+
 ## CURRENT (2026-09-27, evening): the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
 
 **Diagnostic** `scripts/diagnose_alm_band_edge.py` (job 12066643, log `logs/alm_band_edge_12066643.out`;
