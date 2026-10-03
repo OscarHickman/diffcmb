@@ -1,10 +1,38 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-10-01*
+*Last updated: 2026-10-03*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-09-30): band-edge offset is lmax 64 only; Block-4-OFF shows it too
+## CURRENT (2026-10-03): `--cl_init data` pilot is negative — the start is not the cause
+
+The pilot, job 12078506, ran skies r032–r039 with `--cl_init data` in the production configuration. All 8 tasks completed with `phi_calibration_ok`. They ran CPU-only on cosma8-shm (mad08) for 18.8–19.0 h each; the `cuInit` line in `.err` is harmless. The output is `ens_exact_l64_A3000_n30_nu30_clinit_data/`, and every chain records `cl_init = data`. The diagnostic was job 12090562 (6 min, `logs/alm_band_edge_12090562.out`). The control is the same 8 skies of `_nu30_long`, symlinked into `ens_exact_l64_A3000_n30_nu30_long_r032_r039/`. Truth and C_L^φφ truth are identical in both. With N = 8, every comparison is paired by sky.
+
+**Band-edge ranks** (thin 50, effective null). z scales as √N: the N = 48 offset (+3.45) would give ≈ +1.4 at N = 8, so these 8 skies sit above the ensemble average:
+
+| | `[60,64)` u / z | ℓ = 63 z | real parts z | quarters of `[60,64)` u | ℓ = 63 sd(z) | ℓ = 63 slope (W_eff) |
+|---|---|---|---|---|---|---|
+| pilot (`data`) | 0.623 / +1.86 | +1.71 | +2.71 | 0.586 / 0.632 / 0.645 / 0.612 | 1.072 | 0.656 (0.736) |
+| control (`map`) | 0.721 / +2.82 | +2.04 | +3.41 | 0.697 / 0.717 / 0.730 / 0.704 | 1.086 | 0.645 (0.740) |
+| paired Δu, thin 50 / 150 | −0.10 ± 0.04 / −0.13 ± 0.06 | | | | | |
+
+**C_63 / (S_true/(k−4)) by quarter, mean over 8 skies:**
+
+| | Q1 | Q2 | Q3 | Q4 |
+|---|---|---|---|---|
+| pilot | 0.946 | 0.944 | 0.921 | 0.935 |
+| control | 0.904 | 0.883 | 0.942 | 0.935 |
+| paired Δ | +0.042 ± 0.018 | +0.061 ± 0.016 | −0.021 ± 0.032 | 0.000 ± 0.028 |
+
+Against the φ-fixed dense reference on the same skies, r036 excluded: the dense mean C_ℓ ratio at ℓ = 60/61/62/63 is 0.998 / 1.006 / 1.034 / 1.019. In Q4 the control is 0.961 / 0.939 / 1.035 / 0.934 and the pilot 0.944 / 0.957 / 1.064 / 0.948. Paired with dense at ℓ = 63, the control is −0.085 ± 0.052 and the pilot −0.071 ± 0.060.
+
+**r036, C_62:** the first saved sweep is at 1.2e-6 of the realized power in the pilot and 2e-5 in the control. By quarter the pilot runs 0.000 / 0.000 / 0.174 / 0.724, so it recovered late by itself; the control stays collapsed throughout.
+
+**Reading.** The data start removes the early transient: C_63 is 4–6 % higher in the first half. The two starts then converge on the same late level, ~0.935. They also leave the rank offset at about two-thirds of its size, and do not stop the collapse, because S_ℓ(a_MAP) inherits the MAP's shrinkage. **The late-chain C_63 deficit is not a slow climb from the start.** The next step, which needs sign-off, is a φ-fixed production run (`ROADMAP.md` T0.1 a).
+
+`make test` passed in full on 2026-10-03 (237 passed, 1 skipped), confirming the 2026-10-01 `cl_init` fix.
+
+## 2026-09-30 record: band-edge offset is lmax 64 only; Block-4-OFF shows it too
 
 Jobs 12066584/85/67 (all 48/48, `.err` are TF warnings only) diagnosed by 12074645 (`logs/alm_band_edge_12074645.out`), null rank 12074646.
 
@@ -16,11 +44,11 @@ Jobs 12066584/85/67 (all 48/48, `.err` are TF warnings only) diagnosed by 120746
 
 Block-4-OFF figure 1 at N = 48, thin 50 (scratch): φ p_bin 0.180, a_ℓm min p_bin 0.000, `[60,64)` observed 0.592 vs effective null 0.448 (z +3.45); 50 % power at 0.314σ.
 
-Pilot: job 12074650 (skies 32–39, `--cl_init data`) died at start on all 8 tasks (read-only MAP array; fixed and tested 2026-10-01). **Resubmitted as job 12078506**, same config, output `ens_exact_l64_A3000_n30_nu30_clinit_data/` (chains carry `cl_init`). Procedure in ROADMAP T0.1 b.
+Pilot: job 12074650 (skies 32–39, `--cl_init data`) died at start on all 8 tasks (read-only MAP array; fixed and tested 2026-10-01). **Resubmitted as job 12078506**, same config, output `ens_exact_l64_A3000_n30_nu30_clinit_data/` (chains carry `cl_init`); harvested 2026-10-03 (section above).
 
 Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is flat) and not Block 4. The no-fix controls already exist (`_nu30_long` r032–r039, and the clean lmax-32 ensembles).
 
-## CURRENT (2026-09-27, evening): the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
+## 2026-09-27 (evening) record: the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
 
 **Diagnostic** `scripts/diagnose_alm_band_edge.py` (job 12066643, log `logs/alm_band_edge_12066643.out`;
 results in `<ensemble>/diagnose_alm_band_edge.npz`; tests in `tests/test_diagnose_alm_band_edge.py`). Per-ℓ z against the effective null, thin 50:
@@ -779,7 +807,7 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Running (2026-09-27, 17:00):** 12066584 (Block-4-OFF r024–r047), 12066585 (lmax 32), 12066667 (lmax 32 / nside 64); see "CURRENT (2026-09-27, evening)". Landed today: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
+**Nothing in flight (2026-10-03).** The last landings were 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "CURRENT (2026-10-03)" at the top. Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

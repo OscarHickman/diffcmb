@@ -2,7 +2,7 @@
 
 *Condensed record of what is validated, closed out, retracted or fixed — current state, not a change log. Full history is in git. Forward plan: `ROADMAP.md`.*
 
-**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is re-derived from the exact-operator ensembles; the adopted one is `ens_exact_l64_A3000_n30_nu30_long` (D5, first section below).
+**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is re-derived from the exact-operator ensembles; the adopted one is `ens_exact_l64_A3000_n30_nu30_long` (D5; section "2026-09-25/27" below). The open defect is the a_ℓm band-edge offset (first section).
 
 ## Decisions taken
 
@@ -14,6 +14,67 @@
 | D3 | exact lensing operator | 2026-09-23 |
 | D4 | amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64, chosen by the pilots below | 2026-09-23 |
 | D5 | the paper's Block-4-ON ensemble uses the proper hyperprior **ν = 30**, 1000 + 3600 sweeps (`ens_exact_l64_A3000_n30_nu30_long`), the only Block-4-ON configuration that passes every calibrated test. ν = 6 is reported as a limitation. Rejected alternatives: a non-centred φ parameterisation (sampler development, 2–3 days, needs φ-tuning sign-off) and ~25k-sweep ν = 6 chains (~100 h per task) | 2026-09-25 |
+
+---
+
+## 2026-09-27 → 10-03 — the a_ℓm `[60,64)` band-edge offset (T0.1, still open)
+
+*Tables: `docs/dashboard.md` (the 2026-09-27 → 10-03 sections). Next steps: `ROADMAP.md` T0.1.*
+
+### The offset is real, and it is ℓ = 63
+
+- **It reproduces on fresh skies.** Against the effective exact-sampler null it is +2.55 on r000–r023, **+2.33 on the fresh r024–r047 alone**, and +3.45 combined (nominal null: +2.80). Every other a_ℓm bin is at |z| ≤ 0.6. By the pre-registered rule (survives more realizations), it is a defect to diagnose, not sky noise.
+- **It sits at ℓ = 63, the band limit** (job 12066643). Per-ℓ z is +3.5 to +3.8 at thin 50/100/150 on the ν = 30 ensemble, +2 to +4 in every other exact ensemble, and ≤ +1.5 at ℓ = 60–62. m = 0 is clean; real parts carry more of it than imaginary parts.
+
+### Band-edge diagnosis (2026-09-27): what is established
+
+- **The diagonal a_ℓm null is validated against an exact dense reference.** `scripts/exact_dense_alm_reference.py` builds the full lensed operator at φ_true from `lens_map_tf` (reproduces it to 6e-15) and rebuilds the production data from the production seeds. It then samples the (C_ℓ, a_ℓm) posterior exactly: a Cholesky a | C draw, then Block 1's InvGamma C draw (job 12066700, 48 skies). Result: no a_ℓm rank offset at any top ℓ (ℓ = 63 z +0.3/+0.8), sd(z) 0.99–1.02 (1.006 at ℓ = 63), and a shrinkage slope equal to W (0.891 against 0.894). So pixelisation and the lensing geometry do not bias the statistic, and the null's diagonal model is adequate **when φ is known**.
+- **In production, posterior C_63 sits ~6 % low and drifts by chain quarter** (0.934 → 0.947 of S_true/(k−4), against 0.99 in the dense reference). ℓ = 62 started low too and recovered (0.973 → 0.993).
+- **The MAP start sets every C_ℓ low**, at about e^−1 × truth: `find_map_estimate`'s joint (ln C, a) MAP is the usual hierarchical-MAP shrinkage (replay job 12066670, `/cosma5/.../scratch_r036/`).
+- **The slow direction is collective.** The single-coordinate τ_int(ln C_63) ≈ 42 does not show it.
+- **A rank-mean quarter test missed the drift; C_ℓ / (S_true/(k−4)) by quarter caught it.** `diagnose_alm_band_edge.py` prints both.
+- **Broader, milder:** per-mode sd(z) of a_ℓm is 1.03–1.08 across all ℓ at ν = 30 (1.18–1.25 in the 1200-sweep chains) against 1.00 exact. Posteriors are slightly too narrow, and less so in longer chains. The rank test cannot see this, because its effective null is calibrated from the chains' own variance. Quote sd(z), not only the rank.
+- **Tools, all tested:**
+  - `diagnose_alm_band_edge.py` (per-ℓ/m/part ranks against the null, thinning, quarters, per-mode sd(z), shrinkage slope, C by quarter; `tests/test_diagnose_alm_band_edge.py`, including a shrunk-sampler mutation);
+  - `exact_dense_alm_reference.py` (`tests/test_exact_dense_alm_reference.py`: a | C mean and covariance, and C | a against the InvGamma median);
+  - the ensemble wrapper takes `LMAX`/`NSIDE`.
+
+### C_ℓ collapse (a separate defect, open)
+
+- In ν = 30 r036, C_62 is ~2e-5 of the realized power for the whole chain (a_62 sd ≈ 3e-3 against 1.1 prior). ν = 6 long r021 collapsed the same way at ℓ = 62 and recovered only late. Block-4-OFF at N = 48 has one collapsed sky too (ℓ = 62 sd(z) 100.6), so it is not specific to Block 4.
+- It is seeded by a low MAP start (r036's MAP put C_62 at e^−2, the lowest of any ℓ). Once C is tiny, HMC can hardly move the stiff a_ℓm.
+- It was caught only by a per-mode z (|z| ≈ 700); the power ranks shift by only ~0.3σ.
+
+### Band-edge localisation (2026-09-30): lmax 64 only, and not caused by Block 4
+
+Jobs 12066584 (Block-4-OFF `_nocl4` extended to N = 48), 12066585 (lmax = nside = 32) and 12066667 (lmax 32, nside 64), all 48/48, run through `diagnose_alm_band_edge.py` by job 12074645 (log `logs/alm_band_edge_12074645.out`).
+
+- **lmax 32 is clean at both pixel scales.** Top bin `[28,32)` z −0.5 (nside 32) / −0.3 (nside 64); ℓ = 31 z −1.2 / −0.3; C_31/(S_true/(k−4)) is flat at 0.99–1.04 across chain quarters. So the top-multipole lag is not a generic band-edge property of the sampler, nor of nside = lmax pixelisation.
+- **Block-4-OFF shows the same offset:** `[60,64)` z +3.4 to +3.9 (thin 50–150), ℓ = 63 z +3.1 to +3.7, C_63 at 0.926–0.943 of S_true/(k−4) in every quarter. It is not caused by Block 4 or the ν prior.
+- **Block-4-OFF figure 1 at N = 48, thin 50** (scratch, not the paper figure): φ p_bin **0.180** ✓ (0.190 at N = 24), a_ℓm min p_bin **0.000** ✗ from `[60,64)` (0.094 at N = 24), 50 % power at 0.314σ. The a_ℓm failure is the T0.1 defect, not something specific to Block-4-OFF; the caption number waits for T0.1.
+
+### `--cl_init data` pilot (2026-10-03): the start is not the cause
+
+**Hypothesis tested:** the joint-MAP start leaves C_ℓ further from equilibrium at lmax 64, so C_63 is still climbing at the end of the chain.
+
+**What ran:** job 12078506, skies r032–r039, the production configuration (Block-4-ON, ν = 30, 1000 + 3600, lmax = nside = 64), with `--cl_init data`: ln C_ℓ starts at S_ℓ(a_MAP)/(2ℓ−3). It wrote to `ens_exact_l64_A3000_n30_nu30_clinit_data/`. All 8 tasks completed with `phi_calibration_ok` set. They ran CPU-only on cosma8-shm (18.8–19.0 h; the `cuInit` line in `.err` is harmless). The diagnostic was job 12090562 (log `logs/alm_band_edge_12090562.out`). The control is the same 8 skies of `_nu30_long`, symlinked as `ens_exact_l64_A3000_n30_nu30_long_r032_r039/`. The skies match: identical `alm_true_packed` and `cl_phiphi_true`. Only 8 skies, so every comparison below is paired by sky.
+
+- **The data start removes the early transient but not the deficit.** C_63 / (S_true/(k−4)), the mean over the 8 skies by quarter:
+
+  | | Q1 | Q2 | Q3 | Q4 |
+  |---|---|---|---|---|
+  | pilot | 0.946 | 0.944 | 0.921 | 0.935 |
+  | control | 0.904 | 0.883 | 0.942 | 0.935 |
+  | paired difference | +0.04 ± 0.02 | +0.06 ± 0.02 | −0.02 ± 0.03 | 0.00 ± 0.03 |
+
+  The two starts converge on the same late level. Against the φ-fixed dense reference on the same skies (r036 excluded), Q4 C_63 is −0.07 ± 0.06 low in the pilot and −0.085 ± 0.05 in the control.
+- **The rank offset shrinks by about a third, but it does not go away.** The `[60,64)` z against the effective null is +1.86 in the pilot and +2.82 in the control (thin 50; +1.44 vs +2.71 at thin 150). The paired Δu is −0.10 ± 0.04 at thin 50 and −0.13 ± 0.06 at thin 150. The ℓ = 63 sd(z) is 1.07 in the pilot and 1.09 in the control, against 0.97–0.99 exact. The shrinkage slope at ℓ = 63 is 0.656 in the pilot and 0.645 in the control, against W_eff 0.74.
+- **It does not prevent the r036 collapse.** C_62 was already 1.2e-6 of the realized power at the first saved sweep, lower than the control's 2e-5, because S_ℓ(a_MAP) inherits the MAP's shrinkage of a_62. Unlike the control, it recovered by itself in Q3–Q4 (0 → 0.17 → 0.72), which is the same stochastic late recovery seen in ν = 6 r021.
+- **Reading.** Neither criterion is met: C_63 is not flat near 1.0, and r036 still collapses. Since two different starts reach the same late C_63, a slow climb from the start does not explain the late-chain deficit. The candidates are a stationary effect of marginalising φ at the band edge, or mixing that is too slow for either start to reveal. The dense reference conditions on φ = truth, and the lensing effect is largest at the band edge (−41 % at `[45,64)`, figure 2). The discriminating test is in `ROADMAP.md` T0.1.
+
+### Figure outputs from the diagnosis
+
+- The figure 1 power table (`validation_power_table.{csv,tex}`, mutation-checked) and the zoomed aware-only figure 2 panel (`bias_aware_zoom.pdf`; job 12066719). The Block-4-OFF certification goes in figure 1's caption as a number, not a panel.
 
 ---
 
@@ -35,35 +96,13 @@
 - **Joint-likelihood SBC passes:** 0.528, KS_p 0.45 at thin 40; 0.512, KS_p 0.77 on the second half.
 - **Strict C_L^φφ SBC passes:** pooled 0.495, KS_p 0.65. Per bin, KS_p is 0.85 / 1.00 / 0.22 / 0.064; the `[60,64)` low reading of N = 24 (0.397, KS_p 0.015) relaxed to 0.437.
 - **Block 4 PIT passes:** aligned KS_p 0.22. The lag-10/50 controls are rejected (KS_p 0); lag 1 passes vacuously (φ lag-1 correlation +0.85).
-- **Figure 1 (thin 50):** φ p_bin 0.386 ✓, C_L^φφ 0.501 ✓, **a_ℓm 0.005 ✗**. 50 % power is at 0.281σ.
+- **Figure 1 (thin 50):** φ p_bin 0.386 ✓, C_L^φφ 0.501 ✓, **a_ℓm 0.005 ✗** (the band-edge offset above). 50 % power is at 0.281σ (0.436σ at N = 24).
 - **φ power bias** per bin (median): 1.007 / 1.006 / 0.991 / 1.017.
-- **Figure 2 (48 pairs):** mean |bias| 12.4 % blind vs 0.80 % aware. Aware residuals sit inside the exact-sampler bracket in four of five bins; `[45,64)` is at −2.97 against the effective expectation (it was −3.04 at N = 24).
-- **Figure 3:** 0.606 / 0.621 / 0.663 / 0.721 of QE⊕prior. **Figure 4:** 1/16 cells, chance. **Maps:** r 0.910, z sd 1.028.
-
-### ⚠ Not passed: the a_ℓm `[60,64)` offset is reproducible
-
-Against the effective exact-sampler null it is +2.55 on r000–r023, **+2.33 on the fresh r024–r047 alone**, and +3.45 combined (nominal null: +2.80). Every other a_ℓm bin is at |z| ≤ 0.6. By the pre-registered rule (survives more realizations), this is now a defect to diagnose, not sky noise. Open in `ROADMAP.md` T0.1.
-
-### Band-edge diagnosis (2026-09-27): what is established
-
-- **The diagonal a_ℓm null is validated against an exact dense reference.** `scripts/exact_dense_alm_reference.py` builds the full lensed operator at φ_true from `lens_map_tf` (reproduces it to 6e-15) and rebuilds the production data from the production seeds. It then samples the (C_ℓ, a_ℓm) posterior exactly: a Cholesky a | C draw, then Block 1's InvGamma C draw (job 12066700, 48 skies). Result: no a_ℓm rank offset at any top ℓ, sd(z) 0.99–1.02, shrinkage slope = W. So pixelisation and the lensing geometry do not bias the statistic, and the null's diagonal model is adequate when φ is known.
-- **Hence the production ℓ = 63 offset is a sampler/mixing effect under φ uncertainty.** Posterior C_63 is ~6 % low and still rising by chain quarter (0.934 → 0.947), against 0.99 exact. The MAP start sets every C_ℓ low (about e^−1 × truth). The fix is open (`ROADMAP.md` T0.1).
-- **A rank-mean quarter test missed this non-stationarity; C_ℓ / (S_true/(k−4)) by quarter caught it.** `diagnose_alm_band_edge.py` now prints both.
-- **Tools, all tested:**
-  - `diagnose_alm_band_edge.py` (per-ℓ/m/part ranks against the null, thinning, quarters, per-mode sd(z), shrinkage slope, C by quarter; `tests/test_diagnose_alm_band_edge.py`, including a shrunk-sampler mutation);
-  - `exact_dense_alm_reference.py` (`tests/test_exact_dense_alm_reference.py`: a | C mean and covariance, and C | a against the InvGamma median);
-  - the ensemble wrapper takes `LMAX`/`NSIDE`.
-- **Figure outputs:** the figure 1 power table (`validation_power_table.{csv,tex}`, mutation-checked) and the zoomed aware-only figure 2 panel (`bias_aware_zoom.pdf`). The Block-4-OFF certification goes in figure 1's caption as a number, not a panel.
-
-### Band-edge localisation (2026-09-30): lmax 64 only, and not caused by Block 4
-
-Jobs 12066584 (Block-4-OFF `_nocl4` extended to N = 48), 12066585 (lmax = nside = 32) and 12066667 (lmax 32, nside 64), all 48/48, run through `diagnose_alm_band_edge.py` by job 12074645 (log `logs/alm_band_edge_12074645.out`; tables in `docs/dashboard.md`).
-
-- **lmax 32 is clean at both pixel scales.** Top bin `[28,32)` z −0.5 (nside 32) / −0.3 (nside 64); ℓ = 31 z −1.2 / −0.3; C_31/(S_true/(k−4)) is flat at 0.99–1.04 across chain quarters. So the top-multipole lag is not a generic band-edge property of the sampler, nor of nside = lmax pixelisation.
-- **Block-4-OFF shows the same offset:** `[60,64)` z +3.4 to +3.9 (thin 50–150), ℓ = 63 z +3.1 to +3.7, C_63 at 0.926–0.943 of S_true/(k−4) in every quarter. It is not caused by Block 4 or the ν prior.
-- **Block-4-OFF also has a C_62-collapsed sky** (ℓ = 62 sd(z) 100.6 against 1.0), so the collapse is not specific to Block-4-ON r036.
-- **Block-4-OFF figure 1 at N = 48, thin 50** (scratch, not the paper figure): φ p_bin **0.180** ✓ (0.190 at N = 24), a_ℓm min p_bin **0.000** ✗ from `[60,64)` (0.094 at N = 24), 50 % power at 0.314σ. The a_ℓm failure is the T0.1 defect, not something specific to Block-4-OFF; the caption number waits for T0.1.
-- **Working hypothesis:** the joint-MAP start leaves C_ℓ further from equilibrium at lmax 64 (more ℓ, same sweep count). Under test by the `--cl_init data` pilot (`ROADMAP.md` T0.1 b).
+- **Figure 2 (48 pairs):** mean |bias| 12.4 % blind vs 0.80 % aware; corr(blind bias, lensing received) in `[45,64)` is 0.892. Aware z against the exact-sampler expectation (nominal / effective): `[2,10)` −0.59/−0.83, `[10,20)` +1.99/+0.40, `[20,30)` +1.57/−0.23, `[30,45)` +1.47/−1.25, `[45,64)` +1.31/**−2.97**. All bins are inside the bracket except `[45,64)` (−3.04 at N = 24), which probably shares the band-edge cause.
+- **Figure 3:** 0.606 / 0.621 / 0.663 / 0.721 of QE⊕prior at L ~ 15 / 25 / 38 / 55.
+- **Figure 4:** 1/16 cells above null (0.8 expected by chance), 0/16 at thin 150, all |r| ≤ 0.054. The one cell, `C_ℓ[30,60)×C_L^φφ[10,30)` (ratio 1.03, chain z +2.34), is the same cell as at N = 24.
+- **Convergence:** R̂ > 1.01 for 28.6 % / 20.1 % of (chain, multipole) pairs (Blocks 1/4). Median ESS per 3600 sweeps is 252 / 74 / 181 / 342 (Blocks 1–4).
+- **Maps:** r 0.910, per-mode z sd 1.028 pooled over 48 skies.
 
 ### Figure work at N = 24 (2026-09-26) that carries over
 
@@ -116,14 +155,17 @@ The lever: the QE S/N is cosmic-variance limited (A_φ = 3000: 5.0 at σ = 1, 4.
 
 `scripts/submit_ensemble_exact_lmax64.slurm` (tasks packed per node, one GPU each, TF memory growth):
 
-| mode | job | output | state 2026-09-23 |
+| mode | job | output | state (2026-10-03) |
 |---|---|---|---|
 | Block-4-ON, ν = 6 | 12038494 | `results/analysis/ens_exact_l64_A3000_n30/chain_rNNN.npz` | 24/24 complete |
 | lensing-blind (same data) | 12038496 | same dir, `blind_rNNN.npz` | 24/24 complete |
-| Block-4-OFF | 12038495 | `..._nocl4/chain_rNNN.npz` | 24/24 complete |
+| Block-4-OFF | 12038495 + 12066584 | `..._nocl4/chain_rNNN.npz` | 48/48 (400 + 1200 sweeps) |
 | Block-4-ON, ν = 6, 1000 + 3600 | 12047785 | `..._n30_long/` | 24/24 (T0.1c2) |
 | **Block-4-ON, ν = 30, 1000 + 3600 (adopted, D5)** | 12047786 + 12065119 | `..._n30_nu30_long/chain_rNNN.npz` | **48/48** (r000–r047) |
 | lensing-blind on the ν = 30 skies | 12062768 + 12065120 | same dir, `blind_rNNN.npz` | 48/48 |
+| lmax = nside = 32, ν = 30 (band-edge control) | 12066585 | `ens_exact_l32_A3000_n30_nu30_long/` | 48/48 |
+| lmax 32, nside 64, ν = 30 (band-edge control) | 12066667 | `ens_exact_l32_A3000_n30_ns64_nu30_long/` | 48/48 |
+| ν = 30 pilot, `--cl_init data`, skies r032–r039 | 12078506 | `..._n30_nu30_clinit_data/` | 8/8 (pilot, not production) |
 
 The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν.
 
@@ -262,7 +304,6 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 - **Return-tuple arity depends on the enabled blocks**; a hardcoded unpack crashed after a completed chain with SLURM reporting `COMPLETED 0:0`.
 - **Coverage statistic ranks the truth against its conditional's mode**, which is non-uniform for a correct sampler; read it against `validate_coverage_rank_nulls.py`.
 - **Block 4 PIT control passing vacuously at lag 1**; controls are now required to fail at lags 1, 10 and 50.
-- **C_ℓ collapse from the MAP start (found 2026-09-27, not yet fixed):** in ν = 30 r036, C_62 is ~2e-5 of the realized power for the whole chain (ν = 6 long r021 likewise, until late). The joint (ln C, a) MAP starts C_ℓ low, and once C is tiny the stiff a_ℓm barely move under HMC. It was caught only by a per-mode z (|z| ≈ 700); the power ranks shift by only ~0.3σ.
 - **`--cl_init data` wrote into a read-only MAP vector (2026-09-30, job 12074650):** `np.asarray` on `find_map_estimate`'s result returned a read-only view of a TF tensor, and all 8 pilot tasks died 37 s in with `ValueError: assignment destination is read-only`. The helper `data_driven_ln_cl` had unit tests; the assignment in `main()` had none. Fixed with `np.array` (a copy); `test_cl_init_data_runs_end_to_end_and_is_recorded` runs the script with the flag and was confirmed to fail before the fix. Chains now record `cl_init` (absent = `map`). Resubmitted as job 12078506.
 - **Rank grid off by one in three scripts (2026-09-25):** `fig1_validation.py`, `diagnose_calibration_stationarity.py` and `null_alm_power_rank_flat_prior.py` set `n_draws = M − 1` for M draws, although the rank of the truth runs over 0..M. So u = (r+0.5)/M reached (M+0.5)/M > 1. Figure 1's simulated uniform null never produced rank M. And figure 1 refused the production a_ℓm null the moment a truth ranked above every draw (job 12062385). The shift in mean_u is +0.5/M: +0.004 at 120 draws, +0.0014 at 360. That is immaterial to every verdict, but every null file was regenerated on the corrected grid (job 12062823). `aggregate_coverage_ranks.py` and `validate_coverage_rank_nulls.py` were already right. Tests: `test_rank_grid_counts_every_draw_and_accepts_the_top_rank`, `test_null_ranks_live_on_the_observed_grid`, and the corrected `test_trace_rank_equals_rank_of_power_against_truth`, which had encoded the bug.
 - Smaller:

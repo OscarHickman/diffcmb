@@ -6,7 +6,7 @@
 
 ---
 
-## Where the project stands (2026-10-01)
+## Where the project stands (2026-10-03)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -20,7 +20,7 @@
 - **A QE validated at that configuration**: noise 0.995, response 0.971.
 - **A test suite that covers the scripts as well as the package.**
 
-**⚠ Blocking: the a_ℓm `[60,64)` offset survived the fresh skies.** Diagnosed 2026-09-27 as a slow, non-stationary C_63 deficit left by the MAP start; localised 2026-09-30 to lmax = 64 (not Block 4, not pixelisation). A `--cl_init data` pilot is in flight (T0.1 b); a production fix needs sign-off. Figure 1's a_ℓm row fails until then, so **no exactness claim is citable**.
+**⚠ Blocking: the a_ℓm `[60,64)` offset survived the fresh skies.** Posterior C_63 sits ~6 % below the φ-fixed exact reference. The offset appears at lmax = 64 only, in Block-4-ON and -OFF alike. The `--cl_init data` pilot (2026-10-03) ruled out the MAP start. The next test, a φ-fixed production run, needs sign-off (T0.1 a). Figure 1's a_ℓm row fails until then, so **no exactness claim is citable**.
 
 **Handling the caution in the paper:**
 - The retraction becomes one methods paragraph: validate an operator on the observable you report, not only its gradients.
@@ -63,31 +63,24 @@ Decisions D1–D5 (one paper, figures first, PRD, exact operator, A_φ = 3000 / 
 
 ## T0 — Core figures from the exact-operator ensembles
 
-*Done so far (details in `achievements.md`): the calibration diagnosis (T0.1 a–d: a_ℓm is the statistic, φ is funnel mixing, ν = 30 adopted as D5); the ν = 30 blind pair; figure 1 at thin 50; the figure 2 exact-sampler band; the figure 4 cell inspection; the N_L normalisation test; the N = 48 extension (r024–r047) with its harvest (job 12065737); the figure 1 power table; and the band-edge localisation with Block-4-OFF at N = 48 (2026-09-30). Source of every number below: `logs/harvest_t01e_12065737.out`; tables in `docs/dashboard.md`.*
+*Done so far (details in `achievements.md`): the calibration diagnosis (T0.1 a–d: a_ℓm is the statistic, φ is funnel mixing, ν = 30 adopted as D5); the ν = 30 blind pair; figure 1 at thin 50; the figure 2 exact-sampler band; the figure 4 cell inspection; the N_L normalisation test; the N = 48 extension (r024–r047) with its harvest (job 12065737); the figure 1 power table; the band-edge diagnosis and localisation, with Block-4-OFF at N = 48 (2026-09-27/30); and the `--cl_init data` pilot (2026-10-03, negative). Sources: `logs/harvest_t01e_12065737.out` and `logs/alm_band_edge_*.out`; tables in `docs/dashboard.md`.*
 
-1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: diagnosed 2026-09-27 as a slow, non-stationary C_63 deficit left by the MAP start. A fix needs sign-off.** Numbers: `docs/dashboard.md` → "CURRENT (2026-09-27, evening)".
-   - **Found:**
-     - **It is ℓ = 63 alone**, the band limit. Per-ℓ z is +3.5 to +3.8 at thin 50/100/150 on the ν = 30 ensemble, +2 to +4 in every other exact ensemble, and ≤ +1.5 at ℓ = 60–62.
-     - **It is not pixelisation or the null.** An exact dense Gibbs reference on the same 48 skies and data (`scripts/exact_dense_alm_reference.py`, φ fixed at truth, job 12066700) shows none of it: ℓ = 63 z is +0.3/+0.8, the shrinkage slope is 0.891 against W 0.894, and sd(z) is 1.006.
-     - **In production, C_63 sits ~6 % low and is still rising:** by chain quarter, 0.934 → 0.947 of S_true/(k−4), against 0.99 in the dense reference. ℓ = 62 started low too but has recovered (0.973 → 0.993).
-     - **The MAP start sets every C_ℓ low**, at about e^−1 × truth: `find_map_estimate`'s joint (ln C, a) MAP is the usual hierarchical-MAP shrinkage. The replay is job 12066670, in `/cosma5/.../scratch_r036/`.
-     - So the chains have not finished climbing out of that start at the band edge. The quarter test on the *rank* was too weak to see it. The single-coordinate τ_int(ln C_63) ≈ 42 does not show the slow direction either, which looks collective (a–C–φ at the edge).
-   - **A separate defect: C_ℓ collapse.** In ν = 30 r036, C_62 sits at ~1e-5 of the realized power for the whole chain (a_62 sd ≈ 3e-3). In ν = 6 long r021 the same happened and recovered only late. It is seeded by the low MAP start (r036's MAP had C_62 at e^−2, the lowest of any ℓ). Once C is tiny, HMC can hardly move the stiff a_ℓm. It was the only Block-4-ON collapse when all exact ensembles were scanned; Block-4-OFF at N = 48 has one too (ℓ = 62, 2026-09-30).
-   - **Broader, milder:** per-mode sd(z) of a_ℓm is 1.03–1.08 across all ℓ at ν = 30 (1.18–1.25 in the 1200-sweep chains) against 1.00 exact. So posteriors are slightly too narrow, and this improves with chain length. The a_ℓm rank test cannot see it, because its effective null is calibrated from the chains' own variance. Quote sd(z), not only the rank.
-   - **Localised 2026-09-30** (`achievements.md` → Band-edge localisation): **lmax = 64 only** (lmax 32 clean at nside 32 and 64) and **also in Block-4-OFF**, which has a C_62-collapsed sky too. So neither Block 4 nor pixelisation causes it.
-   - **Next, in order:**
-     - a. Open question: why lmax 64 and not 32? Candidate: the MAP start is further from equilibrium at lmax 64 (more ℓ, the same sweep count); b tests it.
-     - b. **Pilot in flight (opt-in only; production initialisation unchanged, default `--cl_init map`).** Job **12078506** (submitted 2026-10-01; the first attempt, 12074650, died at start on a read-only-array bug, now fixed and tested, `achievements.md` → Real bugs), array 32–39 (includes r035 control and r036, the collapsed sky), production config (Block-4-ON, ν = 30, 1000 + 3600, lmax = nside = 64) with `--cl_init data`: ln C_ℓ starts at S_ℓ(a_MAP)/(2ℓ−3) instead of the joint-MAP value (`data_driven_ln_cl` in `scripts/coverage_ensemble_chain.py`, tests `tests/test_cl_init_data.py`; the W_ℓ² correction from the original proposal was left out, so read whether it is needed). Output `results/analysis/ens_exact_l64_A3000_n30_nu30_clinit_data/` (dir name confirmed). Chains now record `cl_init`. ~14 h per task once started. **The no-fix control already exists:** skies 32–39 of `_nu30_long`, and lmax 32 is clean with the same MAP start.
-       - **Next session:** (1) `sacct -j 12078506 -X` and check no task died at start (`.err`, first checkpoint); (2) run `INDIRS=<clinit_data dir> sbatch scripts/submit_diagnose_alm_band_edge.slurm`, and compare, for the same 8 skies, C_62/C_63 by quarter and `[60,64)` z against the `_nu30_long` values for r032–r039 (note: only 8 skies, so use per-ℓ C ratio and sd(z), not the rank z alone); (3) judge whether C_63 is flat near 1.0 and r036 no longer collapses. If yes, ask the user to sign off a re-run of the adopted ensemble (48 × ~14 h) with the fix; if no, try the burn-in guard or the W_ℓ² version.
-     - c. Decide what to do with r036 (C_62 collapsed): drop it with a stated reason, or re-run it with the fixed initialisation.
-   - Until then figure 1's a_ℓm row is not final and no exactness claim is citable.
-2. **Figure checklist read at N = 48** (rebuilt by job 12065737 from `_nu30_long`, 48 chains):
-   - **figure 1 (thin 50):** `p_bin` φ 0.386 ✓ / **a_ℓm 0.005 ✗** (T0.1) / C_L^φφ 0.501 ✓. 50 % power is now at **0.281σ** (it was 0.436σ at N = 24).
-   - **figure 2:** mean |bias| is 12.4 % blind and 0.80 % aware; corr(blind bias, lensing received) in `[45,64)` is 0.892. Aware z against the exact-sampler expectation (nominal / effective): `[2,10)` −0.59/−0.83, `[10,20)` +1.99/+0.40, `[20,30)` +1.57/−0.23, `[30,45)` +1.47/−1.25, `[45,64)` +1.31/**−2.97**. All bins are inside the nominal–effective bracket except `[45,64)`, which sits below the effective end, the same as at N = 24. The band is built and drawn. Since 2026-09-27 there is also a zoomed aware-only panel (c), `figure2/bias_aware_zoom.pdf`, drawn separately rather than as an inset because an inset would be unreadable at 3.375 in. Still to do: the user's look at both, and the A_L = 1 wording. `[45,64)` probably shares the T0.1 cause (the posterior C is low at the edge), so re-read it after the fix.
-   - **figure 3:** 0.606 / 0.621 / 0.663 / 0.721 at L ~ 15 / 25 / 38 / 55. Caption: the φ prior is hierarchical at ν = 30.
-   - **figure 4:** 1/16 cells above null (0.8 expected by chance), 0/16 at thin 150, all |r| ≤ 0.054. Caption: "no correlation detected". The one cell, `C_ℓ[30,60)×C_L^φφ[10,30)` (ratio 1.03, chain z +2.34), is the same cell as at N = 24. Watch it, but it is not significant over 16 cells.
-   - **convergence:** R̂ > 1.01 for 28.6 % / 20.1 % of (chain, multipole) pairs (Blocks 1/4). Median ESS per 3600 sweeps is 252 / 74 / 181 / 342 (Blocks 1–4). Carry these into the caption.
-   - **maps:** r = 0.910; per-mode z sd 1.028 pooled over 48 skies. Do the checklist read.
+1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: posterior C_63 sits ~6 % below the φ-fixed exact reference, at the band limit only.** Everything established so far is in `achievements.md` → "the a_ℓm `[60,64)` band-edge offset". In brief: it is ℓ = 63 alone. It is not pixelisation or the null, because the dense reference with φ = truth is clean. It occurs at lmax 64 only (lmax 32 is clean), and in Block-4-OFF too. **It is not the MAP start**: the `--cl_init data` pilot (2026-10-03) reaches the same late C_63 as production. A separate defect, C_ℓ collapse (r036's C_62, plus one Block-4-OFF sky), is seeded by the MAP's shrunk a_ℓm, and the data start does not prevent it.
+   - **Next. Each step needs user sign-off for compute; step a also needs a small opt-in code change.**
+     - a. **Separate φ marginalisation from the a_ℓm/C_ℓ blocks (recommended next).** Run the production Gibbs code with φ fixed at truth (Blocks 1 + 2 only), through a new opt-in flag in `coverage_ensemble_chain.py`, tested first, on the same skies as `exact_dense_alm_reference_l64_nu30` (r032–r039 at minimum).
+       - If C_63 comes back at the dense value (mean 1.02 on r032–r039 excluding r036; 0.99 over 48), the a_ℓm/C_ℓ blocks are exact and the deficit comes from marginalising φ. Then either the exact φ-marginal posterior genuinely sits lower at the band edge, where lensing is largest (−41 % at `[45,64)`), so the φ-known null is the wrong reference; or a–φ mixing at the edge is too slow.
+       - If it stays near 0.935, the defect is in the production a_ℓm block or the likelihood at ℓ = lmax − 1.
+     - b. Why lmax 64 and not 32. The candidate is lensing strength at the band edge. Test it after a, with lmax 64 at a lower A_φ.
+     - c. The W_ℓ²-corrected data start, C init from S_ℓ(a_MAP)/W_ℓ². The pilot says it will not fix C_63, but it should stop the collapse at the start. Use it only as a collapse guard.
+     - d. Decide what to do with r036: drop it with a stated reason, or re-run it with a start that avoids the collapse. In the pilot it recovered by itself only in the last half.
+   - Until then figure 1's a_ℓm row is not final and no exactness claim is citable. Quote per-mode sd(z) beside the rank: 1.03–1.08 at ν = 30, against 1.00 exact.
+2. **Figure checklist read at N = 48** (rebuilt by job 12065737 from `_nu30_long`). Every number is in `achievements.md` → "N = 48 results" and `docs/dashboard.md`.
+   - **figure 1:** φ and C_L^φφ pass; the a_ℓm row waits for T0.1.
+   - **figure 2:** the exact-sampler band and the zoomed aware-only panel (c), `figure2/bias_aware_zoom.pdf`, are built. Panel (c) is drawn separately because an inset would be unreadable at 3.375 in. To do: the user looks at both; settle the A_L = 1 wording; re-read `[45,64)` after T0.1 (it is −2.97 against the effective expectation and probably shares the cause).
+   - **figure 3:** the caption must say the φ prior is hierarchical at ν = 30.
+   - **figure 4:** the caption reads "no correlation detected". Watch the one recurring cell, `C_ℓ[30,60)×C_L^φφ[10,30)`; it is not significant over 16 cells.
+   - **convergence:** carry the R̂ and ESS numbers into the caption.
+   - **maps:** do the checklist read.
    - Then write the caption numbers into `plots/STORY.md`. They are held back until T0.1 resolves.
 3. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
 4. **Keep `plots/STORY.md` and `docs/dashboard.md` current** with every harvest number.
