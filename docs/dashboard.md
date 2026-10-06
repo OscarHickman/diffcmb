@@ -807,7 +807,7 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Nothing in flight (2026-10-03).** The last landings were 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "CURRENT (2026-10-03)" at the top. Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
+**In flight (2026-10-07): job 12099339**, the φ-fixed run (ROADMAP T0.1 a), skies r032–r039 → `ens_exact_l64_A3000_n30_nu30_phifixed/`; its harvest **12099555** (`afterany`, `logs/harvest_t01a_12099555.out`). The last landings were 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "CURRENT (2026-10-03)" at the top. Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

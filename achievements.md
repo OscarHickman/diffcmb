@@ -2,7 +2,7 @@
 
 *Condensed record of what is validated, closed out, retracted or fixed — current state, not a change log. Full history is in git. Forward plan: `ROADMAP.md`.*
 
-**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is re-derived from the exact-operator ensembles; the adopted one is `ens_exact_l64_A3000_n30_nu30_long` (D5; section "2026-09-25/27" below). The open defect is the a_ℓm band-edge offset (first section).
+**Read first.** Everything produced before 2026-09-23 was made with the **legacy forward model**: bilinear-interpolation lensing on an nside = lmax grid, deflection by −∇φ, and a defective fiducial cosmology. Those results remain valid as statements about *the sampler inverting the model it was given*, and they are reproducible (`lensing_operator='bilinear'`, chains read their own spectra). They are **not** statements about lensing on the sky. Every paper number is re-derived from the exact-operator ensembles; the adopted one is `ens_exact_l64_A3000_n30_nu30_long` (D5; section "2026-09-25/27" below). The open defect is the a_ℓm band-edge offset (section "2026-09-27 → 10-03" below).
 
 ## Decisions taken
 
@@ -14,6 +14,26 @@
 | D3 | exact lensing operator | 2026-09-23 |
 | D4 | amplified-lensing validation at A_φ = 3000, σ = 30 μK/pixel, lmax = 64, chosen by the pilots below | 2026-09-23 |
 | D5 | the paper's Block-4-ON ensemble uses the proper hyperprior **ν = 30**, 1000 + 3600 sweeps (`ens_exact_l64_A3000_n30_nu30_long`), the only Block-4-ON configuration that passes every calibrated test. ν = 6 is reported as a limitation. Rejected alternatives: a non-centred φ parameterisation (sampler development, 2–3 days, needs φ-tuning sign-off) and ~25k-sweep ν = 6 chains (~100 h per task) | 2026-09-25 |
+
+---
+
+## Ensembles on disk (identical skies across modes)
+
+`scripts/submit_ensemble_exact_lmax64.slurm` (tasks packed per node, one GPU each, TF memory growth):
+
+| mode | job | output | state (2026-10-07) |
+|---|---|---|---|
+| Block-4-ON, ν = 6 | 12038494 | `results/analysis/ens_exact_l64_A3000_n30/chain_rNNN.npz` | 24/24 complete |
+| lensing-blind (same data) | 12038496 | same dir, `blind_rNNN.npz` | 24/24 complete |
+| Block-4-OFF | 12038495 + 12066584 | `..._nocl4/chain_rNNN.npz` | 48/48 (400 + 1200 sweeps) |
+| Block-4-ON, ν = 6, 1000 + 3600 | 12047785 | `..._n30_long/` | 24/24 (T0.1c2) |
+| **Block-4-ON, ν = 30, 1000 + 3600 (adopted, D5)** | 12047786 + 12065119 | `..._n30_nu30_long/chain_rNNN.npz` | **48/48** (r000–r047) |
+| lensing-blind on the ν = 30 skies | 12062768 + 12065120 | same dir, `blind_rNNN.npz` | 48/48 |
+| lmax = nside = 32, ν = 30 (band-edge control) | 12066585 | `ens_exact_l32_A3000_n30_nu30_long/` | 48/48 |
+| lmax 32, nside 64, ν = 30 (band-edge control) | 12066667 | `ens_exact_l32_A3000_n30_ns64_nu30_long/` | 48/48 |
+| ν = 30 pilot, `--cl_init data`, skies r032–r039 | 12078506 | `..._n30_nu30_clinit_data/` | 8/8 (pilot, not production) |
+
+The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν.
 
 ---
 
@@ -71,6 +91,13 @@ Jobs 12066584 (Block-4-OFF `_nocl4` extended to N = 48), 12066585 (lmax = nside 
 - **The rank offset shrinks by about a third, but it does not go away.** The `[60,64)` z against the effective null is +1.86 in the pilot and +2.82 in the control (thin 50; +1.44 vs +2.71 at thin 150). The paired Δu is −0.10 ± 0.04 at thin 50 and −0.13 ± 0.06 at thin 150. The ℓ = 63 sd(z) is 1.07 in the pilot and 1.09 in the control, against 0.97–0.99 exact. The shrinkage slope at ℓ = 63 is 0.656 in the pilot and 0.645 in the control, against W_eff 0.74.
 - **It does not prevent the r036 collapse.** C_62 was already 1.2e-6 of the realized power at the first saved sweep, lower than the control's 2e-5, because S_ℓ(a_MAP) inherits the MAP's shrinkage of a_62. Unlike the control, it recovered by itself in Q3–Q4 (0 → 0.17 → 0.72), which is the same stochastic late recovery seen in ν = 6 r021.
 - **Reading.** Neither criterion is met: C_63 is not flat near 1.0, and r036 still collapses. Since two different starts reach the same late C_63, a slow climb from the start does not explain the late-chain deficit. The candidates are a stationary effect of marginalising φ at the band edge, or mixing that is too slow for either start to reveal. The dense reference conditions on φ = truth, and the lensing effect is largest at the band edge (−41 % at `[45,64)`, figure 2). The discriminating test is in `ROADMAP.md` T0.1.
+
+### Tools for the next test (2026-10-03 → 07)
+
+- **`--phi_fixed_truth`** (`coverage_ensemble_chain.py` → `run_gibbs_chain(phi_fixed=True)`): Blocks 1 + 2 against the lensed likelihood with φ held at φ_true, on the same sky as the production chain for that realization. It is the production sampler's version of the dense exact reference, for `ROADMAP.md` T0.1 a. Not yet wired into the SLURM wrapper; no run yet.
+- **`--cl_prior_nu`** (strict SBC mode; `model.sample_cl_given_alm(prior_nu, cl_fid)`, `run_gibbs_chain(cl_prior_nu, cl_prior_fid)`): a proper conjugate InvGamma(ν/2, ν C_ℓ^fid/2) prior on C_ℓ^TT, the Block 1 twin of Block 4's. The truth C_ℓ^TT is drawn from it on its own seed stream, and the chain start comes from the fiducials. With `--cl_phiphi_prior_nu` as well, every block has a strict SBC rank with no simulated null. It also bounds the C_ℓ draw away from zero (the r036 collapse). Default `None` reproduces the old draw bit for bit.
+- **`compare_band_edge_paired.py`**: band-edge C_ℓ/(S_true/(k−4)) by quarter for several ensembles on the same skies, paired by sky against a reference (the dense one), with SE and z. It refuses to pair chains whose `alm_true_packed` differ. On the pilot and control it reproduces the 10-03 hand calculation exactly (control ℓ = 63 Q4 −0.085 ± 0.052, pilot −0.071 ± 0.060). `diagnose_alm_band_edge.cl_ratio_per_chain` is the shared per-chain ratio.
+- Tests: `tests/test_strict_sbc_priors.py`, two script tests in `test_scripts_pipeline.py`, and `tests/test_compare_band_edge_paired.py` (mutation-checked: dropping the sky check, or pairing on the first quarter, each fails a test). Full suite 2026-10-07: 252 passed, 1 skipped, plus the 4 new pairing tests.
 
 ### Figure outputs from the diagnosis
 
@@ -151,24 +178,6 @@ Physical lensing is unmeasurable at lmax = 64, so the validation simulates C_L^�
 
 The lever: the QE S/N is cosmic-variance limited (A_φ = 3000: 5.0 at σ = 1, 4.6 at σ = 30), while the alm–φ lock-in loosens as σ². **Production configuration: A_φ = 3000, σ = 30 μK/pixel, lmax = nside = 64, 400 burn-in + 1200 samples, exact operator, corrected fiducial.**
 
-### Production ensembles (identical skies across modes)
-
-`scripts/submit_ensemble_exact_lmax64.slurm` (tasks packed per node, one GPU each, TF memory growth):
-
-| mode | job | output | state (2026-10-03) |
-|---|---|---|---|
-| Block-4-ON, ν = 6 | 12038494 | `results/analysis/ens_exact_l64_A3000_n30/chain_rNNN.npz` | 24/24 complete |
-| lensing-blind (same data) | 12038496 | same dir, `blind_rNNN.npz` | 24/24 complete |
-| Block-4-OFF | 12038495 + 12066584 | `..._nocl4/chain_rNNN.npz` | 48/48 (400 + 1200 sweeps) |
-| Block-4-ON, ν = 6, 1000 + 3600 | 12047785 | `..._n30_long/` | 24/24 (T0.1c2) |
-| **Block-4-ON, ν = 30, 1000 + 3600 (adopted, D5)** | 12047786 + 12065119 | `..._n30_nu30_long/chain_rNNN.npz` | **48/48** (r000–r047) |
-| lensing-blind on the ν = 30 skies | 12062768 + 12065120 | same dir, `blind_rNNN.npz` | 48/48 |
-| lmax = nside = 32, ν = 30 (band-edge control) | 12066585 | `ens_exact_l32_A3000_n30_nu30_long/` | 48/48 |
-| lmax 32, nside 64, ν = 30 (band-edge control) | 12066667 | `ens_exact_l32_A3000_n30_ns64_nu30_long/` | 48/48 |
-| ν = 30 pilot, `--cl_init data`, skies r032–r039 | 12078506 | `..._n30_nu30_clinit_data/` | 8/8 (pilot, not production) |
-
-The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν.
-
 **QE validated at the production configuration** (job 12038409, `results/analysis/qe_noise_validation_exact_A3000_n30.npz`): noise ratio **0.995**, response **0.971** (1.09 / 1.00 / 0.94 / 0.93 by bin). The QE weights and filter now use the lensed spectrum *measured* from exact-operator simulations. That, together with the sign fix, resolves the old 0.883 response.
 
 ### First harvest (2026-09-23, 400 + 1200 sweeps, ν = 6): physics clean, calibration failed
@@ -242,11 +251,7 @@ Full tables: `results/analysis/dashboard.md`.
 - `tests/test_qe.py`: QE sign test on exact-lensed skies (response 0.85–1.15); N_L's absolute normalisation frozen at lmax = 16 (`test_nl_absolute_normalisation_is_frozen_at_lmax16`), from an independent sympy-3j loop that matches `qe_tt_noise_nl` to 4e-16 (2026-09-26).
 - Mutation checks were run by reintroducing the alm-ordering bug, the Block 4 −1, the tight bbox, the beamed prior and the old QE sign; each is caught.
 
-**Lessons (these are now standing discipline in `ROADMAP.md`):**
-- validate a forward operator on the observable the paper reports, not only its gradients;
-- estimate the physical information content before interpreting a posterior;
-- pin sign conventions against an independent reference, because two opposite sign errors pass every internal consistency test;
-- test the scripts, not only the package.
+The lessons from this period are now in `ROADMAP.md` → Standing discipline.
 
 ---
 
@@ -339,8 +344,9 @@ The low-L φ mode fails equilibration at lmax = 128 (lag-1 0.967, job 11966631) 
 ## Positioning (settled)
 
 - **The novelty is the joint (C_ℓ, C_L^φφ) posterior as a capability** no competing method produces (MUSE, QE, Commander, diffusion). The evidence is validation. Never lead with the differentiable machinery (Flinch).
-- **The legacy S1 framing ("bias reduction leads as validation, 93.7 %") is void** with the retraction. The new figure 2 shows a blind fit absorbing exactly the lensing each sky received while the joint fit does not, under amplified lensing, stated as such. The "recovers A_L = 1 without a template" framing survives if the new figure supports it.
+- **The legacy S1 framing ("bias reduction leads as validation, 93.7 %") is void** with the retraction. Do not rebuild it on physical lensing: at these ℓ the physical C_ℓ^TT effect is +0.05–0.2 %. The new figure 2 shows a blind fit absorbing exactly the lensing each sky received while the joint fit does not, under amplified lensing, stated as such. The "recovers A_L = 1 without a template" framing survives if the new figure supports it.
 - **The narrow form of the blind-model claim still holds:** against map-based Gibbs methods (Commander does not model lensing), not against Planck's likelihood (lensed spectra plus an A_L nuisance).
+- **Doeser & Jasche (`2606.10023`)** is cited in `main.tex`'s introduction.
 - **Literature:** no curved-sky joint sampler and no curved-sky MUSE as of 2026-09-22 (`literature.md`). Citation IDs and author lists were verified 2026-09-22: `1708.06753` (Millea, Anderes & Wandelt 2019, flat-sky T+P joint sampler), `2111.07664` (Ducrocq et al.), `0708.2989`, `1803.03462`, `1705.01893`, and the Commander trio `astro-ph/0209560` / `0310080` / `0407028`.
 
 ## Engineering gotchas worth remembering
