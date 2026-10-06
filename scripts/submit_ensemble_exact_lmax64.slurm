@@ -17,6 +17,8 @@
 #   MODE=cl4    Block-4-ON, proper nu=6 prior  -> chain_rNNN.npz (figs 1,3,4, maps, convergence, fig 2 aware)
 #   MODE=nocl4  Block-4-OFF                    -> chain_rNNN.npz in <dir>_nocl4 (3-block certification)
 #   MODE=blind  lensing-blind fit, same data   -> blind_rNNN.npz (fig 2 blind)
+#   MODE=phifixed  Blocks 1+2, phi held at phi_true (ROADMAP T0.1 a) -> chain_rNNN.npz;
+#               keeps --cl_phiphi_prior_nu so phi_true is the SAME draw as the cl4 sky
 # Submit: sbatch --export=ALL,MODE=cl4,AMP=...,NOISE=...,BURNIN=...,SAMPLES=... this.slurm
 # Optional: NU (Block-4 prior nu, default 6.0) and TAG (suffix on the output
 # directory, default none), e.g. TAG=_long for the T0.1c longer-chain re-run.
@@ -40,6 +42,7 @@ case $MODE in
   cl4)   OUT=$BASE;        EXTRA="--cl_phiphi_prior_nu $NU" ;;
   nocl4) OUT=${BASE}_nocl4; EXTRA="--no_sample_cl_phiphi" ;;
   blind) OUT=$BASE;        EXTRA="--cl_phiphi_prior_nu $NU --blind" ;;
+  phifixed) OUT=$BASE;     EXTRA="--cl_phiphi_prior_nu $NU --phi_fixed_truth" ;;
   *) echo "unknown MODE=$MODE"; exit 2 ;;
 esac
 EXTRA="$EXTRA --cl_init $CL_INIT"

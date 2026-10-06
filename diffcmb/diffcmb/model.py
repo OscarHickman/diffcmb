@@ -571,13 +571,25 @@ class CosmologyAdvancedSampling:
                     S[L] += 2.0 * (re * re + im * im)
         return S
 
-    def sample_cl_given_alm(self, alm_flat_np, rng=None):
+    def sample_cl_given_alm(self, alm_flat_np, rng=None, prior_nu=None, cl_fid=None):
         """Sample ln(C_l) | alm for l=2..lmax-1 from the exact inverse-Gamma conditional.
 
         The log-posterior implied by psi_tf gives:
             C_l | alm ~ InvGamma(alpha=l-0.5, beta=S_l/2)
         where S_l = sum_{m=-l}^{l} |a_{lm}|^2 and k_l = 2l+1 (with
         Im(a_{l,1}) restored, the packed vector carries the full 2l+1 real dof).
+
+        OPTIONAL PROPER PRIOR (`prior_nu`, `cl_fid`; both None = the exact old
+        draw, consuming the RNG stream identically). The default corresponds
+        to a flat, improper prior on C_l, which cannot be drawn from, so the
+        a_lm/C_l rows could never carry a strict SBC rank. `prior_nu=nu` puts
+        the same conjugate InvGamma(nu/2, nu*C_l^fid/2) prior on C_l^TT that
+        lensing.sample_cl_phiphi_given_phi puts on C_L^phiphi:
+
+            C_l | alm ~ InvGamma(k_l/2 + nu/2, (S_l + nu*C_l^fid)/2).
+
+        It also bounds the draw away from zero (beta >= nu*C_fid/2), which is
+        what the flat prior's C_l collapse (r036, ROADMAP T0.1) lacks.
 
         Returns lncl array of shape (lmax-2,).
         """
@@ -586,11 +598,26 @@ class CosmologyAdvancedSampling:
         lmax = self.lmax
         if np.any(~np.isfinite(alm_flat_np)):
             raise ValueError("Non-finite values (NaNs/Infs) detected in alm_flat_np during sample_cl_given_alm!")
+        a0 = -1.0
+        b0 = np.zeros(lmax)
+        if prior_nu is not None:
+            prior_nu = float(prior_nu)
+            if not np.isfinite(prior_nu) or prior_nu <= 0.0:
+                raise ValueError(f"prior_nu must be > 0 for a proper C_l prior (got {prior_nu})")
+            if cl_fid is None:
+                raise ValueError("cl_fid is required when prior_nu is set -- the prior is centred on it")
+            cl_fid = np.asarray(cl_fid, dtype=np.float64)
+            if cl_fid.shape[0] < lmax or np.any(~np.isfinite(cl_fid[2:lmax])) \
+                    or np.any(cl_fid[2:lmax] <= 0.0):
+                raise ValueError("cl_fid must be finite and positive for l=2..lmax-1")
+            a0 = prior_nu / 2.0
+            b0 = prior_nu * cl_fid[:lmax] / 2.0
         S = self.compute_sl_np(alm_flat_np)
-        # alpha = k_l/2 - 1 with k_l = packed_dof_per_multipole = 2l+1
-        # (with Im(a_{l,1}) restored). Derived from the packing so it stays
-        # exact if the layout ever changes again. See achievements.md, 2026-09-01.
-        alpha_l = invgamma_shape_for_spectrum(lmax)
+        # alpha = k_l/2 + a0 with k_l = packed_dof_per_multipole = 2l+1
+        # (with Im(a_{l,1}) restored); a0 = -1 is the flat prior. Derived from
+        # the packing so it stays exact if the layout ever changes again.
+        # See achievements.md, 2026-09-01.
+        alpha_l = invgamma_shape_for_spectrum(lmax, a0)
         lncl = np.empty(lmax - 2)
         for i in range(lmax - 2):
             l = i + 2
@@ -598,7 +625,7 @@ class CosmologyAdvancedSampling:
             s_val = S[l]
             if not np.isfinite(s_val) or s_val < 0.0:
                 s_val = 0.0
-            beta = max(s_val * 0.5, 1e-60)
+            beta = max(s_val * 0.5 + b0[l], 1e-60)
             g = rng.gamma(alpha, scale=1.0)
             val_cl = beta / max(g, 1e-300)
             # Clip between exp(-15) and exp(15) to keep log-scale calculations stable

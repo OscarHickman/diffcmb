@@ -119,6 +119,24 @@ def z_and_slope(pairs, L_arr, lmax):
     return np.sqrt(zsq / np.maximum(count, 1)), cross / np.maximum(tsq, 1e-300)
 
 
+def cl_ratio_per_chain(f, lmax, n_seg=N_QUARTERS):
+    """(n_seg, lmax) <C_l> / (S_true,l / (k_l - 4)) per chain segment, one chain."""
+    from diffcmb.alm_utils import packed_dof_per_multipole
+
+    n_real, n_imag = packed_sizes(lmax)
+    L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
+    v = np.where(m_arr == 0, 1.0, 0.5)
+    k = packed_dof_per_multipole(lmax)
+    d = np.load(f, allow_pickle=True)
+    C = np.exp(np.asarray(d["alm_samples"][:, :lmax - 2], dtype=np.float64))
+    t = np.asarray(d["alm_true_packed"], dtype=np.float64)
+    ref = np.bincount(L_arr, weights=t ** 2 / v, minlength=lmax)[2:] / (k[2:] - 4)
+    out = np.zeros((n_seg, lmax))
+    for q, seg in enumerate(np.array_split(C, n_seg)):
+        out[q, 2:] = seg.mean(axis=0) / ref
+    return out
+
+
 def cl_ratio_by_quarter(files, lmax, n_seg=N_QUARTERS):
     """(n_seg, lmax) mean over chains of <C_l> / (S_true,l / (k_l - 4)) per segment.
 
@@ -128,21 +146,7 @@ def cl_ratio_by_quarter(files, lmax, n_seg=N_QUARTERS):
     climbed 0.934 -> 0.947 from the low MAP start, against 0.99 in the dense
     exact reference on the same skies).
     """
-    from diffcmb.alm_utils import packed_dof_per_multipole
-
-    n_real, n_imag = packed_sizes(lmax)
-    L_arr, m_arr = _alm_index_lm(lmax, n_real, n_imag)
-    v = np.where(m_arr == 0, 1.0, 0.5)
-    k = packed_dof_per_multipole(lmax)
-    out = np.zeros((n_seg, lmax))
-    for f in files:
-        d = np.load(f, allow_pickle=True)
-        C = np.exp(np.asarray(d["alm_samples"][:, :lmax - 2], dtype=np.float64))
-        t = np.asarray(d["alm_true_packed"], dtype=np.float64)
-        ref = np.bincount(L_arr, weights=t ** 2 / v, minlength=lmax)[2:] / (k[2:] - 4)
-        for q, seg in enumerate(np.array_split(C, n_seg)):
-            out[q, 2:] += seg.mean(axis=0) / ref
-    return out / len(files)
+    return np.mean([cl_ratio_per_chain(f, lmax, n_seg) for f in files], axis=0)
 
 
 def null_pairs(cl, cl_noise, lmax, n_real_sky, seed):

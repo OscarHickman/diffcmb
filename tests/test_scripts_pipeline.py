@@ -110,6 +110,52 @@ def test_cl_init_data_runs_end_to_end_and_is_recorded(tmp_path, smoke_ensemble):
     assert str(np.load(smoke_ensemble / "chain_r001.npz")["cl_init"]) == "map"
 
 
+def test_strict_mode_draws_the_tt_truth_from_its_prior(tmp_path, smoke_ensemble):
+    # ROADMAP T0.1 (2026-10-03): with --cl_prior_nu the a_lm/C_l rows become
+    # strict SBC statistics, which needs (i) the truth C_l^TT drawn from the
+    # same proper prior the sampler uses, on its own seed stream, and (ii) no
+    # truth-derived chain start: the start is drawn from the fiducials.
+    import coverage_ensemble_chain as cec
+
+    from diffcmb.power import fiducial_spectra
+
+    out = _run_chain(tmp_path, "--cl_prior_nu", "30")
+    assert "STRICT SBC" in out
+    d = np.load(tmp_path / "chain_r001.npz")
+    cl_fid, _ = fiducial_spectra(LMAX)
+    assert float(d["cl_prior_nu"]) == 30.0
+    np.testing.assert_allclose(d["cl_tt_fid"], cl_fid, rtol=1e-12)
+    rng = np.random.default_rng(cec._STREAM_CLTT_PRIOR + 1)
+    expect = np.zeros(LMAX)
+    for ell in range(2, LMAX):
+        expect[ell] = 15.0 * cl_fid[ell] / rng.gamma(15.0, scale=1.0)
+    np.testing.assert_allclose(d["cl_true"][2:], expect[2:], rtol=1e-12)
+    assert str(d["start_spectra"]) == "fiducial"
+    # the default (flat) chain is unchanged: truth at the fiducial, old start
+    base = np.load(smoke_ensemble / "chain_r001.npz")
+    assert np.isnan(float(base["cl_prior_nu"]))
+    assert str(base["start_spectra"]) == "truth"
+    np.testing.assert_allclose(base["cl_true"][2:], cl_fid[2:], rtol=1e-12)
+    # the phi truth stream is untouched by the TT prior
+    np.testing.assert_array_equal(d["cl_phiphi_true"], base["cl_phiphi_true"])
+
+
+def test_phi_fixed_truth_holds_phi_on_the_production_sky(tmp_path, smoke_ensemble):
+    # ROADMAP T0.1 a: the production sampler with phi held at the truth, on the
+    # SAME sky as the production chain, so it pairs with it and with the dense
+    # exact reference.
+    _run_chain(tmp_path, "--phi_fixed_truth")
+    d = np.load(tmp_path / "chain_r001.npz")
+    base = np.load(smoke_ensemble / "chain_r001.npz")
+    assert bool(d["phi_fixed_truth"]) and not bool(base["phi_fixed_truth"])
+    np.testing.assert_array_equal(d["alm_true_packed"], base["alm_true_packed"])
+    np.testing.assert_array_equal(d["phi_true_packed"], base["phi_true_packed"])
+    np.testing.assert_allclose(d["phi_samples"],
+                               np.broadcast_to(d["phi_true_packed"], d["phi_samples"].shape),
+                               rtol=1e-12, atol=0)
+    assert "cl_phiphi_samples" not in d.files
+
+
 def test_chain_script_rejects_a_nonpositive_amplitude(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(

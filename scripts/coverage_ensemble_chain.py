@@ -80,6 +80,18 @@ _STREAM_NOISE = 3_000_000
 # Separate stream for the C_L^phiphi prior draw, so turning the proper prior on
 # does not shift the alm/phi/noise streams and change every other realization.
 _STREAM_CLPP_PRIOR = 4_000_000
+# Same for the C_l^TT prior draw (--cl_prior_nu, strict SBC mode, 2026-10-03).
+_STREAM_CLTT_PRIOR = 5_000_000
+
+
+def draw_from_invgamma_prior(cl_fid, nu, lmax, seed):
+    """C_l ~ InvGamma(nu/2, nu*C_l^fid/2) for l = 2..lmax-1 (zero below), the
+    conjugate prior Blocks 1 and 4 use; one gamma draw per l in order."""
+    rng = np.random.default_rng(seed)
+    out = np.zeros(lmax, dtype=np.float64)
+    for ell in range(2, lmax):
+        out[ell] = (nu * cl_fid[ell] / 2.0) / rng.gamma(nu / 2.0, scale=1.0)
+    return out
 
 
 def get_cl_phiphi(lmax):
@@ -196,6 +208,19 @@ def main():
                         "TRUTH is drawn from that same joint prior "
                         "(C_L ~ InvGamma, then phi ~ N(0,C_L)) so the phi rank "
                         "is a valid SBC test of the proper-prior target.")
+    p.add_argument("--cl_prior_nu", type=float, default=None,
+                   help="STRICT SBC MODE (ROADMAP T0.1, 2026-10-03): a proper "
+                        "conjugate InvGamma(nu/2, nu*C_l^fid/2) prior on C_l^TT "
+                        "(Block 1), with the TRUTH C_l^TT drawn from it on its own "
+                        "seed stream and every chain start (alm, phi) drawn from "
+                        "the FIDUCIAL spectra, so no truth-derived quantity enters "
+                        "the start. With --cl_phiphi_prior_nu too, every block "
+                        "carries a strict SBC rank and no simulated null is needed.")
+    p.add_argument("--phi_fixed_truth", action="store_true",
+                   help="ROADMAP T0.1 a: Blocks 1 + 2 against the lensed likelihood "
+                        "with phi held at phi_true (no Block 3/4). Same sky as the "
+                        "aware chain for the same realization and prior flags; the "
+                        "production sampler's version of exact_dense_alm_reference.")
     p.add_argument("--no_sample_cl_phiphi", action="store_true",
                    help="Disable Block 4 (C_L^phiphi|phi). Required for the "
                         "lmax=64 GO configuration: Block 4 ON degrades phi "
@@ -217,7 +242,12 @@ def main():
     args = p.parse_args()
     if args.phi_amplitude <= 0:
         raise SystemExit("--phi_amplitude must be > 0")
-    sample_cl_phiphi = not args.no_sample_cl_phiphi
+    if args.cl_prior_nu is not None and not args.cl_prior_nu > 0:
+        raise SystemExit("--cl_prior_nu must be > 0")
+    if args.phi_fixed_truth and args.blind:
+        raise SystemExit("--phi_fixed_truth and --blind are different fits; pick one")
+    sample_cl_phiphi = not (args.no_sample_cl_phiphi or args.phi_fixed_truth)
+    strict = args.cl_prior_nu is not None
 
     lmax, nside, r = args.lmax, args.nside, args.realization
     os.makedirs(args.outdir, exist_ok=True)
@@ -226,6 +256,11 @@ def main():
     out = os.path.join(args.outdir, f"{tag}_r{r:03d}.npz")
 
     print(f"=== Coverage ensemble, realization {r} (lmax={lmax}, nside={nside}) ===")
+    if strict:
+        print(f"STRICT SBC mode: C_l^TT carries a proper conjugate prior (nu={args.cl_prior_nu}); "
+              "its truth is drawn from it and the chain start comes from the fiducials.")
+    if args.phi_fixed_truth:
+        print("phi FIXED at the truth (Blocks 1 + 2, lensed likelihood): ROADMAP T0.1 a.")
     if args.cl_phiphi_prior_nu is not None:
         print(f"C_L^phiphi carries a PROPER conjugate prior (nu="
               f"{args.cl_phiphi_prior_nu}); the truth is drawn from that same "
@@ -245,11 +280,19 @@ def main():
     assert len(model.unmasked_idx) == model.NPIX, "ensemble assumes full-sky data"
 
     if args.fiducial == "corrected":
-        cl_true, cl_phiphi_fid = fiducial_spectra(lmax)
+        cl_tt_fid, cl_phiphi_fid = fiducial_spectra(lmax)
     else:
-        cl_true = call_CAMB_map(LCDM_PARAMS, lmax)
+        cl_tt_fid = call_CAMB_map(LCDM_PARAMS, lmax)
         cl_phiphi_fid = get_cl_phiphi(lmax)
     cl_phiphi_fid = args.phi_amplitude * cl_phiphi_fid
+    if strict:
+        cl_true = draw_from_invgamma_prior(cl_tt_fid, float(args.cl_prior_nu), lmax,
+                                           _STREAM_CLTT_PRIOR + r)
+        print(f"C_l^TT truth drawn from the proper prior; draw/fiducial ratio "
+              f"min={np.min(cl_true[2:] / cl_tt_fid[2:lmax]):.3f} "
+              f"max={np.max(cl_true[2:] / cl_tt_fid[2:lmax]):.3f}")
+    else:
+        cl_true = cl_tt_fid
 
     # With a PROPER prior on C_L^phiphi the generative process must match the
     # sampler's target, or the rank test is invalid in the other direction --
@@ -294,8 +337,14 @@ def main():
     )
 
     # Warm start from an independent prior draw, not a perturbation of truth.
+    # Legacy modes draw it from the TRUTH spectra (cl_phiphi_true is the drawn
+    # truth under --cl_phiphi_prior_nu), which leaks the truth's amplitude into
+    # the phi start; kept there so existing chains reproduce. Strict mode draws
+    # it from the fiducials (2026-10-03).
+    start_spectra = "fiducial" if strict else "truth"
     alm_start_hp, phi_start_hp = _synalm_pair(
-        cl_true, cl_phiphi_true, lmax, _STREAM_START + r
+        cl_tt_fid if strict else cl_true,
+        cl_phiphi_fid if strict else cl_phiphi_true, lmax, _STREAM_START + r
     )
     alm_start_packed = _alm_hp_to_packed(alm_start_hp, lmax)
     phi_start_packed = _alm_hp_to_packed(phi_start_hp, lmax)
@@ -352,7 +401,7 @@ def main():
     else:
         print("  ! map_steps=0: cold prior-draw alm start -- this is the "
               "configuration that broke jobs 11663105 and 11887897")
-        x0 = np.concatenate([np.log(cl_true[2:lmax]), alm_start_packed])
+        x0 = np.concatenate([np.log(cl_tt_fid[2:lmax]), alm_start_packed])
 
     if args.blind:
         t0 = time.time()
@@ -361,7 +410,9 @@ def main():
             model, n_samples=args.n_samples, n_burnin=args.n_burnin,
             hmc_step_size=args.hmc_step_size, n_lfs=args.n_lfs,
             initial_params=x0, seed=r, checkpoint_path=ckpt,
-            checkpoint_every=args.checkpoint_every)[:4]
+            checkpoint_every=args.checkpoint_every,
+            cl_prior_nu=args.cl_prior_nu,
+            cl_prior_fid=cl_tt_fid if strict else None)[:4]
         elapsed = time.time() - t0
         if not np.all(np.isfinite(samples)):
             raise RuntimeError(f"realization {r}: blind chain produced NaN/Inf")
@@ -372,7 +423,9 @@ def main():
                  phi_true_packed=phi_true_packed, n_burnin=args.n_burnin,
                  seconds_total=elapsed, lensing_operator=args.lensing_operator,
                  fiducial=args.fiducial, noisesig=args.noisesig,
-                 phi_amplitude=args.phi_amplitude, cl_init=args.cl_init)
+                 phi_amplitude=args.phi_amplitude, cl_init=args.cl_init,
+                 cl_prior_nu=np.nan if not strict else float(args.cl_prior_nu),
+                 cl_tt_fid=cl_tt_fid, start_spectra=start_spectra)
         print(f"  blind chain done in {elapsed / 3600:.2f}h; alm accept="
               f"{accepts.mean():.3f}; saved {out}")
         if os.path.exists(ckpt):
@@ -394,16 +447,19 @@ def main():
         n_lfs=args.n_lfs,
         initial_params=x0,
         cl_phiphi_full=cl_phiphi_fid,
-        phi_initial=phi_start_packed,
+        phi_initial=phi_true_packed if args.phi_fixed_truth else phi_start_packed,
         phi_hmc_step_size=args.phi_hmc_step_size,
         phi_n_lfs=args.phi_n_lfs,
         phi_mass_matrix=args.phi_mass_matrix,
         phi_block_n_probes=args.phi_block_n_probes,
         sample_cl_phiphi=sample_cl_phiphi,
-        cl_phiphi_prior_nu=args.cl_phiphi_prior_nu,
+        cl_phiphi_prior_nu=args.cl_phiphi_prior_nu if sample_cl_phiphi else None,
         seed=r,
         checkpoint_path=ckpt,
         checkpoint_every=args.checkpoint_every,
+        cl_prior_nu=args.cl_prior_nu,
+        cl_prior_fid=cl_tt_fid if strict else None,
+        phi_fixed=args.phi_fixed_truth,
     )
     expected_arity = 6 if sample_cl_phiphi else 5
     if len(result) != expected_arity:
@@ -466,6 +522,9 @@ def main():
         "phi_calibration_ok": phi_calibration_ok,
         "lensing_operator": args.lensing_operator, "fiducial": args.fiducial,
         "noisesig": args.noisesig, "phi_amplitude": args.phi_amplitude,
+        "cl_prior_nu": np.nan if not strict else float(args.cl_prior_nu),
+        "cl_tt_fid": cl_tt_fid, "start_spectra": start_spectra,
+        "phi_fixed_truth": bool(args.phi_fixed_truth),
     }
     # Omit the key entirely (rather than storing None) when Block 4 is off, so
     # the aggregator's `"cl_phiphi_samples" in npz.files` check stays truthful

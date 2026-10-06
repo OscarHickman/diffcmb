@@ -928,6 +928,9 @@ def run_gibbs_chain(
     phi_mclmc_L=1.0,
     phi_nuts_max_tree_depth=10,
     phi_nuts_max_energy_diff=1000.0,
+    cl_prior_nu=None,
+    cl_prior_fid=None,
+    phi_fixed=False,
 ):
     """Gibbs sampler alternating exact C_l | alm (inverse-Gamma) + alm | C_l steps.
 
@@ -1059,6 +1062,22 @@ def run_gibbs_chain(
     and never let it converge. The externally-tracked scalar `phi_step_float`
     has no such problem: it is plain Python state, carried across sweeps (and
     checkpoints) explicitly.
+
+    `cl_prior_nu`/`cl_prior_fid` (opt-in, both None = the old flat prior):
+    a proper conjugate InvGamma(nu/2, nu*C_l^fid/2) prior on C_l^TT in Block 1
+    (model.sample_cl_given_alm), the Block 1 twin of `cl_phiphi_prior_nu`. With
+    the truth drawn from the same prior, the a_lm and C_l ranks become strict
+    SBC statistics (ROADMAP T0.1, 2026-10-03). `cl_prior_fid` is snapshotted
+    before the loop for the same reason as Block 4's fiducial.
+
+    `phi_fixed` (opt-in, default False; requires `cl_phiphi_full` and
+    `phi_initial`, and Block 4 off): Blocks 1 + 2 against the LENSED
+    likelihood with phi held at `phi_initial` for the whole chain -- Step 3 is
+    skipped. With phi_initial = phi_true this is the production sampler's own
+    version of the dense exact reference (scripts/exact_dense_alm_reference.py,
+    phi fixed at truth): ROADMAP T0.1 a uses it to separate phi
+    marginalisation from the a_lm/C_l blocks. Returns the usual 5-tuple; every
+    phi_samples row equals phi_initial.
     """
     if alm_sampler not in ('hmc', 'cg', 'messenger'):
         raise ValueError(f"alm_sampler must be 'hmc', 'cg', or 'messenger', got {alm_sampler!r}")
@@ -1073,6 +1092,23 @@ def run_gibbs_chain(
             "(Block 4); with Block 4 off, cl_phiphi_full is already a fixed "
             "proper prior."
         )
+    if cl_prior_nu is not None and cl_prior_fid is None:
+        raise ValueError("cl_prior_nu requires cl_prior_fid -- the Block 1 prior is centred on it")
+    # Snapshot, as for Block 4 below: never centre a prior on a caller-owned array.
+    cl_prior_fid = (np.array(cl_prior_fid, dtype=np.float64, copy=True)
+                    if cl_prior_nu is not None else None)
+    if phi_fixed:
+        if not sample_phi:
+            raise ValueError("phi_fixed=True needs cl_phiphi_full: it runs the lensed "
+                             "likelihood with phi held fixed")
+        if phi_initial is None:
+            raise ValueError("phi_fixed=True requires phi_initial -- the phi to hold fixed")
+        if sample_cl_phiphi or phi_rescale_move:
+            raise ValueError("phi_fixed=True is incompatible with Block 4 (sample_cl_phiphi) "
+                             "and the rescale move: both move phi")
+        if phi_mass_matrix != 'prior' or phi_sampler != 'hmc' or alm_sampler != 'hmc':
+            raise ValueError("phi_fixed=True supports only alm_sampler='hmc', "
+                             "phi_sampler='hmc', phi_mass_matrix='prior'")
     # Snapshot the fiducial C_L^phiphi that the proper Block 4 prior is centred
     # on. This MUST be taken before the sweep loop, which rebinds
     # cl_phiphi_full to the freshly drawn spectrum every sweep -- centring the
@@ -1524,7 +1560,8 @@ def run_gibbs_chain(
         else:
             alm_np = current_alm_np
 
-        new_lncl = model.sample_cl_given_alm(alm_np, rng)
+        new_lncl = model.sample_cl_given_alm(alm_np, rng, prior_nu=cl_prior_nu,
+                                             cl_fid=cl_prior_fid)
         cl_full[2:] = np.exp(new_lncl)
         new_mass_sqrt = model.build_posterior_mass_sqrt(cl_full)
         mass_sqrt_np = new_mass_sqrt
@@ -1667,7 +1704,10 @@ def run_gibbs_chain(
                     _sync_phi_state_to_spectrum(cl_phiphi_full, phi_now_np)
 
         # --- Step 3: phi | alm, C_l, d (opt-in, Phase 2 Block 3) ---
-        if sample_phi:
+        # phi_fixed skips it: phi stays at phi_initial, recorded as accepted.
+        if sample_phi and phi_fixed:
+            phi_accepted = True
+        elif sample_phi:
             if phi_sampler == 'mclmc':
                 new_phi_state, new_phi_velocity, mclmc_diag = phi_mclmc_bootstrap_and_step(
                     phi_state_var, phi_velocity_var
