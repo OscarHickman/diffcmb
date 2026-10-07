@@ -156,6 +156,38 @@ def test_phi_fixed_truth_holds_phi_on_the_production_sky(tmp_path, smoke_ensembl
     assert "cl_phiphi_samples" not in d.files
 
 
+def test_start_truth_starts_alm_and_phi_at_the_truth_on_the_production_sky(tmp_path, smoke_ensemble):
+    # ROADMAP T0.1 b: the two-start test. Same sky and blocks as the production
+    # chain; only the start moves from (MAP, prior draw) to (a_lm, phi) = truth.
+    out = _run_chain(tmp_path, "--start_truth")
+    assert "TRUTH START" in out
+    d = np.load(tmp_path / "chain_r001.npz")
+    base = np.load(smoke_ensemble / "chain_r001.npz")
+    assert bool(d["start_truth"]) and not bool(base["start_truth"])
+    np.testing.assert_array_equal(d["alm_true_packed"], base["alm_true_packed"])
+    np.testing.assert_array_equal(d["phi_true_packed"], base["phi_true_packed"])
+    n_lncl = LMAX - 2
+    np.testing.assert_array_equal(d["x0_start"][n_lncl:], d["alm_true_packed"])
+    np.testing.assert_allclose(d["x0_start"][:n_lncl], np.log(d["cl_true"][2:LMAX]), rtol=1e-12)
+    np.testing.assert_array_equal(d["phi_initial"], d["phi_true_packed"])
+    assert "cl_phiphi_samples" in d.files  # phi and Block 4 still sampled
+    # the production start is untouched: MAP a_lm, independent phi draw
+    assert not np.array_equal(base["x0_start"][n_lncl:], base["alm_true_packed"])
+    assert not np.array_equal(base["phi_initial"], base["phi_true_packed"])
+
+
+@pytest.mark.parametrize("other", [("--blind",), ("--cl_init", "data")])
+def test_start_truth_refuses_conflicting_flags(tmp_path, other):
+    env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
+    res = subprocess.run(
+        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+         "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
+         "--outdir", str(tmp_path), "--start_truth", *other],
+        env=env, capture_output=True, text=True, timeout=300)
+    assert res.returncode != 0
+    assert "--start_truth does not combine with" in res.stderr + res.stdout
+
+
 def test_chain_script_rejects_a_nonpositive_amplitude(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(

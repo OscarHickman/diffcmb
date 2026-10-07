@@ -832,7 +832,9 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**Nothing in flight (2026-10-07).** The last landings were 12099339 (the φ-fixed run, T0.1 a) and its harvest 12099555, recorded in "CURRENT (2026-10-07)" at the top. Before that, 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "2026-10-03 record". Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
+**In flight (2026-10-07): T0.1 b, the two-start test.** Job 12100312 (array 32–39, `MODE=truthstart`, `TAG=_nu30_truthstart`, ν = 30, 1000 + 3600, A_φ = 3000, σ = 30) runs the production configuration started at (a_ℓm, φ) = truth (`--start_truth`), output `ens_exact_l64_A3000_n30_nu30_truthstart/`; ~19 h per task, started 14:19 on cosma5. Harvest 12100313 (`afterany`, `scripts/submit_harvest_t01b_truthstart.slurm`): completeness/start guard, `diagnose_alm_band_edge.py` beside the MAP-start control `_long_r032_r039`, `compare_band_edge_paired.py` against the dense reference. Reading: truth-start C_63 drifts to ~0.935 → stationary φ-marginal effect; stays near 1.0 → slow a–φ mixing.
+
+Before that, the last landings were 12099339 (the φ-fixed run, T0.1 a) and its harvest 12099555, recorded in "CURRENT (2026-10-07)" at the top. Before that, 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "2026-10-03 record". Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

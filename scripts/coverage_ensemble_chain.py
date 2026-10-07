@@ -221,6 +221,12 @@ def main():
                         "with phi held at phi_true (no Block 3/4). Same sky as the "
                         "aware chain for the same realization and prior flags; the "
                         "production sampler's version of exact_dense_alm_reference.")
+    p.add_argument("--start_truth", action="store_true",
+                   help="ROADMAP T0.1 b, DIAGNOSTIC ONLY, never SBC: start the chain "
+                        "at (a_lm, phi, ln C_l) = truth instead of the MAP a_lm and an "
+                        "independent phi draw; every block is sampled as in production. "
+                        "Paired with the MAP-start chain on the same sky it tells a "
+                        "stationary posterior offset from slow a-phi mixing.")
     p.add_argument("--no_sample_cl_phiphi", action="store_true",
                    help="Disable Block 4 (C_L^phiphi|phi). Required for the "
                         "lmax=64 GO configuration: Block 4 ON degrades phi "
@@ -246,6 +252,9 @@ def main():
         raise SystemExit("--cl_prior_nu must be > 0")
     if args.phi_fixed_truth and args.blind:
         raise SystemExit("--phi_fixed_truth and --blind are different fits; pick one")
+    if args.start_truth and (args.blind or args.cl_init != "map"):
+        raise SystemExit("--start_truth does not combine with --blind or --cl_init data: "
+                         "it replaces the whole start, and the blind fit has no phi")
     sample_cl_phiphi = not (args.no_sample_cl_phiphi or args.phi_fixed_truth)
     strict = args.cl_prior_nu is not None
 
@@ -372,7 +381,14 @@ def main():
     # carries the MAP start -- the ensemble script simply never inherited it,
     # so the equilibration gate and the production script were not running the
     # same pipeline.
-    if args.map_steps > 0:
+    if args.start_truth:
+        # The diagnostic start: no MAP, the truth itself. The sweep redraws C_l
+        # from a_lm (Step 1) and C_L^phiphi from phi (Step 3a) before either is
+        # used, so ln C_l = truth only seeds the first sweep's mass matrix.
+        x0 = np.concatenate([np.log(cl_true[2:lmax]), alm_true_packed])
+        print("  ! TRUTH START (ROADMAP T0.1 b): (a_lm, phi) = truth. Diagnostic "
+              "only; these chains are never an SBC ensemble.")
+    elif args.map_steps > 0:
         t_map = time.time()
         # np.array, not np.asarray: the MAP comes back as a read-only view of
         # a TF tensor, and --cl_init data writes into x0 (job 12074650 died
@@ -432,6 +448,8 @@ def main():
             os.remove(ckpt)
         return
 
+    phi_initial = (phi_true_packed if (args.phi_fixed_truth or args.start_truth)
+                   else phi_start_packed)
     t0 = time.time()
     # run_gibbs_chain's return arity depends on which blocks are enabled: a
     # 5-tuple with Block 3 only, a 6-tuple with Block 3 + Block 4. Unpack
@@ -447,7 +465,7 @@ def main():
         n_lfs=args.n_lfs,
         initial_params=x0,
         cl_phiphi_full=cl_phiphi_fid,
-        phi_initial=phi_true_packed if args.phi_fixed_truth else phi_start_packed,
+        phi_initial=phi_initial,
         phi_hmc_step_size=args.phi_hmc_step_size,
         phi_n_lfs=args.phi_n_lfs,
         phi_mass_matrix=args.phi_mass_matrix,
@@ -525,6 +543,9 @@ def main():
         "cl_prior_nu": np.nan if not strict else float(args.cl_prior_nu),
         "cl_tt_fid": cl_tt_fid, "start_spectra": start_spectra,
         "phi_fixed_truth": bool(args.phi_fixed_truth),
+        # The exact start, so a harvest can check which start a chain had.
+        "start_truth": bool(args.start_truth),
+        "x0_start": x0, "phi_initial": phi_initial,
     }
     # Omit the key entirely (rather than storing None) when Block 4 is off, so
     # the aggregator's `"cl_phiphi_samples" in npz.files` check stays truthful
