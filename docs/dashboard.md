@@ -1,10 +1,35 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-10-03*
+*Last updated: 2026-10-07*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-10-03): `--cl_init data` pilot is negative — the start is not the cause
+## CURRENT (2026-10-07): φ-fixed run — the a_ℓm/C_ℓ blocks are exact; the band-edge deficit needs φ sampling
+
+ROADMAP T0.1 a. Job 12099339 ran the production sampler with φ held at φ_true (Blocks 1 + 2, lensed likelihood, `--phi_fixed_truth`, wrapper `MODE=phifixed`) on skies r032–r039, otherwise the production configuration (ν = 30 skies, 1000 + 3600, MAP start, lmax = nside = 64). Output `ens_exact_l64_A3000_n30_nu30_phifixed/`. All 8 tasks completed in 35–36 min each on cosma5: without the φ block a sweep is ~0.45 s, against ~15 s in production. The harvest was job 12099555 (`logs/harvest_t01a_12099555.out`): completeness guard (8/8, 3600 samples, φ unmoved), `diagnose_alm_band_edge.py` on the φ-fixed run and the control, then `compare_band_edge_paired.py` against the dense reference.
+
+**C_ℓ / (S_true/(k−4)), mean over skies, r036 excluded (7 skies):**
+
+| ℓ | dense (φ = truth) | φ-fixed Q1–Q4 | φ-fixed − dense (Q4) | control (production) Q4 | control − dense (Q4) |
+|---|---|---|---|---|---|
+| 60 | 0.998 | 0.990 0.990 0.991 0.991 | −0.007 ± 0.002 | 0.961 | −0.036 ± 0.029 |
+| 61 | 1.006 | 1.004 1.005 1.003 1.005 | −0.002 ± 0.002 | 0.939 | −0.067 ± 0.036 |
+| 62 | 1.034 | 1.036 1.033 1.040 1.035 | +0.000 ± 0.004 | 1.035 | +0.001 ± 0.043 |
+| 63 | 1.019 | 1.025 1.027 1.027 1.025 | **+0.006 ± 0.006** | 0.934 | **−0.085 ± 0.052** |
+
+φ-fixed minus control, paired, Q4 at ℓ = 63: +0.091 ± 0.053 (+0.085 ± 0.047 with r036).
+
+**Ranks and calibration, φ-fixed (thin 50, effective null):** `[60,64)` z **−0.46** (control +2.82); ℓ = 63 z −1.08; real parts +0.67 (control +3.41). The `[60,64)` rank mean by quarter is 0.47 / 0.44 / 0.40 / 0.36 ± ~0.1, i.e. no significant trend. Per-mode sd(z) at ℓ = 56–63 is 0.97–1.03 (1.10 at ℓ = 62, from r036's start), against 0.99–1.05 exact. The shrinkage slope at ℓ = 63 is 0.913 against W 0.918 (control 0.645 against 0.740). N_eff/N_nominal is 1.33 with φ fixed against ~5 in production: the φ uncertainty is what the effective-noise null was absorbing.
+
+**Reading.**
+- **The production a_ℓm and C_ℓ blocks are exact at the band edge.** Run on the same skies with φ known, they reproduce the dense exact reference (ℓ = 63 to 0.6 ± 0.6 %), the ranks are clean and the posteriors have the right width. The defect is not in Block 1, Block 2 or the likelihood at ℓ = lmax − 1.
+- **The ~6–9 % C_63 deficit appears only when φ is sampled.** Two explanations remain (ROADMAP T0.1): the exact φ-marginal posterior really sits lower at the band edge, where lensing is strongest, so the φ-known reference is the wrong null; or a–φ mixing at the band edge is too slow.
+- ℓ = 60 sits 0.7 ± 0.2 % below the dense value (z −2.7). It is far below any figure-level effect; it may be the dense reference's Monte Carlo error (200 draws per sky), which the paired SE does not include.
+- **r036's C_62 collapse also happens with φ fixed.** Its ratio is ~0 in Q1–Q2, 0.5 in Q3 and 1.0 in Q4 (from the with/without-r036 means). So the collapse comes from the MAP start in Blocks 1 + 2, not from φ, and with φ fixed it recovers within the chain.
+
+**Nothing in flight.** Next steps need sign-off: ROADMAP T0.1 b–d.
+
+## 2026-10-03 record: `--cl_init data` pilot is negative — the start is not the cause
 
 The pilot, job 12078506, ran skies r032–r039 with `--cl_init data` in the production configuration. All 8 tasks completed with `phi_calibration_ok`. They ran CPU-only on cosma8-shm (mad08) for 18.8–19.0 h each; the `cuInit` line in `.err` is harmless. The output is `ens_exact_l64_A3000_n30_nu30_clinit_data/`, and every chain records `cl_init = data`. The diagnostic was job 12090562 (6 min, `logs/alm_band_edge_12090562.out`). The control is the same 8 skies of `_nu30_long`, symlinked into `ens_exact_l64_A3000_n30_nu30_long_r032_r039/`. Truth and C_L^φφ truth are identical in both. With N = 8, every comparison is paired by sky.
 
@@ -807,7 +832,7 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**In flight (2026-10-07): job 12099339**, the φ-fixed run (ROADMAP T0.1 a), skies r032–r039 → `ens_exact_l64_A3000_n30_nu30_phifixed/`; its harvest **12099555** (`afterany`, `logs/harvest_t01a_12099555.out`). The last landings were 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "CURRENT (2026-10-03)" at the top. Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
+**Nothing in flight (2026-10-07).** The last landings were 12099339 (the φ-fixed run, T0.1 a) and its harvest 12099555, recorded in "CURRENT (2026-10-07)" at the top. Before that, 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "2026-10-03 record". Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

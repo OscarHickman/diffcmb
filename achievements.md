@@ -32,14 +32,17 @@
 | lmax = nside = 32, ν = 30 (band-edge control) | 12066585 | `ens_exact_l32_A3000_n30_nu30_long/` | 48/48 |
 | lmax 32, nside 64, ν = 30 (band-edge control) | 12066667 | `ens_exact_l32_A3000_n30_ns64_nu30_long/` | 48/48 |
 | ν = 30 pilot, `--cl_init data`, skies r032–r039 | 12078506 | `..._n30_nu30_clinit_data/` | 8/8 (pilot, not production) |
+| ν = 30 skies, φ fixed at truth (Blocks 1 + 2), r032–r039 | 12099339 | `..._n30_nu30_phifixed/` | 8/8 (T0.1 a) |
 
 The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν.
 
 ---
 
-## 2026-09-27 → 10-03 — the a_ℓm `[60,64)` band-edge offset (T0.1, still open)
+## 2026-09-27 → 10-07 — the a_ℓm `[60,64)` band-edge offset (T0.1, still open)
 
-*Tables: `docs/dashboard.md` (the 2026-09-27 → 10-03 sections). Next steps: `ROADMAP.md` T0.1.*
+*Tables: `docs/dashboard.md` (the 2026-09-27 → 10-07 sections). Next steps: `ROADMAP.md` T0.1.*
+
+**Where it stands (2026-10-07):** the production a_ℓm/C_ℓ blocks are exact at the band edge (φ-fixed run below). The ~6–9 % C_63 deficit appears only when φ is sampled.
 
 ### The offset is real, and it is ℓ = 63
 
@@ -64,6 +67,7 @@ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so
 - In ν = 30 r036, C_62 is ~2e-5 of the realized power for the whole chain (a_62 sd ≈ 3e-3 against 1.1 prior). ν = 6 long r021 collapsed the same way at ℓ = 62 and recovered only late. Block-4-OFF at N = 48 has one collapsed sky too (ℓ = 62 sd(z) 100.6), so it is not specific to Block 4.
 - It is seeded by a low MAP start (r036's MAP put C_62 at e^−2, the lowest of any ℓ). Once C is tiny, HMC can hardly move the stiff a_ℓm.
 - It was caught only by a per-mode z (|z| ≈ 700); the power ranks shift by only ~0.3σ.
+- **It is not caused by φ** (2026-10-07): in the φ-fixed run r036's C_62 still starts collapsed (ratio ~0 in Q1–Q2) and recovers by itself (0.5 in Q3, 1.0 in Q4). It comes from the MAP start in Blocks 1 + 2.
 
 ### Band-edge localisation (2026-09-30): lmax 64 only, and not caused by Block 4
 
@@ -92,9 +96,20 @@ Jobs 12066584 (Block-4-OFF `_nocl4` extended to N = 48), 12066585 (lmax = nside 
 - **It does not prevent the r036 collapse.** C_62 was already 1.2e-6 of the realized power at the first saved sweep, lower than the control's 2e-5, because S_ℓ(a_MAP) inherits the MAP's shrinkage of a_62. Unlike the control, it recovered by itself in Q3–Q4 (0 → 0.17 → 0.72), which is the same stochastic late recovery seen in ν = 6 r021.
 - **Reading.** Neither criterion is met: C_63 is not flat near 1.0, and r036 still collapses. Since two different starts reach the same late C_63, a slow climb from the start does not explain the late-chain deficit. The candidates are a stationary effect of marginalising φ at the band edge, or mixing that is too slow for either start to reveal. The dense reference conditions on φ = truth, and the lensing effect is largest at the band edge (−41 % at `[45,64)`, figure 2). The discriminating test is in `ROADMAP.md` T0.1.
 
+### φ-fixed run (2026-10-07): the a_ℓm/C_ℓ blocks are exact; the deficit needs φ sampling
+
+**Question (T0.1 a):** is the C_63 deficit in the production a_ℓm/C_ℓ blocks, or does it come from marginalising φ?
+
+**What ran:** job 12099339, the production sampler with φ held at φ_true (`--phi_fixed_truth`, Blocks 1 + 2 on the lensed likelihood), skies r032–r039, otherwise the production configuration. It took 35 min per task, against ~19 h with the φ block. Harvest: job 12099555 (`logs/harvest_t01a_12099555.out`).
+
+- **It matches the dense exact reference on the same skies.** At ℓ = 60/61/62/63 the paired Q4 differences are −0.007 ± 0.002 / −0.002 ± 0.002 / +0.000 ± 0.004 / **+0.006 ± 0.006** (r036 excluded). The control on the same skies is −0.085 ± 0.052 at ℓ = 63. C_ℓ is flat across quarters.
+- **Ranks and widths are clean.** `[60,64)` z −0.46 against the effective null (control +2.82); real parts +0.67 (control +3.41); per-mode sd(z) 0.97–1.03; shrinkage slope at ℓ = 63 0.913 against W 0.918 (control 0.645 against 0.740).
+- **Reading.** Block 1, Block 2 and the lensed likelihood at ℓ = lmax − 1 are exact. The deficit needs φ to be sampled. Either the exact φ-marginal posterior really sits lower at the band edge (so the φ-known reference is the wrong null there), or a–φ mixing at the band edge is too slow. Distinguishing these is `ROADMAP.md` T0.1 b.
+- The ℓ = 60 offset (0.7 %, z −2.7) is too small to matter at figure level. It may be the dense reference's Monte Carlo error, which the paired SE leaves out.
+
 ### Tools for the next test (2026-10-03 → 07)
 
-- **`--phi_fixed_truth`** (`coverage_ensemble_chain.py` → `run_gibbs_chain(phi_fixed=True)`): Blocks 1 + 2 against the lensed likelihood with φ held at φ_true, on the same sky as the production chain for that realization. It is the production sampler's version of the dense exact reference, for `ROADMAP.md` T0.1 a. Not yet wired into the SLURM wrapper; no run yet.
+- **`--phi_fixed_truth`** (`coverage_ensemble_chain.py` → `run_gibbs_chain(phi_fixed=True)`): Blocks 1 + 2 against the lensed likelihood with φ held at φ_true, on the same sky as the production chain for that realization. It is the production sampler's version of the dense exact reference, for `ROADMAP.md` T0.1 a; wrapper `MODE=phifixed`. Used by job 12099339 (above).
 - **`--cl_prior_nu`** (strict SBC mode; `model.sample_cl_given_alm(prior_nu, cl_fid)`, `run_gibbs_chain(cl_prior_nu, cl_prior_fid)`): a proper conjugate InvGamma(ν/2, ν C_ℓ^fid/2) prior on C_ℓ^TT, the Block 1 twin of Block 4's. The truth C_ℓ^TT is drawn from it on its own seed stream, and the chain start comes from the fiducials. With `--cl_phiphi_prior_nu` as well, every block has a strict SBC rank with no simulated null. It also bounds the C_ℓ draw away from zero (the r036 collapse). Default `None` reproduces the old draw bit for bit.
 - **`compare_band_edge_paired.py`**: band-edge C_ℓ/(S_true/(k−4)) by quarter for several ensembles on the same skies, paired by sky against a reference (the dense one), with SE and z. It refuses to pair chains whose `alm_true_packed` differ. On the pilot and control it reproduces the 10-03 hand calculation exactly (control ℓ = 63 Q4 −0.085 ± 0.052, pilot −0.071 ± 0.060). `diagnose_alm_band_edge.cl_ratio_per_chain` is the shared per-chain ratio.
 - Tests: `tests/test_strict_sbc_priors.py`, two script tests in `test_scripts_pipeline.py`, and `tests/test_compare_band_edge_paired.py` (mutation-checked: dropping the sky check, or pairing on the first quarter, each fails a test). Full suite 2026-10-07: 252 passed, 1 skipped, plus the 4 new pairing tests.

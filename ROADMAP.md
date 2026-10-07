@@ -6,7 +6,7 @@
 
 ---
 
-## Where the project stands (2026-10-07)
+## Where the project stands (2026-10-07, after the φ-fixed run)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -20,7 +20,7 @@
 - a QE validated at the production configuration;
 - a test suite that covers the scripts as well as the package.
 
-**⚠ Blocking: the a_ℓm `[60,64)` band-edge offset (T0.1).** Until it is resolved, figure 1's a_ℓm row fails and **no exactness claim is citable**.
+**⚠ Blocking: the a_ℓm `[60,64)` band-edge offset (T0.1).** The a_ℓm/C_ℓ blocks are now shown exact with φ fixed (2026-10-07); the deficit needs φ sampling. Until it is resolved, figure 1's a_ℓm row fails and **no exactness claim is citable**.
 
 Decisions D1–D5 are all taken (`achievements.md` → Decisions taken).
 
@@ -50,15 +50,19 @@ Decisions D1–D5 are all taken (`achievements.md` → Decisions taken).
 
 *What is done is in `achievements.md`; tables are in `docs/dashboard.md`.*
 
-1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: posterior C_63 sits ~6 % below the φ-fixed exact reference, at the band limit only.** Everything established so far is in `achievements.md` → "the a_ℓm `[60,64)` band-edge offset". In brief: it is ℓ = 63 alone. It is not pixelisation or the null, because the dense reference with φ = truth is clean. It occurs at lmax 64 only (lmax 32 is clean), and in Block-4-OFF too. **It is not the MAP start**: the `--cl_init data` pilot (2026-10-03) reaches the same late C_63 as production. A separate defect, C_ℓ collapse (r036's C_62, plus one Block-4-OFF sky), is seeded by the MAP's shrunk a_ℓm, and the data start does not prevent it.
-   - **Next. Steps b–d need user sign-off for compute.**
-     - a. **Separate φ marginalisation from the a_ℓm/C_ℓ blocks — ▶ IN FLIGHT, job 12099339 (submitted 2026-10-07).** The production Gibbs code with φ fixed at truth (Blocks 1 + 2 only; `--phi_fixed_truth`, wrapper `MODE=phifixed`), production configuration (ν = 30 skies, 1000 + 3600, MAP start), skies r032–r039, the same as the `--cl_init data` pilot, its control and `exact_dense_alm_reference_l64_nu30`. Output `results/analysis/ens_exact_l64_A3000_n30_nu30_phifixed/`. **Harvest queued** as job 12099555 (`scripts/submit_harvest_t01a_phifixed.slurm`, `afterany` on 12099339, log `logs/harvest_t01a_12099555.out`). It checks that all 8 chains are complete with φ unmoved, runs `diagnose_alm_band_edge.py` on the φ-fixed run and the control, then `compare_band_edge_paired.py`: C_ℓ at ℓ = 60–63 paired by sky against the dense reference, with r036 excluded and included. On the pilot and control it reproduces the 10-03 hand numbers exactly.
-       - If C_63 comes back at the dense value (mean 1.02 on r032–r039 excluding r036; 0.99 over 48), the a_ℓm/C_ℓ blocks are exact and the deficit comes from marginalising φ. Then either the exact φ-marginal posterior genuinely sits lower at the band edge, where lensing is largest (−41 % at `[45,64)`), so the φ-known null is the wrong reference; or a–φ mixing at the edge is too slow.
-       - If it stays near 0.935, the defect is in the production a_ℓm block or the likelihood at ℓ = lmax − 1.
-     - b. Why lmax 64 and not 32. The candidate is lensing strength at the band edge. Test it after a, with lmax 64 at a lower A_φ.
-     - c. A collapse guard. Either the W_ℓ²-corrected data start (C init from S_ℓ(a_MAP)/W_ℓ²; the pilot says it will not fix C_63), or the new proper C_ℓ^TT prior (`--cl_prior_nu`), which bounds the Block 1 draw away from zero. The prior changes the target, so it needs its own decision.
-     - d. Decide what to do with r036: drop it with a stated reason, or re-run it with a start that avoids the collapse. In the pilot it recovered by itself only in the last half.
+1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: with φ sampled, posterior C_63 sits ~6–9 % below the exact φ-known reference, at the band limit only.** Everything established so far is in `achievements.md` → "the a_ℓm `[60,64)` band-edge offset". In brief:
+   - it is ℓ = 63 alone, at lmax 64 only (lmax 32 is clean), and in Block-4-OFF too;
+   - it is not pixelisation or the null (the dense reference with φ = truth is clean), and it is not the MAP start (`--cl_init data` pilot);
+   - **it is not the a_ℓm/C_ℓ blocks (2026-10-07):** the production sampler with φ fixed at truth reproduces the dense reference on the same skies (ℓ = 63: +0.006 ± 0.006, against −0.085 ± 0.052 with φ sampled), with clean ranks and widths. **The deficit appears only when φ is sampled.**
+   - A separate defect, C_ℓ collapse (r036's C_62, plus one Block-4-OFF sky), is seeded by the MAP start in Blocks 1 + 2; it happens with φ fixed too, and there it recovers by Q4.
+   - **Next. Each step needs user sign-off for compute.**
+     - b. **Is it the true φ-marginal posterior, or slow a–φ mixing? (recommended next)** Two explanations remain: the exact φ-marginal posterior really sits lower at the band edge, where lensing is strongest (−41 % at `[45,64)`), so the φ-known reference is the wrong null there; or a–φ mixing at the edge is too slow for 3600 sweeps.
+       - The sharpest test is a **two-start comparison**: rerun r032–r039 in the production configuration starting from (a_ℓm, φ) = truth instead of the MAP. This start is only for this diagnostic, never for SBC. If the truth-start chains drift down to ~0.935 and stay there, the deficit is the stationary posterior. If they stay near 1.0 while the MAP-start chains stay near 0.935, the chains are not mixing. It needs a small opt-in start flag in `coverage_ensemble_chain.py`, tested first, and ~19 h per task.
+       - A weaker test is lmax 64 at a lower A_φ, to see whether the deficit scales with lensing strength. Both explanations predict that it does, so this test cannot tell them apart.
+     - c. A collapse guard. Either the W_ℓ²-corrected data start (C init from S_ℓ(a_MAP)/W_ℓ²), or the proper C_ℓ^TT prior (`--cl_prior_nu`), which bounds the Block 1 draw away from zero. The prior changes the target, so it needs its own decision.
+     - d. Decide what to do with r036: drop it with a stated reason, or re-run it with a start that avoids the collapse. It recovered by itself only in the last half, both in the pilot and with φ fixed.
    - Until then figure 1's a_ℓm row is not final and no exactness claim is citable. Quote per-mode sd(z) beside the rank: 1.03–1.08 at ν = 30, against 1.00 exact.
+   - If b shows the deficit is the true φ-marginal posterior, the a_ℓm row needs a φ-marginal reference instead of the φ-known one, and the paper states the a_ℓm/C_ℓ blocks as certified separately (φ-fixed run).
 2. **Figure checklist read at N = 48** (rebuilt by job 12065737 from `_nu30_long`). Every number is in `achievements.md` → "N = 48 results" and `docs/dashboard.md`.
    - **figure 1:** φ and C_L^φφ pass; the a_ℓm row waits for T0.1.
    - **figure 2:** the user looks at the exact-sampler band and the zoomed panel (c), `figure2/bias_aware_zoom.pdf`; settle the A_L = 1 wording; re-read `[45,64)` after T0.1 (−2.97 against the effective expectation, probably the same cause).
