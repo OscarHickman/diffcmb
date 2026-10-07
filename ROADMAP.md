@@ -89,8 +89,8 @@ Decisions D1–D5 are all taken (`achievements.md` → Decisions taken).
 Each extension is validated to the core's standard (gate → production → calibrated check) on a branch or worktree. It delivers final-form figures plus caption requirements, not text. **Step one for each: which figures, supporting which claim.**
 
 1. **Certify a learned CMB-lensing posterior against the exact one: the highest-impact positive use.** It either passes (the first certification of one) or fails in a quantified way. Either way the deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
-   - Reuse the lmax = 64 Block-4-ON ensemble.
-   - Train a conditional diffusion or NPE model on the same simulator (exact operator, A_φ = 3000, σ = 30), or use `2603.04535`'s if its code is available (read its body first for geometry).
+   - **Scoped 2026-10-07: `docs/notes/t1_1_learned_posterior_scoping.md`.** `2603.04535` cannot be reused (flat 32×32 patches, Gaussian stand-in for lensing with no φ, no code), so we train our own model on our simulator. **Three decisions before building:** (1) the comparison prior: a strict exact ensemble (`--cl_prior_nu`; can share a campaign with T0.1 c) vs importance-reweighting to the current flat C_ℓ^TT prior; (2) spectra-level NPE first vs a field-level HEALPix generative model; (3) TFP in the existing venv vs a new torch env (GPU work on dine2 must keep its files off `/cosma5`).
+   - Exact reference: the lmax = 64 Block-4-ON ensemble (or its strict twin). Its median ESS per sky (74–342 by block) supports per-sky means and widths, not a full-space C2ST. Leave ℓ ≥ 60 out until T0.1 b resolves.
    - Score it against the exact posteriors with SBC ranks, coverage and C2ST, including the (C_ℓ, C_L^φφ) and φ-mode correlations.
    - Likely figures: learned-vs-exact rank histograms with drawn nulls; per-mode width ratio; correlation-structure comparison.
 2. **Real Planck data.**
@@ -143,7 +143,7 @@ Each extension is validated to the core's standard (gate → production → cali
 ## Literature actions (full annotations in `literature.md`)
 
 - [ ] Fix the bibitem metadata found by the 2026-10-07 reference check (`literature.md` → Citation corrections, items 10–17: wrong titles/years and the `Drouin:2023` placeholder; every arXiv ID is right).
-- [ ] Cite `2603.04535` as the lead competing-paradigm example, after reading its body for sky geometry; concede `2606.12255`.
+- [ ] Cite `2603.04535` as the lead competing-paradigm example (body read 2026-10-07: flat 32×32 patches, Gaussian stand-in for lensing, no φ; `literature.md`); concede `2606.12255`; consider `2406.19367` (PUREPath, curved-sky learned CMB posterior without lensing).
 - [ ] Add `2210.13260` alongside `2305.16134`; correct the "all-sky, noiseless" characterisation of Almanac.
 - [ ] Cite Modrák et al. (`2211.02383`) for the joint-likelihood test quantity.
 - [ ] Cite rank-normalised R̂ (`1903.08008`), which the convergence figure uses; consider nested R̂ (`2110.13017`), cite `2408.13411` for ESS as an estimate, and cite the corrected (2017) Cook, Gelman & Rubin.
