@@ -24,6 +24,8 @@
 # Submit: sbatch --export=ALL,MODE=cl4,AMP=...,NOISE=...,BURNIN=...,SAMPLES=... this.slurm
 # Optional: NU (Block-4 prior nu, default 6.0) and TAG (suffix on the output
 # directory, default none), e.g. TAG=_long for the T0.1c longer-chain re-run.
+# CLNU (default none) adds --cl_prior_nu CLNU: the proper C_l^TT prior of strict
+# SBC mode (ROADMAP T1.1 reference ensemble), with the truth C_l^TT drawn from it.
 # CL_INIT (default map = production) selects the ln C_l start; CL_INIT=data is the
 # ROADMAP T0.1 pilot (needs sign-off before production use).
 # LMAX (default 64) sets lmax = nside and the l<LMAX> in the directory name;
@@ -49,6 +51,8 @@ case $MODE in
   *) echo "unknown MODE=$MODE"; exit 2 ;;
 esac
 EXTRA="$EXTRA --cl_init $CL_INIT"
+CLNU=${CLNU:-}
+[ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"
 mkdir -p logs $OUT
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
@@ -63,7 +67,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 # does not mount (every T0.1c task, jobs 12041916/12041917, died at its first
 # checkpoint write for that reason). The chains are CPU-bound anyway: on dine2
 # TF logged CUDA_ERROR_NO_DEVICE and never used the GPU.
-echo "MODE=$MODE lmax=$LMAX nside=$NSIDE nu=$NU tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
+echo "MODE=$MODE lmax=$LMAX nside=$NSIDE nu=$NU clnu=${CLNU:-none} tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
 .venv/bin/python -u scripts/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax $LMAX --nside $NSIDE \
     --n_burnin $BURNIN --n_samples $SAMPLES --n_lfs 10 --phi_n_lfs 240 \

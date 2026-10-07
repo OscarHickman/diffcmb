@@ -34,7 +34,7 @@ So T1.1 trains its own model on our simulator. For T2 positioning: the first lea
 3. **Correlation structure:** the (C_ℓ, C_L^φφ) cross-correlation matrix, learned vs exact, the figure-4 analogue. This is the Doeser & Jasche point (`2606.10023`): matching marginals does not imply matching correlations.
 4. *(optional)* a spectra-level C2ST, with its power stated.
 
-## Decisions needed before building
+## Decisions (taken 2026-10-07: 1a strict ensemble, 2a spectra-level NPE, 3 TFP)
 
 1. **The prior the comparison uses.**
    - **(a) Recommended:** a strict exact ensemble (`--cl_prior_nu`, proper prior on every block). This is new compute, a 48-sky campaign at ~19 h per task. The same choice is a candidate for T0.1 c's collapse guard, so one campaign can serve both.
