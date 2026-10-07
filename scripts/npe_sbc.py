@@ -13,11 +13,9 @@ import json
 import os
 
 import numpy as np
-from aggregate_coverage_ranks import discrete_uniform_p, rank_spread
+from aggregate_coverage_ranks import ELL_BINS, discrete_uniform_p, rank_spread
 from npe_flow import ConditionalFlow, rank_of_truth
 from npe_train import sim_config
-
-BINS = [(2, 10), (10, 30), (30, 60), (60, 100)]
 
 
 def bin_slices(lmax):
@@ -25,7 +23,7 @@ def bin_slices(lmax):
     n = lmax - 2
     out = []
     for block, off in (("C_l^TT", 0), ("C_L^phiphi", n)):
-        for lo, hi in BINS:
+        for lo, hi in ELL_BINS:
             hi = min(hi, lmax)
             if lo < hi:
                 out.append((block, lo, hi, slice(off + lo - 2, off + hi - 2)))

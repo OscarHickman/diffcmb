@@ -52,6 +52,8 @@ from diffcmb.samplers import _alm_index_lm
 # is deliberately coarse and should be set from the pilot's measured lag-k
 # autocorrelation rather than left at the default.
 DEFAULT_THIN = 10
+# The l-bins every rank statistic uses (also npe_sbc, strict_sbc_ranks).
+ELL_BINS = [(2, 10), (10, 30), (30, 60), (60, 100), (100, 150)]
 
 KS_FLAG_P = 0.01
 
@@ -205,9 +207,7 @@ def main():
         L_arr, _m = _alm_index_lm(lmax, n_real, n_imag)
 
         if ell_bins is None:
-            ell_bins = [(lo, min(hi, lmax)) for lo, hi in
-                        [(2, 10), (10, 30), (30, 60), (60, 100), (100, 150)]
-                        if lo < lmax]
+            ell_bins = [(lo, min(hi, lmax)) for lo, hi in ELL_BINS if lo < lmax]
 
         alm_s = d["alm_samples"]
         phi_s = d["phi_samples"]
