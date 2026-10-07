@@ -38,6 +38,38 @@ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so
 
 ---
 
+## 2026-10-07 — T1.1: the learned posterior (spectra-level NPE) is built and passes its own SBC
+
+**Decisions (user, 2026-10-07):** compare against a strict exact ensemble (proper ν = 30 priors on both spectra), spectra-level NPE first, TFP in the existing venv. Scoping, and why `2603.04535` cannot be reused: `docs/notes/t1_1_learned_posterior_scoping.md`.
+
+**Pipeline** (all tested; full suite 279 passed, 1 skipped):
+- `npe_simulate.py`: the strict-mode generative process of `coverage_ensemble_chain.py`, bit for bit (the test compares truths against a strict chain). θ = (ln C_ℓ^TT, ln C_L^φφ), ℓ = 2..63; x = (ln data power, ln normalised-QE power), using the QE filter validated at this configuration. 0.05 s/sim.
+- `npe_flow.py`: TFP conditional MAF, checked first against an exact linear-Gaussian posterior.
+- `npe_train.py`, `npe_sbc.py`, `npe_vs_exact.py`: training, held-out SBC, sky-by-sky comparison against the strict chains. Each refuses inputs from another configuration.
+- `strict_sbc_ranks.py`: strict SBC of both spectra against their drawn truths, plus the C_ℓ collapse table (T0.1 c).
+
+**Bugs caught while building it** (each now has a test):
+- TFP caches `inverse()` results by input-tensor identity. Reusing one validation tensor made the recorded validation loss stale, so early stopping restored the wrong weights. Fix: fresh tensors each epoch.
+- Glorot initialisation gave a first-epoch NLL of ~100 (identity ≈ 4) on the toy problem. A near-identity init plus a soft-clamped log-scale reach the exact NLL in 5 epochs.
+- `cl_phiphi_samples` are stored as ln C_L^φφ; taking another log gave NaN.
+
+**Results:**
+- **Training** (job 12100400; 190 000 sims, MAF 5 × 256): best validation NLL 162.65 at epoch 12, stopped at 27. It overfits early (train 161.2 against val 163.2 by the end), which is a lever to pull if the comparison needs it.
+- **Held-out SBC passes** (`flow_maf5x256/sbc_heldout.npz`; 2000 sims × 199 draws; uniform mean 99.5, spread 0.2887):
+
+| spectrum | bin | mean rank | spread | p |
+|---|---|---|---|---|
+| C_ℓ^TT | [2,10) | 98.87 | 0.2882 | 0.71 |
+| C_ℓ^TT | [10,30) | 99.10 | 0.2831 | 0.26 |
+| C_ℓ^TT | [30,60) | 100.07 | 0.2832 | 0.70 |
+| C_ℓ^TT | [60,64) | 100.56 | 0.2889 | 0.51 |
+| C_L^φφ | [2,10) | 98.47 | 0.2851 | 0.32 |
+| C_L^φφ | [10,30) | 98.30 | 0.2835 | 0.53 |
+| C_L^φφ | [30,60) | 98.89 | 0.2842 | 0.18 |
+| C_L^φφ | [60,64) | 102.55 | 0.2942 | 0.15 |
+
+- **Reading:** the learned posterior is calibrated for what it conditions on, the summaries. That says nothing yet about whether it matches the exact posterior p(θ | map). The QE summary tracks C_L^φφ only weakly (per-L correlation ≈ 0.17 on 20 sims), so expect it to be wider than the exact posterior. Job 12100439 measures that gap.
+
 ## 2026-09-27 → 10-07 — the a_ℓm `[60,64)` band-edge offset (T0.1, still open)
 
 *Tables: `docs/dashboard.md` (the 2026-09-27 → 10-07 sections). Next steps: `ROADMAP.md` T0.1.*
