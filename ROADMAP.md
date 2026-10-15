@@ -6,7 +6,7 @@
 
 ---
 
-## Where the project stands (2026-10-07, after the φ-fixed run)
+## Where the project stands (2026-10-14)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -16,13 +16,15 @@
 **Already positive** (numbers in `achievements.md`):
 - an exact, differentiable, geodesic curved-sky lensing operator, with FD-checked gradients and physical sign conventions;
 - the adopted Block-4-ON ensemble (ν = 30, D5, N = 48) passes the joint-likelihood SBC, the strict C_L^φφ SBC, the Block 4 PIT and every φ field-rank bin;
+- **figure 1 (D7) is the strict SBC of all four blocks**, with no simulated null: C_ℓ^TT, a_ℓm (band edge included) and C_L^φφ pass; φ fails in `[30,60)` (`p_bin` 0.014), which is stated as a limitation;
 - figure 2's physics: the blind fit lands on the lensing each sky received, the joint fit stays within ~1 %;
+- a learned (NPE) posterior that is calibrated and unbiased against the exact one, and 3–55 % wider (T1.1);
 - a QE validated at the production configuration;
 - a test suite that covers the scripts as well as the package.
 
-**⚠ Blocking: the a_ℓm `[60,64)` band-edge offset (T0.1).** The a_ℓm/C_ℓ blocks are now shown exact with φ fixed (2026-10-07); the deficit needs φ sampling. Until it is resolved, figure 1's a_ℓm row fails and **no exactness claim is citable**.
+**Nothing is blocking.** T0.1 is closed by D7 (2026-10-14; `achievements.md` → T0.1). The exactness claim is the strict SBC with its stated power: three blocks pass, and φ `[30,60)` is a stated limitation.
 
-Decisions D1–D5 are all taken (`achievements.md` → Decisions taken).
+Decisions D1–D8 are taken (`achievements.md` → Decisions taken).
 
 ---
 
@@ -48,53 +50,39 @@ Decisions D1–D5 are all taken (`achievements.md` → Decisions taken).
 
 ## T0 — Core figures from the exact-operator ensembles
 
-*What is done is in `achievements.md`; tables are in `docs/dashboard.md`.*
+*Done items are in `achievements.md`; live tables in `docs/dashboard.md`.*
 
-1. **⚠ BLOCKING — the a_ℓm `[60,64)` offset: with φ sampled, posterior C_63 sits ~6–9 % below the exact φ-known reference, at the band limit only.** Everything established so far is in `achievements.md` → "the a_ℓm `[60,64)` band-edge offset". In brief:
-   - it is ℓ = 63 alone, at lmax 64 only (lmax 32 is clean), and in Block-4-OFF too;
-   - it is not pixelisation or the null (the dense reference with φ = truth is clean), and it is not the MAP start (`--cl_init data` pilot);
-   - **it is not the a_ℓm/C_ℓ blocks (2026-10-07):** the production sampler with φ fixed at truth reproduces the dense reference on the same skies (ℓ = 63: +0.006 ± 0.006, against −0.085 ± 0.052 with φ sampled), with clean ranks and widths. **The deficit appears only when φ is sampled.**
-   - A separate defect, C_ℓ collapse (r036's C_62, plus one Block-4-OFF sky), is seeded by the MAP start in Blocks 1 + 2; it happens with φ fixed too, and there it recovers by Q4.
-   - **Next. Each step needs user sign-off for compute.**
-     - b. **Is it the true φ-marginal posterior, or slow a–φ mixing? IN FLIGHT: job 12100312 (truth start, `--start_truth`, `MODE=truthstart`), harvest 12100313.** Two explanations remain: the exact φ-marginal posterior really sits lower at the band edge, where lensing is strongest (−41 % at `[45,64)`), so the φ-known reference is the wrong null there; or a–φ mixing at the edge is too slow for 3600 sweeps.
-       - The sharpest test is a **two-start comparison**: rerun r032–r039 in the production configuration starting from (a_ℓm, φ) = truth instead of the MAP. This start is only for this diagnostic, never for SBC. If the truth-start chains drift down to ~0.935 and stay there, the deficit is the stationary posterior. If they stay near 1.0 while the MAP-start chains stay near 0.935, the chains are not mixing. The flag (`--start_truth`) is in and tested; ~19 h per task.
-       - A weaker test is lmax 64 at a lower A_φ, to see whether the deficit scales with lensing strength. Both explanations predict that it does, so this test cannot tell them apart.
-     - c. A collapse guard. **The strict ensemble 12100331 (proper ν = 30 C_ℓ^TT prior, for T1.1) also tests the prior option on 48 skies; read its C_ℓ traces for collapse when it lands.** Either the W_ℓ²-corrected data start (C init from S_ℓ(a_MAP)/W_ℓ²), or the proper C_ℓ^TT prior (`--cl_prior_nu`), which bounds the Block 1 draw away from zero. The prior changes the target, so it needs its own decision.
-     - d. Decide what to do with r036: drop it with a stated reason, or re-run it with a start that avoids the collapse. It recovered by itself only in the last half, both in the pilot and with φ fixed.
-   - Until then figure 1's a_ℓm row is not final and no exactness claim is citable. Quote per-mode sd(z) beside the rank: 1.03–1.08 at ν = 30, against 1.00 exact.
-   - If b shows the deficit is the true φ-marginal posterior, the a_ℓm row needs a φ-marginal reference instead of the φ-known one, and the paper states the a_ℓm/C_ℓ blocks as certified separately (φ-fixed run).
-2. **Figure checklist read at N = 48** (rebuilt by job 12065737 from `_nu30_long`). Every number is in `achievements.md` → "N = 48 results" and `docs/dashboard.md`.
-   - **figure 1:** φ and C_L^φφ pass; the a_ℓm row waits for T0.1.
-   - **figure 2:** the user looks at the exact-sampler band and the zoomed panel (c), `figure2/bias_aware_zoom.pdf`; settle the A_L = 1 wording; re-read `[45,64)` after T0.1 (−2.97 against the effective expectation, probably the same cause).
+1. **Figure checklist read at N = 48.** Figures 2–4, maps and convergence come from `_nu30_long` (job 12065737); figure 1 comes from `_nu30_strict` (D7, rebuilt 2026-10-14). Every number is in `achievements.md` and `docs/dashboard.md`.
+   - **figure 1 (D7):** the user looks at the new layout (`figure1/rank_histograms.pdf`, `clpp_sbc.pdf`, `cltt_sbc.pdf`). The caption states: the strict design (truths drawn from the sampler's prior, no null); C_ℓ^TT 1.00, a_ℓm 0.178, C_L^φφ 0.185 pass, φ 0.014 fails in `[30,60)`; the 0.28σ power; the paired flat-prior numbers (`figure1_flatprior`); and the φ-fixed certification of the a_ℓm/C_ℓ blocks.
+   - **figure 2:** the user looks at the exact-sampler band and the zoomed panel (c), `figure2/bias_aware_zoom.pdf`; settle the A_L = 1 wording; the caption says the `[45,64)` z of −2.97 is against an expectation that conditions on known φ (the T0.1 cause), and that r036 is kept (D8; dropping it moves the bins by ≤ 0.26 points).
    - **figure 3:** the caption must say the φ prior is hierarchical at ν = 30.
    - **figure 4:** the caption reads "no correlation detected". Watch the one recurring cell, `C_ℓ[30,60)×C_L^φφ[10,30)`; it is not significant over 16 cells.
    - **convergence:** carry the R̂ and ESS numbers into the caption.
    - **maps:** do the checklist read.
-   - Then write the caption numbers into `plots/STORY.md`. They are held back until T0.1 resolves.
-3. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
-4. **Keep `plots/STORY.md` and `docs/dashboard.md` current** with every harvest number.
-5. **Re-tag** the finalised core-figure state on `main` once T0.1 is resolved; check the paper repo too. The stale `methods-paper-v1` tag points at `d9979b7`.
-6. **Before reusing an old GPU wrapper:** relocate its output off `/cosma5` (e.g. to `/cosma7`). The 57 GPU wrappers must run on dine2, which does not mount `/cosma5`, so they fail at start.
-7. **Limitations to carry into T2:**
+   - Then write the caption numbers into `plots/STORY.md`, now unblocked.
+2. **Whole-set pass** at printed size: colours, ℓ-axis conventions, ensemble names.
+3. **Keep `plots/STORY.md` and `docs/dashboard.md` current** with every harvest number.
+4. **Re-tag** the finalised core-figure state on `main` after the checklist read; check the paper repo too. The stale `methods-paper-v1` tag points at `d9979b7`.
+5. **Limitations to carry into T2:**
     - exactness above lmax = 64 (low-L φ NO-GO at 128/192);
     - A_φ above ~3000 at lmax = 64 (Gibbs stalls);
     - physical-sky lensing information at lmax ≤ 300;
     - mixing at A_φ = 3000: low-L φ τ_int ≈ 280–430 sweeps; the centred (φ, C_L^φφ) hierarchy is not certifiable at ν = 6 in 3600 sweeps;
     - the ν = 30 prior carries 30 dof per L against the data's 2L+1, a third of the information at L = 30 (figure 3's QE⊕prior reference uses the ν = 30 prior);
-    - whatever T0.1 concludes about a_ℓm at the band limit;
+    - φ `[30,60)` fails the strict SBC at ν = 30 (mean_u 0.626, `p_bin` 0.014) and sits at 0.56 under the flat C_ℓ prior on the same φ truths: residual mixing of the centred (φ, C_L^φφ) hierarchy. Fixing it is φ-sampler work, which needs sign-off;
+    - against a φ-known reference the a_ℓm band edge sits 6–9 % low at ℓ = 63. That deficit is stationary, and the strict SBC passes there;
     - no further φ-equilibration tuning without sign-off.
 
 ## T1 — Extension figures (by impact per effort)
 
 Each extension is validated to the core's standard (gate → production → calibrated check) on a branch or worktree. It delivers final-form figures plus caption requirements, not text. **Step one for each: which figures, supporting which claim.**
 
-1. **Certify a learned CMB-lensing posterior against the exact one: the highest-impact positive use.** It either passes (the first certification of one) or fails in a quantified way. Either way the deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
-   - **2026-10-07 status:** the learned posterior passes its own held-out SBC (`achievements.md` → T1.1). Waiting on the strict exact ensemble (12100331 → harvest 12100517) and the learned-vs-exact comparison (12100439). Next decision once 12100439 lands: if the learned posterior is much wider than the exact one, try richer summaries or a learned map compressor, and reduce the overfitting.
-   - **Decided and started 2026-10-07:** strict exact ensemble (12100331, `_nu30_strict`), spectra-level NPE first (`npe_simulate.py` → `npe_train.py` → `npe_sbc.py` → `npe_vs_exact.py`; jobs 12100390/12100400/12100439), TFP in the existing venv. The flow is validated against an exact linear-Gaussian posterior (`tests/test_npe_flow.py`). **Design risk:** the QE summary tracks C_L^φφ only weakly (per-L correlation ≈ 0.17 on 20 sims), so a learned posterior on these summaries will likely be wider than the exact one; that width gap measures information lost by the summaries, not a calibration failure. Read it that way, and consider richer summaries or a learned compressor next.
-   - **Scoped 2026-10-07: `docs/notes/t1_1_learned_posterior_scoping.md`.** `2603.04535` cannot be reused (flat 32×32 patches, Gaussian stand-in for lensing with no φ, no code), so we train our own model on our simulator. **Three decisions before building:** (1) the comparison prior: a strict exact ensemble (`--cl_prior_nu`; can share a campaign with T0.1 c) vs importance-reweighting to the current flat C_ℓ^TT prior; (2) spectra-level NPE first vs a field-level HEALPix generative model; (3) TFP in the existing venv vs a new torch env (GPU work on dine2 must keep its files off `/cosma5`).
-   - Exact reference: the lmax = 64 Block-4-ON ensemble (or its strict twin). Its median ESS per sky (74–342 by block) supports per-sky means and widths, not a full-space C2ST. Leave ℓ ≥ 60 out until T0.1 b resolves.
-   - Score it against the exact posteriors with SBC ranks, coverage and C2ST, including the (C_ℓ, C_L^φφ) and φ-mode correlations.
-   - Likely figures: learned-vs-exact rank histograms with drawn nulls; per-mode width ratio; correlation-structure comparison.
+1. **Certify a learned CMB-lensing posterior against the exact one: the highest-impact positive use.** Either outcome is publishable, and the deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
+   - **Done (`achievements.md` → T1.1, D6):** the spectra-level NPE passes held-out SBC and, on the 48 strict skies, is unbiased against the exact posterior and wider: 3–24 % for C_ℓ^TT and 16–55 % for C_L^φφ, growing with ℓ. The correlation structure agrees to within 0.11.
+   - **In flight (2026-10-14): all three width-gap routes** (`docs/dashboard.md` → In flight). Route (c): job 12164772 (weight decay and smaller flows on the v1 sims). The v2 sims: job 12164771. Route (a), the v2 summaries: job 12164773 tasks 4–5. Route (b), the map compressor on top of v2: task 6. Every variant is scored like the baseline: held-out SBC, then learned vs exact on the 48 strict skies.
+   - **On landing:** compare the width ratios with the baseline (C_ℓ^TT 1.03–1.24, C_L^φφ 1.16–1.55). A variant counts only if its held-out SBC still passes and the shift stays unbiased. Adopt the best as the T1.1 headline. Whatever gap remains is reported as the information cost of the summaries.
+   - **Still to score:** C2ST on the joint (C_ℓ, C_L^φφ) and the φ-mode correlations. The exact chains' median ESS (115–3500 per bin) supports per-sky means and widths, not a full-space C2ST.
+   - Likely figures: per-mode width ratio, learned against exact (the headline); rank histograms with drawn nulls; correlation-structure comparison. The strict SBC passes at ℓ ≥ 60 (D7), so the band edge can be pooled; report it separately as well.
 2. **Real Planck data.**
    - **2a — A_L post-mortem:** a real-data consistency test on Planck 2018 vs PR4, framed as a demonstration, not a competitive measurement. First the pipeline on a simulation carrying the real mask, `noise_map` and beam (note the beam path's prior fix, `achievements.md`), then data. Figures: real-data C_ℓ and C_L^φφ posteriors vs Planck spectra and the QE; the posterior-mean φ on the real mask.
    - **2b — low-L C_L^φφ, conditional on scale.** The claim would be "an exact joint posterior on C_L^φφ at L < 30 from Planck temperature, where the QE is noise-dominated" (largest reconstruction noise, mask and mean-field problems), on real data with the real mask.
@@ -188,4 +176,20 @@ Each extension is validated to the core's standard (gate → production → cali
 - **Claims hygiene:** every "first" carries scope qualifiers and nearest-prior-work citations.
 - **R̂ on C_ℓ alone is not convergence;** check every block.
 - **No further φ-equilibration tuning without user sign-off.**
-- **Cluster operations** (job caps, quotas, `$TMPDIR`, packing TF tasks per node): see `~/.claude/CLAUDE.md` and `achievements.md` → Engineering gotchas.
+- **Cluster operations** (job caps, quotas, `$TMPDIR`, packing TF tasks per node, which partitions mount `/cosma5`): see `~/.claude/CLAUDE.md` and `achievements.md` → Engineering gotchas. Before reusing an old GPU wrapper, move its output off `/cosma5`: dine2 does not mount it.
+
+
+---
+
+## Thesis-level priorities and real-data routes (added 2026-10-15)
+
+*From `../PAPERS.md` §9 and the 2026-10-15 thesis review. Proposed, not authorised: nothing here changes the order of the work above. It records what this project contributes to the thesis and the concrete real-data steps that exist. Literature named here is cited as already recorded in this repo's `literature.md` or `../PAPERS.md`; anything new needs an `arxiv.org/abs` check first.*
+
+- **Thesis role.** §2b Tier 2 #8, outside the clustering spine; its thesis value is as the "exact reference"
+  leg of the validation barrier. Commit and re-tag first (last code commit `8f8a0f5`, 2026-10-07).
+- **Real data: T1 item 2a is the realistic route.** The A_L consistency test on Planck 2018 vs PR4, framed
+  as a demonstration. Steps already set: the pipeline on a simulation carrying the real mask, `noise_map`
+  and beam, then the data. A quick check found no Planck maps in this repo (`data/` does not exist);
+  confirm where the maps and masks will come from before scoping.
+- **2b (low-L C_L^φφ) stays behind its feasibility check:** at lmax = 64 the posterior would return the
+  prior.

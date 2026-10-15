@@ -11,11 +11,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Decision D5 (2026-09-25): the paper's Block-4-ON ensemble is `ens_exact_l64_A3000_n30_nu30_long` (ν = 30)**, with its blind pair (job 12062768). The Makefile `ENSEMBLE` points there, and all figures were rebuilt from it (job 12062824). Next is the per-figure checklist read (`ROADMAP.md` T0.2). `results/analysis` is a symlink into `/cosma5`, which dine2 does not mount, so **don't run anything that writes there on dine2**. Numbers and how to read them: `results/analysis/dashboard.md`. The `exact-operator-rerun` branch has been merged; work is on `main`.
 
-**▶ RESUME HERE (state 2026-10-07 evening):** **Everything is queued; nothing needs building.** Jobs, oldest landing first (details in `docs/dashboard.md` → In flight):
-1. **T0.1 b, the two-start test.** Truth-start chains 12100312 (r032–r039, `--start_truth`, ~19 h, due ~09:30 2026-10-08), then harvest 12100313 (`logs/harvest_t01b_12100313.out`). Read the harvest's own verdict and `.err`, record the result in `docs/dashboard.md`/`achievements.md`, and settle `ROADMAP.md` T0.1 b. If truth-start C_63 drifts to ~0.935, the deficit is a genuine φ-marginal effect and figure 1 needs a φ-marginal reference. If it stays ~1.0 while the MAP start stays ~0.935, a–φ mixing is too slow.
-2. **The strict exact ensemble (T1.1 reference, and the T0.1 c test).** 12100331 (48 skies, proper ν = 30 on C_ℓ^TT and C_L^φφ, `_nu30_strict`, ~19 h, due ~afternoon 2026-10-08), then harvest 12100517 (`logs/harvest_strict_*.out`): strict spectrum SBC (`strict_sbc_ranks.py`) and the C_ℓ collapse table. The collapse table decides T0.1 c: does the proper prior stop the collapse?
-3. **Learned vs exact.** 12100439 (`afterany` on 12100331 and 12100400), `npe_vs_exact.py` → `npe_sims_l64_A3000_n30_nu30/flow_maf5x256/vs_exact_strict.npz`. Already landed: the learned posterior passes held-out SBC (`achievements.md` → T1.1). Expect it to be wider than the exact posterior (weak QE summary). The next decision is richer summaries or a learned compressor (see `ROADMAP.md` T1.1).
-Still open and waiting on the user: their look at figure 2 (exact-sampler band, `figure2/bias_aware_zoom.pdf`, A_L = 1 wording) and r036 (T0.1 d). The bibitem fixes (`literature.md` items 10–17) wait for T2 (D1b). Everything to date is committed locally on `main`, not pushed.
+**▶ RESUME HERE (state 2026-10-14 evening):** **T0.1 is closed: D7 makes figure 1 the strict SBC on `_nu30_strict`, and D8 keeps r036.** Figure 1: C_ℓ^TT, a_ℓm and C_L^φφ pass; **φ `[30,60)` fails (`p_bin` 0.014), stated as a limitation**. The strict and flat-prior ensembles share their φ truths (`achievements.md` → T0.1, Decisions). **In flight: the T1.1 width-gap routes** (`docs/dashboard.md` → In flight):
+1. v2 sims 12164771;
+2. route c, 12164772 (regularised flows on v1);
+3. routes a and b, 12164773, after the sims (v2 summaries; map compressor).
+
+Harvest: read each `logs/npe_gap_*` verdict, compare the width ratios with the baseline, and adopt the best variant whose SBC passes (`ROADMAP.md` T1.1).
+
+Waiting on the user: their look at figures 1 (new D7 layout) and 2 (exact-sampler band, `figure2/bias_aware_zoom.pdf`, A_L = 1 wording). The bibitem fixes (`literature.md` items 10–17) wait for T2 (D1b). Work is on `main`, not pushed.
 
 This is an active research project (differentiable, curved-sky, joint Bayesian CMB lensing analysis) with three living docs at the repo root, each with a distinct job — don't duplicate content across them:
 

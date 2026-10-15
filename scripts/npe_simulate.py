@@ -1,8 +1,12 @@
 """Training simulator for the learned posterior (ROADMAP T1.1).
 
 theta = (ln C_l^TT, ln C_L^phiphi) for l, L = 2..lmax-1, drawn from the strict
-proper priors; x = (ln data power spectrum, ln QE C_L^phiphi) of the noisy
-lensed map. The generative process is coverage_ensemble_chain's strict mode
+proper priors; x = summaries of the noisy lensed map. Summary set "v1": (ln data
+power spectrum, ln QE C_L^phiphi). Set "v2" (the T1.1 width-gap route a) appends
+the ln QE power from low-l and from high-l legs (split at lmax/2), the
+correlation coefficient of those two reconstructions per L, and the ln power of
+the data delensed by the Wiener-filtered QE phi. A "v2" block also stores the
+data a_lm (packed, float32) for the learned map compressor (route b). The generative process is coverage_ensemble_chain's strict mode
 (--cl_prior_nu with --cl_phiphi_prior_nu) bit for bit -- same helpers, same
 seed streams -- so a learned posterior trained here targets the same joint
 posterior as the strict exact ensemble (tests/test_npe_simulate.py pins it).
@@ -38,6 +42,12 @@ from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
 from diffcmb.power import fiducial_spectra
 
 _STREAM_WIDTH = 1_000_000
+SUMMARY_SETS = ("v1", "v2")
+
+
+def summary_dim(summary_set, lmax):
+    """Length of the summary vector x for a summary set."""
+    return {"v1": 2, "v2": 6}[summary_set] * (lmax - 2)
 
 
 @dataclass(frozen=True)
@@ -54,11 +64,14 @@ class SimContext:
     cl_tt_lensed: np.ndarray
     cl_tot: np.ndarray
     qe_norm: np.ndarray
+    summary_set: str = "v1"
 
 
 def make_context(lmax, nside, noisesig, phi_amplitude, nu_tt, nu_pp,
-                 cl_tt_lensed, nl_qe) -> SimContext:
+                 cl_tt_lensed, nl_qe, summary_set="v1") -> SimContext:
     """One lensing model and QE filter, reused for every simulation."""
+    if summary_set not in SUMMARY_SETS:
+        raise ValueError(f"summary_set must be one of {SUMMARY_SETS}, not {summary_set!r}")
     model = CosmologyAdvancedSampling(
         _lmax=lmax, _NSIDE=nside, _noisesig=noisesig, data_mode="synthetic",
         dtype=tf.complex128, use_matrixfree_sht=True, lensing_operator="exact",
@@ -74,18 +87,63 @@ def make_context(lmax, nside, noisesig, phi_amplitude, nu_tt, nu_pp,
         cl_tt_lensed=cl_tt_lensed,
         cl_tot=cl_tt_lensed + qe.white_noise_cl(noisesig, 12 * nside ** 2, lmax),
         qe_norm=np.where(np.isfinite(nl_qe), nl_qe, 0.0),
+        summary_set=summary_set,
     )
 
 
+def qe_phi(ctx: SimContext, data_map: np.ndarray, lo=None, hi=None) -> np.ndarray:
+    """Normalised-QE phi (healpy alm to lmax). Without a band, the filters use the
+    context's C_tot over its whole range (v1's QE, the l = lmax leg included). With
+    lo/hi, both legs are restricted to lo <= l < hi by setting C_tot = inf outside
+    the band, which zeroes both filters there."""
+    cl_tot = ctx.cl_tot
+    if lo is not None or hi is not None:
+        lo = 0 if lo is None else lo
+        hi = cl_tot.size if hi is None else hi
+        ell = np.arange(cl_tot.size)
+        cl_tot = np.where((ell >= lo) & (ell < hi), cl_tot, np.inf)
+    return hp.almxfl(qe.qe_tt_reconstruct(data_map, ctx.cl_tt_lensed, cl_tot, ctx.lmax, ctx.nside),
+                     ctx.qe_norm)
+
+
+def delens_map(ctx: SimContext, data_map: np.ndarray, phi_hp: np.ndarray) -> np.ndarray:
+    """The map remapped by -grad(phi): T_del(n) = T(n - grad phi), through the exact
+    operator applied to the band-limited data a_lm. phi_hp is healpy-ordered, at
+    lmax-1 (the simulator's band) or lmax (a QE output; truncated here)."""
+    lmax = ctx.lmax
+    if hp.Alm.getlmax(phi_hp.size) != lmax - 1:
+        phi_hp = hp.resize_alm(phi_hp, hp.Alm.getlmax(phi_hp.size), hp.Alm.getlmax(phi_hp.size),
+                               lmax - 1, lmax - 1)
+    packed = _alm_hp_to_packed(hp.map2alm(data_map, lmax=lmax - 1, iter=3), lmax)
+    return lens_map_tf(ctx.model, tf.constant(packed, tf.float64),
+                       -np.asarray(phi_hp, np.complex128)).numpy()
+
+
 def summaries(ctx: SimContext, data_map: np.ndarray) -> np.ndarray:
-    """ln data power spectrum and ln normalised-QE power, each for l = 2..lmax-1."""
+    """The summary vector x of the context's summary set, each part for l = 2..lmax-1."""
     lmax = ctx.lmax
     cl_data = hp.anafast(data_map, lmax=lmax - 1)[2:lmax]
-    phihat = hp.almxfl(
-        qe.qe_tt_reconstruct(data_map, ctx.cl_tt_lensed, ctx.cl_tot, lmax, ctx.nside),
-        ctx.qe_norm)
+    # The v1 flows were trained on the full-range QE; the v2 sims (2026-10-14) on the
+    # QE band-limited to l < lmax. Each set keeps its own, so stored sims stay valid.
+    v2 = ctx.summary_set == "v2"
+    phihat = qe_phi(ctx, data_map, 2, lmax) if v2 else qe_phi(ctx, data_map)
     cl_qe = hp.alm2cl(phihat, lmax=lmax)[2:lmax]
-    return np.log(np.concatenate([cl_data, cl_qe]))
+    x = [np.log(cl_data), np.log(cl_qe)]
+    if v2:
+        split = lmax // 2
+        low, high = qe_phi(ctx, data_map, 2, split), qe_phi(ctx, data_map, split, lmax)
+        c_ll = hp.alm2cl(low, lmax=lmax)[2:lmax]
+        c_hh = hp.alm2cl(high, lmax=lmax)[2:lmax]
+        c_lh = hp.alm2cl(low, high, lmax=lmax)[2:lmax]
+        # Wiener filter C^fid/(C^fid + N_L) to lmax-1, the band delens_map keeps.
+        wiener = np.zeros(lmax + 1)
+        nl, cpp = ctx.qe_norm[:lmax], ctx.cl_pp_fid[:lmax]
+        ok = nl > 0
+        wiener[:lmax][ok] = cpp[ok] / (cpp[ok] + nl[ok])
+        delensed = delens_map(ctx, data_map, hp.almxfl(phihat, wiener))
+        cl_del = hp.anafast(delensed, lmax=lmax - 1)[2:lmax]
+        x += [np.log(c_ll), np.log(c_hh), c_lh / np.sqrt(c_ll * c_hh), np.log(cl_del)]
+    return np.concatenate(x)
 
 
 def simulate(ctx: SimContext, r: int) -> dict:
@@ -108,6 +166,7 @@ def simulate(ctx: SimContext, r: int) -> dict:
         "cl_true": cl_true, "cl_phiphi_true": cl_pp_true,
         "alm_true_packed": alm_packed, "phi_true_packed": _alm_hp_to_packed(phi_hp, lmax),
         "data_map": data_map,
+        "data_alm_packed": _alm_hp_to_packed(hp.map2alm(data_map, lmax=lmax - 1, iter=3), lmax),
     }
 
 
@@ -134,6 +193,7 @@ def main():
     p.add_argument("--nu_tt", type=float, default=30.0)
     p.add_argument("--nu_pp", type=float, default=30.0)
     p.add_argument("--qe_file", default="results/analysis/qe_noise_validation_exact_A3000_n30.npz")
+    p.add_argument("--summary_set", choices=SUMMARY_SETS, default="v1")
     p.add_argument("--first", type=int, required=True, help="first realization index")
     p.add_argument("--n", type=int, required=True, help="number of simulations")
     p.add_argument("--out", required=True)
@@ -142,18 +202,23 @@ def main():
     q = np.load(args.qe_file)
     _check_qe_file(q, args)
     ctx = make_context(args.lmax, args.nside, args.noisesig, args.phi_amplitude,
-                       args.nu_tt, args.nu_pp, q["cl_tt_lensed"], q["nl_qe"])
+                       args.nu_tt, args.nu_pp, q["cl_tt_lensed"], q["nl_qe"],
+                       summary_set=args.summary_set)
     reals = np.arange(args.first, args.first + args.n)
-    theta, x = [], []
+    theta, x, alm = [], [], []
     t0 = time.time()
     for i, r in enumerate(reals):
         sim = simulate(ctx, int(r))
         theta.append(sim["theta"])
         x.append(sim["x"])
+        if args.summary_set == "v2":
+            alm.append(sim["data_alm_packed"].astype(np.float32))
         if (i + 1) % 100 == 0:
             print(f"  {i + 1}/{args.n} sims, {(time.time() - t0) / (i + 1):.2f} s/sim", flush=True)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    extra = {"data_alm": np.array(alm)} if alm else {}
     np.savez(args.out, theta=np.array(theta), x=np.array(x), realization=reals,
+             summary_set=args.summary_set, **extra,
              lmax=args.lmax, nside=args.nside, noisesig=args.noisesig,
              phi_amplitude=args.phi_amplitude, nu_tt=args.nu_tt, nu_pp=args.nu_pp,
              qe_file=args.qe_file, lensing_operator="exact", fiducial="corrected")

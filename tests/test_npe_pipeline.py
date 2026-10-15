@@ -79,3 +79,53 @@ def test_train_refuses_blocks_with_different_configurations(tmp_path):
     _block(tmp_path / "train_1.npz", 100100, 100, 1, noisesig=30.0)
     res = _run("npe_train.py", "--sims_dir", tmp_path, "--out", tmp_path / "flow", "--epochs", 1)
     assert res.returncode != 0 and "noisesig" in res.stdout + res.stderr
+
+
+def test_blocks_without_a_summary_set_are_v1_and_sets_cannot_mix(tmp_path):
+    sys.path.insert(0, SCRIPTS)
+    import npe_train as nt
+
+    _block(tmp_path / "train_0.npz", 100000, 10, 0)
+    assert nt.sim_config(np.load(tmp_path / "train_0.npz"))["summary_set"] == "v1"
+    _block(tmp_path / "train_1.npz", 100010, 10, 1, summary_set="v2")
+    res = _run("npe_train.py", "--sims_dir", tmp_path, "--out", tmp_path / "flow", "--epochs", 1)
+    assert res.returncode != 0 and "summary_set" in res.stdout + res.stderr
+
+
+def test_compressor_pipeline_trains_conditions_and_scores(tmp_path):
+    """Route b end to end: npe_compress.py on v2-format blocks, npe_train.py
+    --compressor (the flow's conditioning gains theta_dim columns), npe_sbc.py
+    through the same conditioning; and --compressor refuses blocks with no a_lm."""
+    from diffcmb.alm_utils import packed_length
+
+    rng = np.random.default_rng(9)
+    for i, (first, n) in enumerate(((100000, 3000), (103000, 3000))):
+        _block(tmp_path / f"train_{i}.npz", first, n, i, summary_set="v2")
+        d = dict(np.load(tmp_path / f"train_{i}.npz"))
+        d["data_alm"] = rng.normal(size=(n, packed_length(LMAX))).astype(np.float32)
+        np.savez(tmp_path / f"train_{i}.npz", **d)
+    _block(tmp_path / "heldout.npz", 500000, 300, 7, summary_set="v2")
+    d = dict(np.load(tmp_path / "heldout.npz"))
+    d["data_alm"] = rng.normal(size=(300, packed_length(LMAX))).astype(np.float32)
+    np.savez(tmp_path / "heldout.npz", **d)
+
+    res = _run("npe_compress.py", "--sims_dir", tmp_path, "--out", tmp_path / "comp",
+               "--epochs", 3, "--conv_filters", 4)
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    res = _run("npe_train.py", "--sims_dir", tmp_path, "--out", tmp_path / "flow", "--n_layers", 2,
+               "--hidden", 32, 32, "--epochs", 3, "--compressor", tmp_path / "comp")
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    import json
+
+    cfg = json.loads((tmp_path / "flow" / "config.json").read_text())
+    assert cfg["cond_dim"] == 2 * DIM
+    res = _run("npe_sbc.py", "--flow", tmp_path / "flow", "--heldout", tmp_path / "heldout.npz",
+               "--n_sims", 100, "--n_draws", 19, "--out", tmp_path / "sbc.npz")
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+
+    v1 = tmp_path / "v1"
+    v1.mkdir()
+    _block(v1 / "train_0.npz", 100000, 100, 0)
+    res = _run("npe_train.py", "--sims_dir", v1, "--out", v1 / "flow", "--epochs", 1,
+               "--compressor", tmp_path / "comp")
+    assert res.returncode != 0 and "data_alm" in res.stdout + res.stderr

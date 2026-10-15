@@ -101,3 +101,27 @@ def test_recorded_validation_loss_is_the_restored_weights_loss(trained):
     val = np.random.default_rng(0).permutation(len(z))[: int(0.05 * len(z))]
     nll = -np.mean(trained._lp(tf.constant(z[val], tf.float32), tf.constant(c[val], tf.float32)).numpy())
     assert abs(nll - trained.best_val_loss) < 1e-4
+
+
+def test_weight_decay_shrinks_the_kernels_and_val_loss_stays_unpenalised():
+    """T1.1 route c: an L2 penalty on the MADE kernels, for the early overfitting.
+    The recorded losses must stay the NLL (comparable across penalties)."""
+    import tensorflow as tf
+
+    theta, x = _draw(4000, 1)
+    kw = {"n_layers": 2, "hidden": (32, 32), "epochs": 4, "batch_size": 256,
+          "learning_rate": 2e-3, "seed": 0, "verbose": False}
+    plain = nf.ConditionalFlow.fit(theta, x, **kw)
+    decayed = nf.ConditionalFlow.fit(theta, x, weight_decay=1e-2, **kw)
+
+    def kernel_norm(f):
+        return sum(float(np.sum(v.numpy() ** 2)) for v in f._vars if "kernel" in v.name)
+
+    assert kernel_norm(decayed) < 0.8 * kernel_norm(plain)
+    m = decayed.moments
+    z, c = (theta - m["t_mu"]) / m["t_sd"], (x - m["x_mu"]) / m["x_sd"]
+    val = np.random.default_rng(0).permutation(len(z))[: int(0.05 * len(z))]
+    nll = -np.mean(decayed._lp(tf.constant(z[val], tf.float32),
+                               tf.constant(c[val], tf.float32)).numpy())
+    assert abs(nll - decayed.best_val_loss) < 1e-4
+    assert decayed.config["weight_decay"] == 1e-2

@@ -14,8 +14,9 @@ import os
 
 import numpy as np
 from aggregate_coverage_ranks import ELL_BINS, discrete_uniform_p, rank_spread
+from npe_compress import load_conditioning
 from npe_flow import ConditionalFlow, rank_of_truth
-from npe_train import sim_config
+from npe_train import CONFIG_DEFAULTS, sim_config
 
 
 def bin_slices(lmax):
@@ -56,7 +57,8 @@ def main():
         trained_on = json.load(f)
     d = np.load(args.heldout)
     cfg = sim_config(d)
-    diff = {k: (trained_on[k], cfg[k]) for k in cfg if trained_on[k] != cfg[k]}
+    diff = {k: (trained_on.get(k, CONFIG_DEFAULTS.get(k)), cfg[k]) for k in cfg
+            if trained_on.get(k, CONFIG_DEFAULTS.get(k)) != cfg[k]}
     if diff:
         raise SystemExit(f"held-out sims differ from the flow's training configuration: {diff}")
     reals = d["realization"][: args.n_sims]
@@ -65,8 +67,9 @@ def main():
 
     flow = ConditionalFlow.load(args.flow)
     lmax = int(cfg["lmax"])
-    comp, binned, bins = sbc_ranks(flow, d["theta"][: args.n_sims], d["x"][: args.n_sims],
-                                   args.n_draws, lmax)
+    alm = d["data_alm"][: args.n_sims] if "data_alm" in d.files else None
+    x = load_conditioning(args.flow)(d["x"][: args.n_sims], alm)
+    comp, binned, bins = sbc_ranks(flow, d["theta"][: args.n_sims], x, args.n_draws, lmax)
     print(f"SBC on {len(comp)} held-out sims, {args.n_draws} draws each "
           f"(uniform: mean rank {args.n_draws / 2:.1f}, spread {1 / np.sqrt(12):.4f})")
     print(f"{'block':>11} {'bin':>9} {'mean rank':>10} {'spread':>8} {'p':>8}")

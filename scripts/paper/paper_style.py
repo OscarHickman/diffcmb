@@ -61,6 +61,7 @@ COL_BLIND = "#D55E00"     # lensing-blind / Commander-style baseline
 COL_PHI = "#0072B2"       # phi field
 COL_ALM = "#D55E00"       # alm field
 COL_CLPP = "#009E73"      # C_L^phiphi field (the fourth block)
+COL_CLTT = "#CC79A7"      # C_l^TT (Block 1), strict SBC panel
 COL_QE = "#555555"        # quadratic-estimator reference curve
 COL_NULL = "#BBBBBB"      # null bands, uniform expectation, reference lines
 COL_TRUTH = "#000000"

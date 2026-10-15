@@ -42,9 +42,10 @@ def rank_of_truth(samples, truth):
 
 
 class ConditionalFlow:
-    def __init__(self, dim, cond_dim, n_layers, hidden, seed, moments):
+    def __init__(self, dim, cond_dim, n_layers, hidden, seed, moments, weight_decay=0.0):
         self.config = {"dim": int(dim), "cond_dim": int(cond_dim), "n_layers": int(n_layers),
-                       "hidden": [int(h) for h in hidden], "seed": int(seed)}
+                       "hidden": [int(h) for h in hidden], "seed": int(seed),
+                       "weight_decay": float(weight_decay)}
         self.moments = {k: np.asarray(v, dtype=np.float64) for k, v in moments.items()}
         rng = np.random.default_rng(seed)
         tf.random.set_seed(seed)
@@ -105,11 +106,17 @@ class ConditionalFlow:
 
     @classmethod
     def fit(cls, theta, x, n_layers=5, hidden=(256, 256), epochs=100, batch_size=512,
-            learning_rate=1e-3, val_frac=0.05, patience=10, seed=0, verbose=True):
-        """Maximum-likelihood training; keeps the weights with the best validation loss."""
+            learning_rate=1e-3, val_frac=0.05, patience=10, seed=0, verbose=True,
+            weight_decay=0.0):
+        """Maximum-likelihood training; keeps the weights with the best validation loss.
+
+        weight_decay adds weight_decay * sum ||kernel||^2 over the MADE kernels to the
+        training objective only; every recorded loss is the plain NLL."""
         theta, x = np.asarray(theta, np.float64), np.asarray(x, np.float64)
         moments = {"t_mu": theta.mean(0), "t_sd": theta.std(0), "x_mu": x.mean(0), "x_sd": x.std(0)}
-        flow = cls(theta.shape[1], x.shape[1], n_layers, hidden, seed, moments)
+        flow = cls(theta.shape[1], x.shape[1], n_layers, hidden, seed, moments, weight_decay)
+        kernels = [v for v in flow._vars if "kernel" in v.name]
+        wd = tf.constant(float(weight_decay), _DT)
         z = (theta - moments["t_mu"]) / moments["t_sd"]
         c = (x - moments["x_mu"]) / moments["x_sd"]
         rng = np.random.default_rng(seed)
@@ -122,7 +129,8 @@ class ConditionalFlow:
         def step(zb, cb):
             with tf.GradientTape() as tape:
                 loss = -tf.reduce_mean(flow._lp(zb, cb))
-            opt.apply_gradients(zip(tape.gradient(loss, flow._vars), flow._vars))
+                penalised = loss + wd * tf.add_n([tf.reduce_sum(k ** 2) for k in kernels])
+            opt.apply_gradients(zip(tape.gradient(penalised, flow._vars), flow._vars))
             return loss
 
         best, best_w, bad = np.inf, None, 0
@@ -164,7 +172,7 @@ class ConditionalFlow:
             cfg = json.load(f)
         m = np.load(os.path.join(path, "moments.npz"))
         flow = cls(cfg["dim"], cfg["cond_dim"], cfg["n_layers"], cfg["hidden"], cfg["seed"],
-                   {k: m[k] for k in m.files})
+                   {k: m[k] for k in m.files}, cfg.get("weight_decay", 0.0))
         w = np.load(os.path.join(path, "weights.npz"))
         if len(w.files) != len(flow._vars):
             raise ValueError(f"{path}: {len(w.files)} weight arrays, flow has {len(flow._vars)}")

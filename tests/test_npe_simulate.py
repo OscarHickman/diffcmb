@@ -66,6 +66,20 @@ def test_summaries_are_finite_deterministic_and_sky_dependent(ctx):
         rtol=1e-12)
 
 
+def test_v1_qe_summary_is_the_trained_on_one(ctx):
+    # The v1 flows were trained on this QE (C_tot over its whole range, the l = lmax
+    # leg included). The width-gap refactor once band-limited it to l < lmax, which
+    # moved ln C_L^QE by ~0.15 and biased every v1 flow scored afterwards (2026-10-15).
+    import npe_simulate as ns
+
+    from diffcmb import qe
+
+    sim = ns.simulate(ctx, 5)
+    phi = hp.almxfl(qe.qe_tt_reconstruct(sim["data_map"], ctx.cl_tt_lensed, ctx.cl_tot,
+                                         LMAX, NSIDE), ctx.qe_norm)
+    np.testing.assert_array_equal(sim["x"][LMAX - 2:], np.log(hp.alm2cl(phi, lmax=LMAX)[2:LMAX]))
+
+
 def test_simulate_refuses_a_realization_outside_its_stream_block(ctx):
     import npe_simulate as ns
 
@@ -147,8 +161,115 @@ def test_npe_vs_exact_runs_on_strict_chains_and_refuses_others(tmp_path):
     th = nve.exact_theta(d, LMAX)
     truth = np.log(np.concatenate([d["cl_true"][2:LMAX], d["cl_phiphi_true"][2:LMAX]]))
     assert np.all(np.abs(th.mean(0) - truth) < 2.0)
+    # a flow whose training summaries the current simulator no longer reproduces is refused
+    orig = dict(np.load(sims / "train_0.npz"))
+    blk = {**orig, "x": orig["x"].copy()}
+    blk["x"][0, -1] += 0.1
+    np.savez(sims / "train_0.npz", **blk)
+    res = _cli("npe_vs_exact.py", "--flow", sims / "flow", "--chains_dir", strict,
+               "--realizations", 1, "--n_learned", 200, "--out", tmp_path / "y.npz")
+    assert res.returncode != 0 and "summaries" in res.stdout + res.stderr
+    np.savez(sims / "train_0.npz", **orig)
     flat = tmp_path / "flat"
     _run_chain(flat, "--cl_phiphi_prior_nu", str(NU), realization=1)
     res = _cli("npe_vs_exact.py", "--flow", sims / "flow", "--chains_dir", flat,
                "--realizations", 1, "--out", tmp_path / "x.npz")
     assert res.returncode != 0 and "cl_prior_nu" in res.stdout + res.stderr
+
+
+# --- summary set v2 (T1.1 width gap, route a) and the stored data a_lm (route b) ---
+
+def _ctx(lmax, nside, noisesig, amp, summary_set):
+    import npe_simulate as ns
+
+    from diffcmb import qe
+    from diffcmb.power import fiducial_spectra
+
+    cl_tt, _ = fiducial_spectra(lmax + 1)
+    cl_tt = cl_tt[: lmax + 1]
+    nl = qe.qe_tt_noise_nl(cl_tt, cl_tt + qe.white_noise_cl(noisesig, 12 * nside ** 2, lmax), lmax)
+    return ns.make_context(lmax=lmax, nside=nside, noisesig=noisesig, phi_amplitude=amp,
+                           nu_tt=NU, nu_pp=NU, cl_tt_lensed=cl_tt, nl_qe=nl,
+                           summary_set=summary_set)
+
+
+@pytest.fixture(scope="module")
+def ctx_v2():
+    return _ctx(LMAX, NSIDE, 1.0, AMP, "v2")
+
+
+def test_v2_summaries_extend_v1_on_the_same_sky(ctx, ctx_v2):
+    import npe_simulate as ns
+
+    n = LMAX - 2
+    a, b = ns.simulate(ctx, 5), ns.simulate(ctx_v2, 5)
+    assert b["x"].shape == (ns.summary_dim("v2", LMAX),) == (6 * n,)
+    assert ns.summary_dim("v1", LMAX) == 2 * n
+    np.testing.assert_array_equal(b["x"][:n], a["x"][:n])
+    # v2's QE block is band-limited to 2 <= l < lmax (as the v2 sims were made), not v1's
+    phi = ns.qe_phi(ctx_v2, b["data_map"], 2, LMAX)
+    np.testing.assert_array_equal(b["x"][n: 2 * n], np.log(hp.alm2cl(phi, lmax=LMAX)[2:LMAX]))
+    assert np.all(np.isfinite(b["x"]))
+    corr = b["x"][4 * n: 5 * n]
+    assert np.all(np.abs(corr) <= 1.0)
+    np.testing.assert_array_equal(b["x"], ns.simulate(ctx_v2, 5)["x"])
+
+
+def test_simulate_returns_the_data_alm(ctx):
+    import npe_simulate as ns
+
+    from diffcmb.alm_utils import packed_length
+    from diffcmb.lensing import _alm_hp_to_packed
+
+    s = ns.simulate(ctx, 5)
+    assert s["data_alm_packed"].shape == (packed_length(LMAX),)
+    np.testing.assert_allclose(
+        s["data_alm_packed"],
+        _alm_hp_to_packed(hp.map2alm(s["data_map"], lmax=LMAX - 1, iter=3), LMAX))
+
+
+def test_delensing_by_the_true_phi_restores_the_unlensed_sky():
+    """Pins the delensing sign: remapping the lensed map by -grad(phi_true) must
+    raise its upper-band correlation with the unlensed sky, and +grad(phi) must
+    lower it (exact-operator sky, noise-free, A_phi = 3000). Measured: 0.94
+    lensed, 0.99 delensed, 0.78 wrong sign. Power alone is the wrong check: the
+    remap of a band-limited field loses in-band power smoothly with l."""
+    import npe_simulate as ns
+
+    from diffcmb.lensing import _alm_packed_to_hp
+
+    lmax = nside = 32
+    c = _ctx(lmax, nside, 1e-6, AMP, "v2")
+    s = ns.simulate(c, 7)
+    lensed = s["data_map"]           # noise sigma 1e-6: the lensed sky
+    phi = _alm_packed_to_hp(s["phi_true_packed"], lmax)
+    unl = _alm_packed_to_hp(s["alm_true_packed"], lmax)
+
+    def rho(m):
+        a = hp.map2alm(m, lmax=lmax - 1, iter=3)
+        return np.mean((hp.alm2cl(a, unl) / np.sqrt(hp.alm2cl(a) * hp.alm2cl(unl)))[lmax // 2:])
+
+    r_len, r_del, r_wrong = rho(lensed), rho(ns.delens_map(c, lensed, phi)), rho(
+        ns.delens_map(c, lensed, -phi))
+    assert r_del > 0.98 and r_del > r_len + 0.03 and r_wrong < r_len - 0.05, (r_len, r_del, r_wrong)
+
+
+def test_cli_v2_block_records_its_summary_set_and_data_alm(tmp_path):
+    from diffcmb import qe
+    from diffcmb.alm_utils import packed_length
+    from diffcmb.power import fiducial_spectra
+
+    cl_tt, _ = fiducial_spectra(LMAX + 1)
+    cl_tt = cl_tt[: LMAX + 1]
+    nl = qe.qe_tt_noise_nl(cl_tt, cl_tt + qe.white_noise_cl(1.0, 12 * NSIDE ** 2, LMAX), LMAX)
+    np.savez(tmp_path / "qe.npz", cl_tt_lensed=cl_tt, nl_qe=nl, lmax=LMAX, nside=NSIDE,
+             noisesig=1.0, phi_amplitude=AMP, lensing_operator="exact", fiducial="corrected",
+             passed=True)
+    res = _cli("npe_simulate.py", "--lmax", LMAX, "--nside", NSIDE, "--noisesig", 1,
+               "--phi_amplitude", AMP, "--nu_tt", NU, "--nu_pp", NU, "--qe_file",
+               tmp_path / "qe.npz", "--first", 100000, "--n", 2, "--summary_set", "v2",
+               "--out", tmp_path / "b.npz")
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    b = np.load(tmp_path / "b.npz")
+    assert str(b["summary_set"]) == "v2" and b["x"].shape == (2, 6 * (LMAX - 2))
+    assert b["data_alm"].shape == (2, packed_length(LMAX)) and b["data_alm"].dtype == np.float32

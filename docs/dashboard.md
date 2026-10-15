@@ -1,10 +1,88 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-10-07*
+*Last updated: 2026-10-14*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-10-07): φ-fixed run — the a_ℓm/C_ℓ blocks are exact; the band-edge deficit needs φ sampling
+## CURRENT (2026-10-14): D7 — figure 1 is the strict SBC; three blocks pass, φ `[30,60)` fails
+
+Figure 1 rebuilt from `_nu30_strict` (D7). `fig1_validation.py` strict mode reads the a_ℓm row against uniform and adds the C_ℓ^TT strict panel; log `logs/fig1_d7_20261014.log`. Each entry is `p_bin`, thin 50, N = 48:
+
+| block | strict (`figure1/`) | flat prior (`figure1_flatprior/`, `_nu30_long`) |
+|---|---|---|
+| C_ℓ^TT | **1.00 ✓** | — |
+| a_ℓm | **0.178 ✓** (`[60,64)` mean p 0.27, spread p 0.073) | 0.005 ✗ (`[60,64)` against the φ-known null) |
+| C_L^φφ | **0.185 ✓** | 0.501 ✓ |
+| φ | **0.014 ✗**, `[30,60)` mean p 0.002, spread p 0.002 | 0.386 ✓ |
+
+- **The strict and flat-prior ensembles are paired:** identical `phi_true_packed` and `cl_phiphi_true` per realization, and a_ℓm truths correlated at 0.99 (the same Gaussian draws, rescaled by the drawn C_ℓ^TT). The φ `[30,60)` mean_u is 0.626 strict against 0.558 flat on the same φ truths. So the strict failure is not independent evidence against the flat ensemble, but it is a calibrated failure in the strict ensemble itself. It is recorded as a limitation (residual centred-hierarchy mixing at ν = 30, the bin of the old ν-dependent offset).
+- **r036 kept (D8).** Figure 2 on 47 skies (r036 out) against 48: aware bias moves by ≤ 0.26 points in every bin (`[45,64)` +0.81 % against +0.72 %); mean |bias| reduction 93.2 % against 93.6 %; corr(blind, received) 0.894 against 0.892.
+
+## 2026-10-08 landings, harvested 2026-10-14: the band-edge deficit is stationary; the strict ensemble passes strict SBC; the learned posterior is wider but unbiased
+
+All seven jobs queued on 2026-10-07 completed (`sacct` COMPLETED, no tracebacks in any task `.err`, every task saved its chain). Harvest 12100517 exited 1. Its `strict_sbc_ranks.py` step globbed the `chain_rNNN_ckpt.npz` checkpoints and refused them as non-strict. The glob was fixed, with a regression test, and that step was re-run on 2026-10-14 (`logs/harvest_strict_12100517_rerun.out`). Sections 1 and 3 of the job had already run correctly.
+
+### T0.1 b: two-start test (12100312 → harvest 12100313, `logs/harvest_t01b_12100313.out`)
+
+The production configuration on r032–r039, started at (a_ℓm, φ) = truth (`--start_truth`), output `ens_exact_l64_A3000_n30_nu30_truthstart/`, 12.3–13.5 h per task on cosma5. Control: the MAP-start `_nu30_long` chains on the same skies.
+
+**C_ℓ / (S_true/(k−4)) by chain quarter, all 8 skies:**
+
+| ℓ | truth start Q1–Q4 | MAP start Q1–Q4 | truth − MAP, Q4 (paired, 7 skies, r036 out) |
+|---|---|---|---|
+| 60 | 0.986 0.984 0.987 0.978 | 0.950 0.993 0.930 0.936 | +0.025 ± 0.032 |
+| 61 | 0.970 0.979 0.975 0.951 | 0.906 0.924 0.977 0.961 | +0.014 ± 0.024 |
+| 62 | 1.023 1.035 0.996 1.042 | 0.902 0.904 0.881 0.906 (r036) | +0.009 ± 0.024 |
+| 63 | **0.934 0.909 0.935 0.925** | 0.904 0.883 0.942 0.935 | **−0.017 ± 0.036** |
+
+Against the dense φ-known reference (r036 out), Q4 at ℓ = 63 is −0.102 ± 0.059 for the truth start and −0.085 ± 0.052 for the MAP start.
+
+- **The truth start falls to the same C_63 level as the MAP start, by the first saved quarter (within the 1000 burn-in sweeps), and stays there.** That is the pre-registered outcome for a **stationary** deficit, not slow mixing from the start.
+- `[60,64)` rank z against the effective null: +1.94 for the truth start, +2.82 for the MAP start (thin 50). Per-mode sd(z) at ℓ = 56–63: 1.01–1.07 for the truth start, 1.07–1.11 for the MAP start.
+- Caveat: two starts reaching one level within burn-in does not exclude a slow collective mode that both enter quickly. The strict ensemble below is the independent check.
+
+### Strict exact ensemble (12100331 → harvest 12100517 + 2026-10-14 re-run)
+
+48 skies, proper ν = 30 priors on C_ℓ^TT and C_L^φφ with truths drawn from them, 1000 + 3600, output `ens_exact_l64_A3000_n30_nu30_strict/`, 12.3–15.1 h per task (cosma5, cosma8-ska, cosma8-shm).
+
+**Strict spectrum SBC** (rank of the drawn truth; no simulated null needed). 180 draws per chain, so the uniform mean rank is 90.0 and the uniform spread 0.2887. Each entry is mean rank / p; full chain at thin 20, then the second half at thin 10:
+
+| bin | C_ℓ^TT full | C_ℓ^TT half 2 | C_L^φφ full | C_L^φφ half 2 |
+|---|---|---|---|---|
+| [2,10) | 84.9 / 0.90 | 84.9 / 0.66 | 79.3 / 0.051 | 79.2 / 0.095 |
+| [10,30) | 90.5 / 0.41 | 89.8 / 0.72 | 102.0 / 0.28 | 102.9 / 0.47 |
+| [30,60) | 78.2 / 0.42 | 79.0 / 0.87 | 110.2 / 0.58 | 108.8 / 0.72 |
+| [60,64) | 86.2 / 0.72 | 87.4 / 0.66 | 81.2 / 0.87 | 79.8 / 0.41 |
+| ℓ = 63 | 98.4 / 0.17 | 99.7 / 0.96 | 86.9 / 0.28 | 86.1 / 0.41 |
+
+Median ESS at ℓ = 63 for C_ℓ^TT is 199 per 3600 sweeps (18 sweeps per ESS); the bulk C_ℓ bins are at 1–4 sweeps per ESS.
+
+- **Every strict spectrum bin passes, including the band edge.** ℓ = 63 mean rank 98.4/180 (u ≈ 0.55) has the sign of a low posterior but is consistent with uniform.
+- **C_ℓ collapse table: 0 (chain, ℓ) pairs on 48 skies** (quarter median < 0.01 × realized power). Under the flat prior, 1 of 48 skies collapsed in each of `_nu30_long` (r036) and `_nocl4`. The strict r036 is the flat-prior r036's sky with its power rescaled by the drawn C_ℓ (same φ, same Gaussian draws), so this is close to r036 re-run under the proper prior.
+- **Joint-likelihood SBC passes:** mean_u 0.528, KS_p 0.19 (thin 40).
+- **Field ranks** (SBC-supported in strict mode). a_ℓm passes in every bin: `[60,64)` mean_u 0.555 (thin 10, cal_p 0.040) and 0.545 (thin 50, cal_p 0.20); pooled 0.501. **⚠ φ `[30,60)` mean_u 0.625 (thin 10) / 0.626 (thin 50), sd_u 0.225, KS_p < 0.001 at both thinnings**, which is +3.0σ on the mean and a central clump. That is the bin of the old ν-dependent φ offset (ν = 6: 0.685; ν = 30: 0.574). On the adopted `_nu30_long` the same bin reads 0.567 / 0.558 (thin 10/50, KS_p 0.09). Figure 1's calibrated `p_bin` fails it (0.014; CURRENT above). φ `[10,30)` at thin 50 has cal_p 0.005 with mean_u 0.530.
+- The C_ℓ^TT and C_L^φφ `[2,10)` coverage-row FLAGs are the interval-coverage statistic, which is non-uniform by construction; the strict SBC above supersedes them.
+
+### T1.1: learned vs exact (12100439, `logs/npe_vs_exact_12100439.out`)
+
+`npe_vs_exact.py` on all 48 strict skies with 4000 learned draws per sky. Shift = (learned mean − exact mean)/exact sd; the SE of the across-sky mean is sd(shift)/√48.
+
+| block | bin | mean shift ± SE | width ratio (learned/exact) |
+|---|---|---|---|
+| C_ℓ^TT | [2,10) | +0.021 ± 0.023 | 1.03 |
+| C_ℓ^TT | [10,30) | +0.109 ± 0.055 | 1.12 |
+| C_ℓ^TT | [30,60) | −0.019 ± 0.081 | 1.24 |
+| C_ℓ^TT | [60,64) | +0.098 ± 0.15 | 1.59 (band edge, not pooled) |
+| C_L^φφ | [2,10) | +0.031 ± 0.069 | 1.16 |
+| C_L^φφ | [10,30) | +0.100 ± 0.13 | 1.33 |
+| C_L^φφ | [30,60) | +0.120 ± 0.18 | 1.55 |
+| C_L^φφ | [60,64) | −0.055 ± 0.16 | 1.52 (band edge, not pooled) |
+
+Mean correlation matrix, learned − exact: max |diff| 0.106.
+
+- **No bin is shifted significantly** (largest C_ℓ^TT `[10,30)`, z ≈ 2.0). **The learned posterior is wider**: 3–24 % for C_ℓ^TT and 16–55 % for C_L^φφ, growing with ℓ. That is the information the spectra-level summaries lose (the expected outcome, since QE power tracks C_L^φφ weakly), not a calibration failure.
+
+## 2026-10-07 record: φ-fixed run — the a_ℓm/C_ℓ blocks are exact; the band-edge deficit needs φ sampling
 
 ROADMAP T0.1 a. Job 12099339 ran the production sampler with φ held at φ_true (Blocks 1 + 2, lensed likelihood, `--phi_fixed_truth`, wrapper `MODE=phifixed`) on skies r032–r039, otherwise the production configuration (ν = 30 skies, 1000 + 3600, MAP start, lmax = nside = 64). Output `ens_exact_l64_A3000_n30_nu30_phifixed/`. All 8 tasks completed in 35–36 min each on cosma5: without the φ block a sweep is ~0.45 s, against ~15 s in production. The harvest was job 12099555 (`logs/harvest_t01a_12099555.out`): completeness guard (8/8, 3600 samples, φ unmoved), `diagnose_alm_band_edge.py` on the φ-fixed run and the control, then `compare_band_edge_paired.py` against the dense reference.
 
@@ -27,7 +105,7 @@ ROADMAP T0.1 a. Job 12099339 ran the production sampler with φ held at φ_true 
 - ℓ = 60 sits 0.7 ± 0.2 % below the dense value (z −2.7). It is far below any figure-level effect; it may be the dense reference's Monte Carlo error (200 draws per sky), which the paired SE does not include.
 - **r036's C_62 collapse also happens with φ fixed.** Its ratio is ~0 in Q1–Q2, 0.5 in Q3 and 1.0 in Q4 (from the with/without-r036 means). So the collapse comes from the MAP start in Blocks 1 + 2, not from φ, and with φ fixed it recovers within the chain.
 
-**Nothing in flight.** Next steps need sign-off: ROADMAP T0.1 b–d.
+Next steps at the time: ROADMAP T0.1 b–d (b and c landed 2026-10-08; see CURRENT above).
 
 ## 2026-10-03 record: `--cl_init data` pilot is negative — the start is not the cause
 
@@ -832,15 +910,15 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**In flight (2026-10-07): T0.1 b, the two-start test.** Job 12100312 (array 32–39, `MODE=truthstart`, `TAG=_nu30_truthstart`, ν = 30, 1000 + 3600, A_φ = 3000, σ = 30) runs the production configuration started at (a_ℓm, φ) = truth (`--start_truth`), output `ens_exact_l64_A3000_n30_nu30_truthstart/`; ~19 h per task, started 14:19 on cosma5. Harvest 12100313 (`afterany`, `scripts/submit_harvest_t01b_truthstart.slurm`): completeness/start guard, `diagnose_alm_band_edge.py` beside the MAP-start control `_long_r032_r039`, `compare_band_edge_paired.py` against the dense reference. Reading: truth-start C_63 drifts to ~0.935 → stationary φ-marginal effect; stays near 1.0 → slow a–φ mixing.
+**In flight (submitted 2026-10-14): T1.1 width gap, all three routes.** Baseline to beat (`flow_maf5x256`): width ratio C_ℓ^TT 1.03 / 1.12 / 1.24, C_L^φφ 1.16 / 1.33 / 1.55 (bins below 60), no bin shifted.
+- **12164771** (array 0–4): v2 sims (`SUMMARY_SET=v2`), the same realizations as v1, into `npe_sims_l64_A3000_n30_nu30_v2/` with `data_alm`; ~0.13 s/sim, ~2 h per task.
+- **12164772** (array 0–3), route c on the v1 sims: `flow_maf5x256_wd1e-4`, `_wd1e-3`, `flow_maf5x128`, `flow_maf3x128_wd1e-4`.
+- **12164773** (array 4–6, `afterok:12164771`): route a, `flow_maf5x256` and `_wd1e-4` on v2; route b, `compressor/` then `flow_maf5x256_comp`.
+- Each task: train → `sbc_heldout.npz` (2000 × 199) → `vs_exact_strict.npz` (48 strict skies). Logs `logs/npe_gap_<job>_<task>.out`. Read the best val NLL, the held-out SBC p, and the vs-exact table.
 
-**In flight (2026-10-07): T1.1, the learned-vs-exact posterior** (decisions 2026-10-07: strict prior, spectra-level NPE, TFP; `docs/notes/t1_1_learned_posterior_scoping.md`).
-- **12100331** (array 0–47): the strict exact ensemble, `MODE=cl4 CLNU=30 NU=30 TAG=_nu30_strict`, 1000 + 3600, A_φ = 3000, σ = 30. Proper ν = 30 priors on C_ℓ^TT and C_L^φφ, truths drawn from them, so every block has a strict SBC rank; it is also the T0.1 c candidate (the proper prior bounds the C_ℓ collapse). Output `ens_exact_l64_A3000_n30_nu30_strict/`; ~19 h per task, started 14:30. Harvest **12100517** (`afterany:12100331`, `scripts/submit_harvest_strict.slurm`): completeness guard, `strict_sbc_ranks.py` (strict ranks of both spectra against their drawn truths, thin 20 and second half thin 10, plus the C_ℓ collapse table for T0.1 c), field ranks and joint-likelihood SBC.
-- **12100390** (landed): `npe_simulate.py`, 4 × 50 000 training sims (realizations 100000–299999) plus 10 000 held-out (500000–509999); `npe_sims_l64_A3000_n30_nu30/`.
-- **12100400** (landed): trained `flow_maf5x256/` (best val NLL 162.65, epoch 12 of 27; it overfits early) and **passed held-out SBC** in every bin (p 0.15–0.71; `achievements.md` → T1.1).
-- **12100439** (`afterany:12100331:12100400`): `npe_vs_exact.py`, learned vs strict exact, sky by sky → `flow_maf5x256/vs_exact_strict.npz`.
+Landed 2026-10-08 and harvested into "CURRENT" above: 12100312 (truth start, T0.1 b) and its harvest 12100313; 12100331 (strict ensemble) and its harvest 12100517 (the strict-SBC step re-run 2026-10-14 after the `_ckpt` glob fix); 12100390 (NPE sims: 4 × 50 000 training, realizations 100000–299999, plus 10 000 held-out, 500000–509999, `npe_sims_l64_A3000_n30_nu30/`); 12100400 (NPE training + held-out SBC, `achievements.md` → T1.1); 12100439 (learned vs exact).
 
-Before that, the last landings were 12099339 (the φ-fixed run, T0.1 a) and its harvest 12099555, recorded in "CURRENT (2026-10-07)" at the top. Before that, 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "2026-10-03 record". Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
+Before that, 12099339 (the φ-fixed run, T0.1 a) and its harvest 12099555, recorded in "2026-10-07 record". Before that, 12078506 (the `--cl_init data` pilot) and 12090562 (its band-edge diagnostic), both harvested into "2026-10-03 record". Before that, 12066584/85/67 (Block-4-OFF r024–r047, lmax 32, lmax 32 / nside 64) were harvested into "2026-09-30 record". Landed 2026-09-27: 12065737 (N = 48 harvest), 12066643 (band-edge diagnostic), 12066700 (dense exact reference), 12066670 (MAP-start replay), 12066719 (`make figures`).
 
 Landed 2026-09-25, all harvested into "2026-09-25 record: T0.1 resolved" below:
 

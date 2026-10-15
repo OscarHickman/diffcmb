@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
+#SBATCH --mem=12G
 #SBATCH --time=6:00:00
 #SBATCH --array=0-4
 #SBATCH -J npe_sim
@@ -20,7 +20,11 @@
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
+# SUMMARY_SET=v2 (T1.1 width gap, 2026-10-14): richer summaries plus the data a_lm,
+# written to a separate directory; the default reproduces the v1 set.
+SUMMARY_SET=${SUMMARY_SET:-v1}
 OUT=results/analysis/npe_sims_l64_A3000_n30_nu30
+[ "$SUMMARY_SET" = v1 ] || OUT=${OUT}_${SUMMARY_SET}
 mkdir -p logs $OUT
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb:$(pwd)/scripts
@@ -34,7 +38,8 @@ else
   FIRST=500000; N=10000; NAME=heldout
 fi
 echo "task $T: realizations $FIRST..$((FIRST + N - 1)) -> $OUT/$NAME.npz"
-.venv/bin/python -u scripts/npe_simulate.py --first $FIRST --n $N --out $OUT/$NAME.npz
+.venv/bin/python -u scripts/npe_simulate.py --first $FIRST --n $N --summary_set $SUMMARY_SET \
+    --out $OUT/$NAME.npz
 rc=$?
 echo "task $T exited with status $rc"
 exit $rc

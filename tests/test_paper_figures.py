@@ -208,11 +208,14 @@ def test_binned_test_applies_the_multiplicity_correction():
 LMAX_SYN = 12
 
 
-def _write_synthetic_ensemble(dirpath, n_chains, n_samp, bias=0.0, seed=7, lmax=None):
+def _write_synthetic_ensemble(dirpath, n_chains, n_samp, bias=0.0, seed=7, lmax=None,
+                              strict=False):
     """Chains whose truth is exchangeable with the draws (a 'correct sampler').
 
     `bias` shifts every draw of every field upward by that many posterior sd,
-    which is what a biased sampler looks like to the rank test.
+    which is what a biased sampler looks like to the rank test. `strict` adds a
+    proper C_l^TT prior (cl_prior_nu) with a C_l^TT truth exchangeable with the
+    Block 1 draws, as in a --cl_prior_nu ensemble.
     """
     rng = np.random.default_rng(seed)
     lmax = LMAX_SYN if lmax is None else lmax
@@ -230,10 +233,16 @@ def _write_synthetic_ensemble(dirpath, n_chains, n_samp, bias=0.0, seed=7, lmax=
         cpp_t = np.zeros(lmax)
         cpp_t[2:] = np.exp(lnc_mu + 0.3 * rng.normal(size=n_cl))
         cpp_s = lnc_mu + 0.3 * bias + 0.3 * rng.normal(size=(n_samp, n_cl))
+        ltt_mu = rng.normal(size=n_cl)
+        ctt_t = np.zeros(lmax)
+        ctt_t[2:] = np.exp(ltt_mu + 0.3 * rng.normal(size=n_cl))
+        ltt_s = ltt_mu + 0.3 * bias + 0.3 * rng.normal(size=(n_samp, n_cl))
+        extra = {"cl_prior_nu": 30.0, "cl_true": ctt_t} if strict else {}
         np.savez(
             os.path.join(dirpath, f"chain_r{c:03d}.npz"),
             lmax=lmax, nside=8, realization=c, packing_version=2,
-            alm_samples=np.hstack([rng.normal(size=(n_samp, n_cl)), alm_s]),
+            alm_samples=np.hstack([ltt_s if strict else rng.normal(size=(n_samp, n_cl)), alm_s]),
+            **extra,
             phi_samples=phi_s, alm_true_packed=alm_t, phi_true_packed=phi_t,
             cl_phiphi_samples=cpp_s, cl_phiphi_true=cpp_t,
             cl_phiphi_prior_nu=6.0, sample_cl_phiphi=True,
@@ -289,6 +298,66 @@ def test_fig1_end_to_end_rejects_a_biased_sampler(tmp_path, capsys, monkeypatch)
     _write_synthetic_ensemble(ens, n_chains=24, n_samp=120, bias=1.0)
     p = _run_fig1(ens, tmp_path / "out", capsys, monkeypatch)
     assert p["clpp"] < 0.01, p
+
+
+def _run_fig1_out(indir, outdir, capsys, monkeypatch):
+    import fig1_validation as f1
+
+    monkeypatch.setattr(sys, "argv", ["fig1", "--indir", str(indir), "--outdir",
+                                      str(outdir), "--thin", "2", "--n_rep", "50"])
+    f1.main()
+    return capsys.readouterr().out
+
+
+def test_fig1_strict_ensemble_draws_the_cltt_sbc_panel(tmp_path, capsys, monkeypatch):
+    """D7: in a --cl_prior_nu ensemble every block has a strict rank, so C_l^TT
+    gets its own SBC panel and passes a correct sampler."""
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=24, n_samp=120, strict=True)
+    out = _run_fig1_out(ens, tmp_path / "out", capsys, monkeypatch)
+    p = float(re.search(r"cltt strict SBC.*?corrected min ([\d.]+)", out).group(1))
+    assert p > 0.01, out
+    assert (tmp_path / "out" / "cltt_sbc.pdf").exists()
+
+
+def test_fig1_strict_cltt_panel_rejects_a_biased_sampler(tmp_path, capsys, monkeypatch):
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=24, n_samp=120, bias=1.0, strict=True)
+    out = _run_fig1_out(ens, tmp_path / "out", capsys, monkeypatch)
+    p = float(re.search(r"cltt strict SBC.*?corrected min ([\d.]+)", out).group(1))
+    assert p < 0.01, out
+
+
+def test_fig1_flat_prior_ensemble_has_no_cltt_panel(tmp_path, capsys, monkeypatch):
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=6, n_samp=40)
+    out = _run_fig1_out(ens, tmp_path / "out", capsys, monkeypatch)
+    assert "cltt strict SBC" not in out
+    assert not (tmp_path / "out" / "cltt_sbc.pdf").exists()
+
+
+def test_fig1_strict_ensemble_reads_alm_against_uniform_not_the_flat_prior_null(
+        tmp_path, capsys, monkeypatch):
+    """The flat-prior a_lm null describes a different target; in a strict
+    ensemble the a_lm rank is SBC-supported and must be read against uniform,
+    even if a null file sits in the directory."""
+    import fig1_validation as f1
+
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=24, n_samp=120, strict=True)
+    n_draws = len(range(0, 120, 2))
+    shifted = (np.full(5000, n_draws) + 0.5) / (n_draws + 1.0)   # a null that rejects everything
+    np.savez(ens / f1.alm_null_file(2),
+             **{f"effective_{lo}_{min(hi, LMAX_SYN)}_u": shifted
+                for lo, hi in f1.ELL_BINS if lo < LMAX_SYN})
+    out = _run_fig1_out(ens, tmp_path / "out", capsys, monkeypatch)
+    assert "strict ensemble" in out
+    p = float(re.search(r"alm_power.*?corrected min ([\d.]+)", out).group(1))
+    assert p > 0.01, out
 
 
 def test_fig_convergence_end_to_end_on_synthetic_ensemble(tmp_path, monkeypatch, capsys):

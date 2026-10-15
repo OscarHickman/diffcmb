@@ -122,6 +122,7 @@ def main():
     args = p.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.indir, "chain_r*.npz")))
+    files = [f for f in files if not f.endswith("_ckpt.npz")]
     if not files:
         raise SystemExit(f"no chains in {args.indir}")
     res = strict_ranks(files, args.thin, args.burn_frac)

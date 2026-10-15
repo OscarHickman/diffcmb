@@ -11,6 +11,10 @@ sampler over (alm, C_l, phi, C_L^phiphi). THREE standalone panel PDFs:
                                samples that produced it.
   (c) validation_power.pdf  -- P(detect) vs injected posterior-mean shift at
                                this N -- turns "it passes" into a stated bound.
+  (d) cltt_sbc.pdf          -- strict ensembles only (--cl_prior_nu, decision
+                               D7): the strict SBC rank of C_l^TT, the Block 1
+                               twin of (b). There the a_lm row is read against
+                               uniform, since its truth comes from the prior.
 
 WHY PANEL (b) EXISTS. Until 2026-09-18 this figure showed only the phi and alm
 field ranks. Those certify two of the four blocks. The paper's title claims the
@@ -164,6 +168,43 @@ def collect_clpp_ranks(files, thin):
             # cl_phiphi_samples is stored as log C_L for l = 2..lmax-1.
             post = np.exp(d["cl_phiphi_samples"][::thin])[:, ells - 2].mean(axis=1)
             tru = np.asarray(d["cl_phiphi_true"], dtype=np.float64)[ells].mean()
+            rank = int(np.sum(post < tru))
+            us.append((rank + 0.5) / (len(post) + 1.0))
+            n_draws = len(post)
+    return np.asarray(us), n_draws, nu
+
+
+def is_strict(files):
+    """True for a --cl_prior_nu ensemble: C_l^TT carries a proper prior and its
+    truth is drawn from it, so every block has a strict SBC rank (decision D7)."""
+    d0 = np.load(files[0])
+    nu = float(d0["cl_prior_nu"]) if "cl_prior_nu" in d0.files else np.nan
+    return bool(np.isfinite(nu) and nu > 0.0 and "cl_true" in d0.files)
+
+
+def collect_cltt_ranks(files, thin):
+    """Strict SBC ranks of the drawn C_l^TT truth among the Block 1 samples.
+
+    The C_l^TT twin of collect_clpp_ranks, with the same bin-mean statistic and
+    the same layout (bins outermost, chains inner). Only defined for a strict
+    ensemble; returns (None, None, nu) otherwise.
+    """
+    d0 = np.load(files[0])
+    nu = float(d0["cl_prior_nu"]) if "cl_prior_nu" in d0.files else np.nan
+    if not is_strict(files):
+        return None, None, nu
+    us = []
+    n_draws = None
+    for lo, hi in ELL_BINS:
+        for f in files:
+            d = np.load(f)
+            lmax = int(d["lmax"])
+            ells = np.arange(max(2, lo), min(lmax, hi))
+            if ells.size == 0:
+                continue
+            # ln C_l for l = 2..lmax-1 leads alm_samples.
+            post = np.exp(d["alm_samples"][::thin, : lmax - 2])[:, ells - 2].mean(axis=1)
+            tru = np.asarray(d["cl_true"], dtype=np.float64)[ells].mean()
             rank = int(np.sum(post < tru))
             us.append((rank + 0.5) / (len(post) + 1.0))
             n_draws = len(post)
@@ -337,7 +378,8 @@ def records_bins(records, tag):
     return [(lo, hi) for (t, lo, hi) in sorted(records, key=lambda k: k[1]) if t == tag]
 
 
-def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath):
+def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath, tag="clpp",
+                  label=r"$C_L^{\phi\phi}$ (strict SBC)", color=None):
     # Same calibrated statistics as the field panels. The continuous KS test
     # this panel used to print is the miscalibrated one (achievements.md,
     # 2026-09-12) -- the paper must not carry two different tests side by side.
@@ -345,7 +387,7 @@ def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath):
     cal_p = discrete_uniform_p(ranks, n_draws)
     sd_u = rank_spread(ranks, n_draws)
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    _draw_hist(ax, us, n_draws, ps.COL_CLPP, r"$C_L^{\phi\phi}$ (strict SBC)")
+    _draw_hist(ax, us, n_draws, ps.COL_CLPP if color is None else color, label)
     ax.set_ylim(0, 2.35)
     h, lab = ax.get_legend_handles_labels()
     ax.legend(h[2:], lab[2:], loc="upper right")
@@ -357,7 +399,7 @@ def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath):
                 rf"$p_{{\rm bin}}$={p_corr:.2f},  $N$={us.size}", loc="lower left")
     ax.set_ylabel("density")
     ps.save(fig, outpath)
-    print(f"  clpp strict SBC (nu={nu:g}): mean_u={us.mean():.4f} sd_u={sd_u:.4f} "
+    print(f"  {tag} strict SBC (nu={nu:g}): mean_u={us.mean():.4f} sd_u={sd_u:.4f} "
           f"N={us.size}; per-bin (mean,sd) p = {np.round(p_bins, 3).tolist()} -> "
           f"corrected min {p_corr:.3f}  [pooled chi2 cal_p={cal_p:.4f}, not drawn]")
 
@@ -442,7 +484,12 @@ def main():
 
     records, n_draws = collect_field_ranks(files, args.thin)
     alm_null = None
-    if args.alm_null != "uniform":
+    strict = is_strict(files)
+    if strict:
+        print("  strict ensemble (cl_prior_nu set): the a_lm truth is drawn from the "
+              "sampler's own prior, so its rank is SBC-supported and read against "
+              "uniform; a flat-prior null does not apply (D7)")
+    elif args.alm_null != "uniform":
         lmax = int(np.load(files[0])["lmax"])
         alm_null = load_alm_null(args.indir, n_draws, args.alm_null, lmax,
                                  thin=args.thin)
@@ -464,6 +511,12 @@ def main():
     else:
         plot_clpp_sbc(us, clpp_draws, nu, len(files),
                       os.path.join(args.outdir, "clpp_sbc.pdf"))
+
+    if strict:
+        us_tt, tt_draws, nu_tt = collect_cltt_ranks(files, args.thin)
+        plot_clpp_sbc(us_tt, tt_draws, nu_tt, len(files),
+                      os.path.join(args.outdir, "cltt_sbc.pdf"), tag="cltt",
+                      label=r"$C_\ell^{TT}$ (strict SBC)", color=ps.COL_CLTT)
 
     plot_power_curve(len(files), n_draws, args.n_rep, args.seed,
                      os.path.join(args.outdir, "validation_power.pdf"))

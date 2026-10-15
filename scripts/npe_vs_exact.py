@@ -9,11 +9,13 @@ posterior, and compare bin-averaged ln C against the exact chain:
   * width ratio = learned sd / exact sd;
   * the correlation matrix of the bin-averaged (ln C_l^TT, ln C_L^phiphi), learned
     vs exact (the figure-4 analogue; Doeser & Jasche 2606.10023).
-Refuses chains whose configuration differs from the flow's training simulator.
+Refuses chains whose configuration differs from the flow's training simulator,
+and a flow whose training summaries the current simulator no longer reproduces.
 The [60,64) bin is the T0.1 band edge: reported, flagged, never pooled.
 """
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -23,6 +25,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
 import npe_simulate as ns  # noqa: E402
 from fig_convergence import bulk_ess  # noqa: E402
+from npe_compress import load_conditioning  # noqa: E402
 from npe_flow import ConditionalFlow  # noqa: E402
 from npe_sbc import bin_slices  # noqa: E402
 
@@ -55,6 +58,24 @@ def check_chain(d, cfg, path):
         raise SystemExit(f"{path} does not match the flow's simulator:\n  " + "\n  ".join(bad))
 
 
+def check_summaries(ctx, cfg):
+    """Refuse a flow if npe_simulate no longer reproduces its first training sim's
+    summaries: a summary-code change after training feeds the flow inputs it never
+    saw and biases it, while the held-out SBC (stored summaries) cannot notice
+    (the 2026-10-15 v1 QE regression)."""
+    sims_dir = cfg.get("train_args", {}).get("sims_dir")
+    paths = sorted(glob.glob(os.path.join(sims_dir or "", "train_*.npz")))
+    if not paths:
+        raise SystemExit(f"cannot check the flow's summaries: no train_*.npz in {sims_dir!r}")
+    d = np.load(paths[0])
+    r = int(d["realization"][0])
+    x = ns.simulate(ctx, r)["x"]
+    if not np.allclose(x, d["x"][0], rtol=1e-9, atol=0):
+        raise SystemExit(f"{paths[0]}: the simulator's summaries of training sky {r} differ from "
+                         f"the stored ones (max |dx| {np.max(np.abs(x - d['x'][0])):.3g}); the "
+                         "summary code changed after the flow was trained")
+
+
 def compare_sky(exact, learned, bins):
     """Per-bin shift, its MC error, width ratio, and both correlation matrices."""
     be = np.stack([exact[:, sl].mean(1) for *_, sl in bins], axis=1)
@@ -83,8 +104,11 @@ def main():
         raise SystemExit("an exact-ensemble sky is inside the flow's training range")
     q = np.load(cfg["qe_file"])
     ctx = ns.make_context(cfg["lmax"], cfg["nside"], cfg["noisesig"], cfg["phi_amplitude"],
-                          cfg["nu_tt"], cfg["nu_pp"], q["cl_tt_lensed"], q["nl_qe"])
+                          cfg["nu_tt"], cfg["nu_pp"], q["cl_tt_lensed"], q["nl_qe"],
+                          summary_set=cfg.get("summary_set", "v1"))
+    check_summaries(ctx, cfg)
     flow = ConditionalFlow.load(args.flow)
+    conditioning = load_conditioning(args.flow)
     lmax = int(cfg["lmax"])
     bins = bin_slices(lmax)
     rows = []
@@ -96,8 +120,8 @@ def main():
         for k in ("alm_true_packed", "phi_true_packed", "cl_true", "cl_phiphi_true"):
             if not np.array_equal(sim[k], d[k]):
                 raise SystemExit(f"{path}: {k} differs from the simulator's sky {r}")
-        rows.append(compare_sky(exact_theta(d, lmax), flow.sample(sim["x"], args.n_learned, seed=r),
-                                bins))
+        x = conditioning(sim["x"], sim["data_alm_packed"].astype(np.float32))
+        rows.append(compare_sky(exact_theta(d, lmax), flow.sample(x, args.n_learned, seed=r), bins))
     stack = {k: np.array([row[k] for row in rows]) for k in rows[0]}
     print(f"Learned vs exact on {len(rows)} skies ({args.n_learned} learned draws each)")
     print(f"{'block':>11} {'bin':>9} {'mean shift':>11} {'sd(shift)':>10} {'MC err':>8} {'width ratio':>12}")

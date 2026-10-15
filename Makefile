@@ -39,11 +39,19 @@ ENSEMBLE=results/analysis/ens_exact_l64_A3000_n30_nu30_long
 # so the rank draws are close to independent. The a_lm null must be made at the
 # same thin: scripts/submit_null_alm_power_rank.slurm with THIN=${FIG1_THIN}.
 FIG1_THIN=50
+# D7 (2026-10-14): figure 1 is the strict SBC of all four blocks on the strict
+# ensemble (proper nu = 30 priors on C_l^TT and C_L^phiphi, truths drawn from
+# them, same phi truths as ENSEMBLE), read against uniform with no simulated
+# null. The flat-prior ENSEMBLE's figure 1 (a_lm against its exact-sampler null)
+# is kept as figure1_flatprior for the caption.
+STRICT_ENSEMBLE=results/analysis/ens_exact_l64_A3000_n30_nu30_strict
+PLOTS=/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots
 figures:
 	${FIG_ENV} ${PYTHON} scripts/paper/fig_schematic.py
 	${FIG_ENV} ${PYTHON} scripts/paper/fig_maps.py --chain ${ENSEMBLE}/chain_r000.npz
 	${FIG_ENV} ${PYTHON} scripts/paper/fig_convergence.py --indir ${ENSEMBLE}
-	${FIG_ENV} ${PYTHON} scripts/paper/fig1_validation.py --indir ${ENSEMBLE} --thin ${FIG1_THIN}
+	${FIG_ENV} ${PYTHON} scripts/paper/fig1_validation.py --indir ${STRICT_ENSEMBLE} --thin ${FIG1_THIN} --outdir ${PLOTS}/figure1
+	${FIG_ENV} ${PYTHON} scripts/paper/fig1_validation.py --indir ${ENSEMBLE} --thin ${FIG1_THIN} --outdir ${PLOTS}/figure1_flatprior
 	${FIG_ENV} ${PYTHON} scripts/paper/fig4_joint_posterior.py --indir ${ENSEMBLE} --thin 45
 	${FIG_ENV} ${PYTHON} scripts/paper/fig2_bias_reduction.py --indir ${ENSEMBLE}
 	${FIG_ENV} ${PYTHON} scripts/paper/fig3_uncertainty_propagation.py --indir ${ENSEMBLE}
