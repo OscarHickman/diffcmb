@@ -910,11 +910,9 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**In flight (submitted 2026-10-14): T1.1 width gap, all three routes.** Baseline to beat (`flow_maf5x256`): width ratio C_ℓ^TT 1.03 / 1.12 / 1.24, C_L^φφ 1.16 / 1.33 / 1.55 (bins below 60), no bin shifted.
-- **12164771** (array 0–4): v2 sims (`SUMMARY_SET=v2`), the same realizations as v1, into `npe_sims_l64_A3000_n30_nu30_v2/` with `data_alm`; ~0.13 s/sim, ~2 h per task.
-- **12164772** (array 0–3), route c on the v1 sims: `flow_maf5x256_wd1e-4`, `_wd1e-3`, `flow_maf5x128`, `flow_maf3x128_wd1e-4`.
-- **12164773** (array 4–6, `afterok:12164771`): route a, `flow_maf5x256` and `_wd1e-4` on v2; route b, `compressor/` then `flow_maf5x256_comp`.
-- Each task: train → `sbc_heldout.npz` (2000 × 199) → `vs_exact_strict.npz` (48 strict skies). Logs `logs/npe_gap_<job>_<task>.out`. Read the best val NLL, the held-out SBC p, and the vs-exact table.
+**In flight (submitted 2026-10-15): T1.1 learning curve, 12171988** (array 0–1): the baseline flow trained on 50k and 100k of the 200k v1 sims (`npe_sims_l64_A3000_n30_nu30_n{50,100}k/`, symlinks to the same blocks), each with held-out SBC and learned vs exact. If the ratios fall with more data, more sims can close the gap; if flat, it is the summaries' information cost.
+
+**Landed 2026-10-15: T1.1 width gap, all three routes (12164771–73, rescore 12170564).** No variant beats the baseline (C_ℓ^TT 1.24, C_L^φφ 1.55 at [30,60)); all within ±0.03; the compressor is worse (1.80/1.67) and fails SBC. Table and D9 in `achievements.md`.
 
 Landed 2026-10-08 and harvested into "CURRENT" above: 12100312 (truth start, T0.1 b) and its harvest 12100313; 12100331 (strict ensemble) and its harvest 12100517 (the strict-SBC step re-run 2026-10-14 after the `_ckpt` glob fix); 12100390 (NPE sims: 4 × 50 000 training, realizations 100000–299999, plus 10 000 held-out, 500000–509999, `npe_sims_l64_A3000_n30_nu30/`); 12100400 (NPE training + held-out SBC, `achievements.md` → T1.1); 12100439 (learned vs exact).
 

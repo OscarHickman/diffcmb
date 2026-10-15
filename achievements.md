@@ -17,6 +17,7 @@
 | D6 | T1.1: compare against a **strict** exact ensemble (proper ν = 30 priors on both spectra), **spectra-level NPE first**, **TFP in the existing venv** (rejected: importance-reweighting to the flat C_ℓ^TT prior; a field-level HEALPix generative model first; a new torch env). Scoping, and why `2603.04535` cannot be reused: `docs/notes/t1_1_learned_posterior_scoping.md` | 2026-10-07 |
 | D7 | **figure 1 is the strict SBC of all four blocks on the strict ensemble** (`_nu30_strict`; proper ν = 30 on C_ℓ^TT and C_L^φφ, truths drawn from them), read against uniform with no simulated null. The φ-fixed run certifies the a_ℓm/C_ℓ blocks separately. The flat-prior figure 1 (`_nu30_long`, a_ℓm against its exact-sampler null) is kept as `figure1_flatprior` for the caption. Rejected: a φ-marginal reference for the flat-prior ensemble (no exact method at this size); the band edge as a bare limitation | 2026-10-14 |
 | D8 | **r036 stays in `_nu30_long`**: its C_62 collapse (flat prior + MAP start) is stated in the caption. Dropping it moves figure 2 by ≤ 0.26 points per bin (reduction 93.6 % → 93.2 %), and a post-hoc exclusion would condition the ensemble on its outcome | 2026-10-14 |
+| D9 | **T1.1 headline stays the baseline flow**: no width-gap route (regularisation, capacity, v2 summaries, compressor) beats it; the residual width is reported as the information cost of the summaries | 2026-10-15 |
 
 ---
 
@@ -42,6 +43,20 @@
 The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so a blind chain pairs only with its own ν. **The strict skies share φ_true and C_L^φφ_true with `_nu30_long`** (same realization index), and their a_ℓm are the same Gaussian draws rescaled by the drawn C_ℓ^TT (correlation 0.99; checked 2026-10-14). So the two ensembles are paired, not independent.
 
 ---
+
+## 2026-10-15 — T1.1 width gap: no route closes it (D9)
+
+Seven variants scored on the 48 strict skies (`logs/npe_gap_12164772_*`, `_12164773_*`, `_12170564_*`; route c rescored 2026-10-15 on the correct summaries). Held-out SBC passes for every variant except the compressor. Width ratio, learned/exact, C_ℓ^TT [30,60) and C_L^φφ [30,60):
+
+| variant | C_ℓ^TT [30,60) | C_L^φφ [30,60) | held-out SBC |
+|---|---|---|---|
+| baseline `maf5x256` (v1) | 1.24 | 1.55 | pass |
+| wd 1e-4 / wd 1e-3 (c) | 1.25 / 1.27 | 1.54 / 1.52 | pass |
+| 5x128 / 3x128 wd 1e-4 (c) | 1.25 / 1.24 | 1.55 / 1.51 | pass (3x128 C_L^φφ [30,60) p 0.025) |
+| v2 summaries, wd 0 / 1e-4 (a) | 1.26 / 1.26 | 1.57 / 1.56 | pass / **fails** (C_L^φφ [60,64) p 0.013) |
+| learned compressor (b) | 1.80 | 1.67 | **fails** (C_ℓ^TT [30,60) p < 1e-4) |
+
+Every variant sits within ±0.03 of baseline in every pooled bin, and mean shifts stay within ~1–3 SE of zero. Regularisation, capacity, richer summaries and a learned compressor do not move the width. The compressor is worse and mis-calibrated (its NLL diverged at epoch 2). **D9: the baseline `flow_maf5x256` stays the T1.1 headline; the residual 3–55 % is reported as the information cost of the spectra-level summaries.** Open check: a learning curve (50k, 100k, 200k sims; job 12171988) to separate "data-limited" from "summary-limited".
 
 ## 2026-10-07/08 — T1.1: the learned posterior (spectra-level NPE) is calibrated, unbiased against the exact posterior, and wider
 
