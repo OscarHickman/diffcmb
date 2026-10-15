@@ -910,7 +910,7 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
-**In flight (submitted 2026-10-15): T1.1 learning curve, 12171988** (array 0–1): the baseline flow trained on 50k and 100k of the 200k v1 sims (`npe_sims_l64_A3000_n30_nu30_n{50,100}k/`, symlinks to the same blocks), each with held-out SBC and learned vs exact. If the ratios fall with more data, more sims can close the gap; if flat, it is the summaries' information cost.
+**Landed 2026-10-16: T1.1 learning curve (12171988).** Width ratios are flat from 50k to 200k sims (C_ℓ^TT [30,60) 1.26/1.24/1.24; C_L^φφ [30,60) 1.55/1.55/1.55): summary-limited, not data-limited. See `achievements.md`.
 
 **Landed 2026-10-15: T1.1 width gap, all three routes (12164771–73, rescore 12170564).** No variant beats the baseline (C_ℓ^TT 1.24, C_L^φφ 1.55 at [30,60)); all within ±0.03; the compressor is worse (1.80/1.67) and fails SBC. Table and D9 in `achievements.md`.
 

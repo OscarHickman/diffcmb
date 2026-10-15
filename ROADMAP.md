@@ -80,7 +80,7 @@ Each extension is validated to the core's standard (gate → production → cali
 1. **Certify a learned CMB-lensing posterior against the exact one: the highest-impact positive use.** Either outcome is publishable, and the deliverable is **the benchmark itself**: the public lmax = 64 reference posteriors (T3.2).
    - **Done (`achievements.md` → T1.1, D6):** the spectra-level NPE passes held-out SBC and, on the 48 strict skies, is unbiased against the exact posterior and wider: 3–24 % for C_ℓ^TT and 16–55 % for C_L^φφ, growing with ℓ. The correlation structure agrees to within 0.11.
    - **Done (2026-10-15, D9): all three width-gap routes failed to close the gap.** Seven variants all sit within ±0.03 of the baseline's ratios; the compressor is worse and fails SBC. The baseline stays the headline; the residual is the information cost of the summaries.
-   - **In flight: learning curve (job 12171988)**, 50k/100k vs the 200k baseline. Flat ratios confirm summary-limited; falling ratios mean more sims help.
+   - **Done (2026-10-16): learning curve flat** (50k/100k/200k give the same ratios), so the gap is summary-limited and more sims won't help. Only a field-level or richer-sufficient-statistic posterior could narrow it (D6 deferred the field-level model).
    - **Still to score:** C2ST on the joint (C_ℓ, C_L^φφ) and the φ-mode correlations. The exact chains' median ESS (115–3500 per bin) supports per-sky means and widths, not a full-space C2ST.
    - Likely figures: per-mode width ratio, learned against exact (the headline); rank histograms with drawn nulls; correlation-structure comparison. The strict SBC passes at ℓ ≥ 60 (D7), so the band edge can be pooled; report it separately as well.
 2. **Real Planck data.**

@@ -56,7 +56,9 @@ Seven variants scored on the 48 strict skies (`logs/npe_gap_12164772_*`, `_12164
 | v2 summaries, wd 0 / 1e-4 (a) | 1.26 / 1.26 | 1.57 / 1.56 | pass / **fails** (C_L^φφ [60,64) p 0.013) |
 | learned compressor (b) | 1.80 | 1.67 | **fails** (C_ℓ^TT [30,60) p < 1e-4) |
 
-Every variant sits within ±0.03 of baseline in every pooled bin, and mean shifts stay within ~1–3 SE of zero. Regularisation, capacity, richer summaries and a learned compressor do not move the width. The compressor is worse and mis-calibrated (its NLL diverged at epoch 2). **D9: the baseline `flow_maf5x256` stays the T1.1 headline; the residual 3–55 % is reported as the information cost of the spectra-level summaries.** Open check: a learning curve (50k, 100k, 200k sims; job 12171988) to separate "data-limited" from "summary-limited".
+Every variant sits within ±0.03 of baseline in every pooled bin, and mean shifts stay within ~1–3 SE of zero. Regularisation, capacity, richer summaries and a learned compressor do not move the width. The compressor is worse and mis-calibrated (its NLL diverged at epoch 2). **D9: the baseline `flow_maf5x256` stays the T1.1 headline; the residual 3–55 % is reported as the information cost of the spectra-level summaries.** 
+
+**Learning curve (job 12171988, 2026-10-16): flat, so the gap is summary-limited, not data-limited.** Same flow trained on 50k / 100k / 200k sims, width ratio C_ℓ^TT [30,60) 1.26 / 1.24 / 1.24 and C_L^φφ [30,60) 1.55 / 1.55 / 1.55 (C_L^φφ [10,30) 1.33 / 1.34 / 1.33). Mean shifts stay within ~3 SE of zero at every size, and held-out SBC passes at every size (lowest p 0.023, C_ℓ^TT [60,64) at 50k). More simulations will not close the gap.
 
 ## 2026-10-07/08 — T1.1: the learned posterior (spectra-level NPE) is calibrated, unbiased against the exact posterior, and wider
 
