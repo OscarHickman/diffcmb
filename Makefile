@@ -3,7 +3,7 @@ PYTHON=${venv}/bin/python
 PIP=${venv}/bin/pip
 ACTIVATE=. ${venv}/bin/activate
 
-.PHONY: all setup install precommit examples test build-rust clean figures
+.PHONY: all setup install precommit test build-rust clean figures
 
 all: setup
 
@@ -23,8 +23,6 @@ build-rust:
 
 precommit:
 	${PYTHON} -m pre_commit run --all-files
-
-examples:
 
 test:
 	# run tests inside venv with src on PYTHONPATH

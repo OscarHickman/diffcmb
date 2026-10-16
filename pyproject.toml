@@ -7,7 +7,7 @@ authors = ["Oscar Hickman <oscar.hickman17@alumni.imperial.ac.uk>"]
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-exclude = ["examples", "*.ipynb"]
+exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "C", "I", "B"]

@@ -48,9 +48,6 @@ make setup
 
 # Build the Rust spherical-harmonic extension (optional but recommended)
 make build-rust
-
-# Run the minimal entry point
-PYTHONPATH=diffcmb python Main.py
 ```
 
 ## Architecture
