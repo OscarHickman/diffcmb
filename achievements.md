@@ -60,6 +60,16 @@ Every variant sits within ±0.03 of baseline in every pooled bin, and mean shift
 
 **Learning curve (job 12171988, 2026-10-16): flat, so the gap is summary-limited, not data-limited.** Same flow trained on 50k / 100k / 200k sims, width ratio C_ℓ^TT [30,60) 1.26 / 1.24 / 1.24 and C_L^φφ [30,60) 1.55 / 1.55 / 1.55 (C_L^φφ [10,30) 1.33 / 1.34 / 1.33). Mean shifts stay within ~3 SE of zero at every size, and held-out SBC passes at every size (lowest p 0.023, C_ℓ^TT [60,64) at 50k). More simulations will not close the gap.
 
+**C2ST (job 12173707, 2026-10-16; `scripts/npe_c2st.py`, `c2st_strict.npz`).** Per sky, a cross-validated ridge-quadratic classifier separates learned from exact draws in the 6 pooled bin-averaged coordinates (band-edge bins excluded), with one exact draw per autocorrelation time (about ESS draws per class, 134–450 per sky) and the same number of learned draws. Mean accuracy over the 48 strict skies (0.5 = indistinguishable):
+
+| test | accuracy |
+|---|---|
+| raw (width and shift count) | 0.765 (range 0.66–0.89) |
+| shape (each class standardised by its own mean and sd) | 0.472 |
+| exact vs exact, raw / standardised | 0.501 / 0.437 |
+
+The learned posterior is cleanly separable from the exact one by its width, as the width ratios say. With width and shift removed it is not separable by correlations: 0.472 is below chance, and +0.034 ± 0.008 above the standardised null, which is itself biased low (0.437: standardising the pooled sample anticorrelates the folds). Read it as a small residual at most, not a detected correlation mismatch. The quadratic features test means, widths and correlations, not higher moments, and this is a per-sky, 6-coordinate test, not a full-space one (the chains' ESS does not support more). The φ-mode correlations are not scored: the NPE is spectra-level and has no φ field.
+
 ## 2026-10-07/08 — T1.1: the learned posterior (spectra-level NPE) is calibrated, unbiased against the exact posterior, and wider
 
 Decisions: D6.

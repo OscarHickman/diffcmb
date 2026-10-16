@@ -910,6 +910,8 @@ biased. `C_l^TT` needs no such correction because alm is pinned at cosine 0.9998
 
 ## In flight
 
+**Landed 2026-10-16: T1.1 C2ST (12173707).** Raw accuracy 0.765 (width), shape-only 0.472 vs standardised null 0.437: no detected correlation mismatch beyond a small residual. See `achievements.md`.
+
 **Landed 2026-10-16: T1.1 learning curve (12171988).** Width ratios are flat from 50k to 200k sims (C_ℓ^TT [30,60) 1.26/1.24/1.24; C_L^φφ [30,60) 1.55/1.55/1.55): summary-limited, not data-limited. See `achievements.md`.
 
 **Landed 2026-10-15: T1.1 width gap, all three routes (12164771–73, rescore 12170564).** No variant beats the baseline (C_ℓ^TT 1.24, C_L^φφ 1.55 at [30,60)); all within ±0.03; the compressor is worse (1.80/1.67) and fails SBC. Table and D9 in `achievements.md`.

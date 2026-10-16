@@ -87,6 +87,34 @@ def compare_sky(exact, learned, bins):
             "corr_learned": np.corrcoef(bl, rowvar=False)}
 
 
+def iter_skies(flow_dir, chains_dir, realizations, n_learned):
+    """Yield (realization, exact draws, learned draws) per sky, after the refusals
+    above; both are (n, 2(lmax-2)) in (ln C_l^TT, ln C_L^phiphi)."""
+    with open(os.path.join(flow_dir, "sim_config.json")) as f:
+        cfg = json.load(f)
+    lo_t, hi_t = cfg["realization_min"], cfg["realization_max"]
+    if any(lo_t <= r <= hi_t for r in realizations):
+        raise SystemExit("an exact-ensemble sky is inside the flow's training range")
+    q = np.load(cfg["qe_file"])
+    ctx = ns.make_context(cfg["lmax"], cfg["nside"], cfg["noisesig"], cfg["phi_amplitude"],
+                          cfg["nu_tt"], cfg["nu_pp"], q["cl_tt_lensed"], q["nl_qe"],
+                          summary_set=cfg.get("summary_set", "v1"))
+    check_summaries(ctx, cfg)
+    flow = ConditionalFlow.load(flow_dir)
+    conditioning = load_conditioning(flow_dir)
+    lmax = int(cfg["lmax"])
+    for r in realizations:
+        path = os.path.join(chains_dir, f"chain_r{r:03d}.npz")
+        d = np.load(path)
+        check_chain(d, cfg, path)
+        sim = ns.simulate(ctx, r)
+        for k in ("alm_true_packed", "phi_true_packed", "cl_true", "cl_phiphi_true"):
+            if not np.array_equal(sim[k], d[k]):
+                raise SystemExit(f"{path}: {k} differs from the simulator's sky {r}")
+        x = conditioning(sim["x"], sim["data_alm_packed"].astype(np.float32))
+        yield r, exact_theta(d, lmax), flow.sample(x, n_learned, seed=r)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -98,30 +126,11 @@ def main():
     args = p.parse_args()
 
     with open(os.path.join(args.flow, "sim_config.json")) as f:
-        cfg = json.load(f)
-    lo_t, hi_t = cfg["realization_min"], cfg["realization_max"]
-    if any(lo_t <= r <= hi_t for r in args.realizations):
-        raise SystemExit("an exact-ensemble sky is inside the flow's training range")
-    q = np.load(cfg["qe_file"])
-    ctx = ns.make_context(cfg["lmax"], cfg["nside"], cfg["noisesig"], cfg["phi_amplitude"],
-                          cfg["nu_tt"], cfg["nu_pp"], q["cl_tt_lensed"], q["nl_qe"],
-                          summary_set=cfg.get("summary_set", "v1"))
-    check_summaries(ctx, cfg)
-    flow = ConditionalFlow.load(args.flow)
-    conditioning = load_conditioning(args.flow)
-    lmax = int(cfg["lmax"])
+        lmax = int(json.load(f)["lmax"])
     bins = bin_slices(lmax)
-    rows = []
-    for r in args.realizations:
-        path = os.path.join(args.chains_dir, f"chain_r{r:03d}.npz")
-        d = np.load(path)
-        check_chain(d, cfg, path)
-        sim = ns.simulate(ctx, r)
-        for k in ("alm_true_packed", "phi_true_packed", "cl_true", "cl_phiphi_true"):
-            if not np.array_equal(sim[k], d[k]):
-                raise SystemExit(f"{path}: {k} differs from the simulator's sky {r}")
-        x = conditioning(sim["x"], sim["data_alm_packed"].astype(np.float32))
-        rows.append(compare_sky(exact_theta(d, lmax), flow.sample(x, args.n_learned, seed=r), bins))
+    rows = [compare_sky(exact, learned, bins)
+            for _, exact, learned in iter_skies(args.flow, args.chains_dir,
+                                                args.realizations, args.n_learned)]
     stack = {k: np.array([row[k] for row in rows]) for k in rows[0]}
     print(f"Learned vs exact on {len(rows)} skies ({args.n_learned} learned draws each)")
     print(f"{'block':>11} {'bin':>9} {'mean shift':>11} {'sd(shift)':>10} {'MC err':>8} {'width ratio':>12}")
