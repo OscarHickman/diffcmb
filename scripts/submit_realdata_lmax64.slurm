@@ -19,23 +19,30 @@
 # One sky, so every array task gets the SAME noise draw (--noise_realization 0) and a
 # different start (--realization = task id): the tasks are chains for R-hat, not skies.
 # Gate (ROADMAP): read harvest 12183262's strict SBC before submitting this.
-# Submit: sbatch --export=ALL,AMP=<1|3000>,BURNIN=1000,SAMPLES=3600[,CLNU=30][,MODE=blind] this.slurm
+# Submit: sbatch --export=ALL,AMP=<1|3000>,BURNIN=1000,SAMPLES=3600[,CLNU=][,MODE=blind] this.slurm
 #   AMP   C_L^phiphi prior amplitude. 3000 is the certified configuration (a consistency
 #         test the real sky, lensed at A_L = 1, should fail); 1 is physical (phi returns
 #         its prior at lmax = 64). The user decides.
-#   CLNU  proper nu prior on C_l^TT (the strict ensemble's 30); default none = flat
-#         C_l^TT prior as the adopted _nu30_long ensemble, which lets the data set C_l.
+#   CLNU  proper nu prior on C_l^TT; default 30, the certified T1.2a configuration.
+#         CLNU= (empty) gives the flat prior, which on real data does not recover from
+#         the joint MAP start: find_map_estimate leaves ln C at its -12 clip for
+#         l >= 60, and in smoke job 12184339 C_63 stayed there (D_63 ~ 0 against
+#         Planck's ~1700 muK^2); the nu = 30 prior pulls it back in burn-in (pilot
+#         12172310 started from the same clip).
 #   MODE  aware (default) or blind (lensing-blind fit to the same data).
-# Output: results/analysis/realdata_l64_A<AMP>_n<NOISE>[_clnu<CLNU>]/data_{chain,blind}_rNNN.npz
+#   DATA  prepared map (default SMICA; realdata_prep/sevemR4_l64_ns64_b5.fits is PR4 SEVEM,
+#         sevemR3_* its 2018 counterpart: the method systematic and the release check).
+# Output: results/analysis/realdata_<map>_l64_A<AMP>_n<NOISE>[_clnu<CLNU>]/data_{chain,blind}_rNNN.npz
 set -u
 NOISE=${NOISE:-30}
 NU=${NU:-30}
 MODE=${MODE:-aware}
-CLNU=${CLNU:-}
+CLNU=${CLNU-30}
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
-DATA=results/analysis/realdata_prep/smica_l64_ns64_b5.fits
-OUT=results/analysis/realdata_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}${TAG:-}
+DATA=${DATA:-results/analysis/realdata_prep/smica_l64_ns64_b5.fits}
+MAPTAG=$(basename $DATA | cut -d_ -f1)
+OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}${TAG:-}
 GEOM="--mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
 EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization 0"
 [ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"

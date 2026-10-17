@@ -16,6 +16,7 @@ def _chain(path, rng, data, cl_tt, cl_pp_fid, shift=0.0, n=400, amp=3000.0):
     ln_tt = np.log(cl_tt[2:]) + shift + 0.1 * rng.standard_normal((n, n_l))
     ln_pp = np.log(cl_pp_fid[2:] * 0.01) + 0.2 * rng.standard_normal((n, n_l))
     np.savez(path, lmax=LMAX, alm_samples=np.concatenate([ln_tt, rng.standard_normal((n, 5))], 1),
+             cl_tt_fid=cl_tt,
              cl_phiphi_samples=ln_pp, cl_phiphi_fid=cl_pp_fid, phi_amplitude=amp,
              data_masked=data, data_map="smica.fits")
 
@@ -49,6 +50,19 @@ def test_summary_reads_planck_and_the_phi_amplitude(tmp_path, spectra):
     np.testing.assert_allclose(s["C_L^phiphi/over_prior_q50"], 0.01, rtol=0.05)
     np.testing.assert_allclose(s["C_L^phiphi/over_physical_q50"], 30.0, rtol=0.05)
     assert np.all(s["C_l^TT/rhat"] < 1.05)
+    assert s["collapsed_ell"].size == 0
+
+
+def test_a_collapsed_band_edge_multipole_is_named(tmp_path, spectra):
+    cl_tt, cl_pp = spectra
+    rng = np.random.default_rng(3)
+    for i in range(2):
+        _chain(tmp_path / f"data_chain_r{i:03d}.npz", rng, np.zeros(30), cl_tt, cl_pp)
+        d = dict(np.load(tmp_path / f"data_chain_r{i:03d}.npz"))
+        d["alm_samples"][:, LMAX - 3] -= 12.0  # l = LMAX - 1 stuck at the MAP clip
+        np.savez(tmp_path / f"data_chain_r{i:03d}.npz", **d)
+    s = rs.summarise(rs.load_chains(str(tmp_path))[1], np.full(LMAX - 2, 1000.0))
+    np.testing.assert_array_equal(s["collapsed_ell"], [LMAX - 1])
 
 
 def test_chains_that_saw_different_data_are_refused(tmp_path, spectra):

@@ -15,6 +15,9 @@ starts; refused otherwise) and reports, per l-bin of strict_sbc_ranks.columns:
     A_phi = 3000 the sky (lensed at A_L = 1) should pull the first well below 1.
   * multi-chain rank-normalised split R-hat (Vehtari et al. 2021) and the
     summed bulk ESS of the bin-averaged ln C.
+  * collapsed multipoles: any l whose posterior median C_l^TT is below
+    e^-3 x the fiducial (the flat-prior band-edge collapse, achievements.md,
+    which a bin average hides).
 
 Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/realdata_summary.py \
@@ -35,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fig_convergence import _rank_normalise, bulk_ess  # noqa: E402
 from strict_sbc_ranks import columns  # noqa: E402
 
+COLLAPSE_LN = -3.0  # median ln(C_l / C_l^fid) below this flags a collapsed multipole
 PLANCK_TT = "/cosma8/data/dp004/dc-hick2/Plank/spectra/COM_PowerSpect_CMB-TT-full_R3.01.txt"
 
 
@@ -96,6 +100,9 @@ def summarise(ds, planck_dl):
     blocks = {"C_l^TT": [d["alm_samples"][:, :n] for d in ds],
               "C_L^phiphi": [d["cl_phiphi_samples"][:, :n] for d in ds]}
     out = {"columns": [c for c, _ in cols], "lmax": lmax, "n_chains": len(ds), "phi_amplitude": amp}
+    ln_tt_fid = np.log(np.asarray(ds[0]["cl_tt_fid"], dtype=np.float64)[2:lmax])
+    ln_ratio = np.median(np.concatenate(blocks["C_l^TT"]), axis=0) - ln_tt_fid
+    out["collapsed_ell"] = ell[ln_ratio < COLLAPSE_LN]
     for b, chains in blocks.items():
         binned = [np.stack([c[:, sl].mean(1) for _, sl in cols], axis=1) for c in chains]
         pooled = np.concatenate(binned)
@@ -118,7 +125,11 @@ def summarise(ds, planck_dl):
 
 
 def report(s):
-    print(f"{s['n_chains']} chains, lmax {s['lmax']}, A_phi {s['phi_amplitude']:g}\n")
+    print(f"{s['n_chains']} chains, lmax {s['lmax']}, A_phi {s['phi_amplitude']:g}")
+    if len(s["collapsed_ell"]):
+        print(f"!! COLLAPSED C_l (median < e^{COLLAPSE_LN:g} x fiducial) at l = "
+              f"{', '.join(map(str, s['collapsed_ell']))}: these bins are not a posterior")
+    print()
     print(f"{'bin':<10}{'D_l^TT 16/50/84 [muK^2]':>28}{'Planck/median':>15}{'R-hat':>8}{'ESS':>8}")
     for i, c in enumerate(s["columns"]):
         print(f"{c:<10}{s['C_l^TT/dl_q16'][i]:>9.0f}{s['C_l^TT/dl_q50'][i]:>9.0f}{s['C_l^TT/dl_q84'][i]:>9.0f}"
