@@ -56,6 +56,7 @@ from coverage_ensemble_chain import (  # noqa: E402
     _STREAM_TRUTH,
     _synalm_pair,
 )
+from real_sky_setup import apply_mask, ecliptic_noise_map  # noqa: E402
 
 from diffcmb import CosmologyAdvancedSampling  # noqa: E402
 from diffcmb.lensing import (  # noqa: E402
@@ -76,6 +77,34 @@ def chain_lensing_operator(d):
 def chain_noisesig(d, default):
     """Noise level a chain was made with (recorded from 2026-09-23 on)."""
     return float(d["noisesig"]) if "noisesig" in d.files else float(default)
+
+
+def chain_geometry(d):
+    """(beam_fwhm_arcmin or None, noise_ecliptic_amp, unmasked_idx or None) a
+    chain was observed with (ROADMAP T1.2a; recorded from 2026-10-16 on). Older
+    chains carry no fields and were full-sky, beamless and uniform-noise."""
+    beam = float(d["beam_fwhm_arcmin"]) if "beam_fwhm_arcmin" in d.files else np.nan
+    amp = float(d["noise_ecliptic_amp"]) if "noise_ecliptic_amp" in d.files else 0.0
+    idx = np.asarray(d["unmasked_idx"]) if "unmasked_idx" in d.files else None
+    return (None if np.isnan(beam) else beam), amp, idx
+
+
+def build_model(lmax, nside, op, noisesig, beam, amp, unmasked_idx):
+    """The chain's forward model: operator, noise, beam and mask, built the
+    way coverage_ensemble_chain.py builds it."""
+    noise_map = ecliptic_noise_map(nside, noisesig, amp) if amp > 0 else None
+    model = CosmologyAdvancedSampling(
+        _lmax=lmax, _NSIDE=nside, _noisesig=noisesig,
+        data_mode="synthetic", dtype=tf.complex128,
+        use_matrixfree_sht=True, lensing_operator=op,
+        beam_fwhm_arcmin=beam, noise_map=noise_map,
+    )
+    if unmasked_idx is not None and len(unmasked_idx) < model.NPIX:
+        keep = np.zeros(model.NPIX, dtype=bool)
+        keep[unmasked_idx] = True
+        apply_mask(model, keep)
+    model._ensure_tf_tensors()
+    return model
 
 
 def rebuild_truth_and_data(model, d, lmax, noisesig):
@@ -113,11 +142,28 @@ def rebuild_truth_and_data(model, d, lmax, noisesig):
                 f"refusing to compute a likelihood against a wrong data map."
             )
 
+    # y is the data at the unmasked pixels (every pixel on a full sky), drawn
+    # as coverage_ensemble_chain.py draws it; for uniform noise this is
+    # bit-identical to the pre-T1.2a normal(0, noisesig, NPIX) draw.
     T_lensed = lens_map_tf(
         model, tf.constant(alm_true_packed, tf.float64), phi_true_hp
     ).numpy()
+    sigma_pix = 1.0 / np.sqrt(model.Ninv[model.unmasked_idx])
     rng_noise = np.random.default_rng(_STREAM_NOISE + r)
-    y = T_lensed + rng_noise.normal(0.0, noisesig, size=model.NPIX)
+    y = T_lensed + rng_noise.normal(0.0, 1.0, size=len(model.unmasked_idx)) * sigma_pix
+    # Chains from 2026-10-17 on save the data they saw; then the rebuilt map is
+    # checked as the truths are (the geometry, beam and noise all enter it).
+    if "data_masked" in d.files:
+        saved = np.asarray(d["data_masked"])
+        err = (np.inf if saved.shape != y.shape
+               else float(np.max(np.abs(y - saved)) / np.max(np.abs(saved))))
+        if err > 1e-9:
+            raise SystemExit(
+                f"realization {r}: rebuilt data map disagrees with the one saved "
+                f"in the chain (relative max diff {err:.3e}); the replay's "
+                f"geometry, beam or noise differs from the chain's -- refusing "
+                f"to compute a likelihood against a wrong data map."
+            )
     return alm_true_packed, phi_true_packed, y
 
 
@@ -125,8 +171,8 @@ def loglik(model, y, alm_packed, phi_packed, lmax):
     phi_hp = _alm_packed_to_hp(np.asarray(phi_packed, dtype=np.float64), lmax)
     T = lens_map_tf(model, tf.constant(np.asarray(alm_packed, np.float64),
                                        tf.float64), phi_hp).numpy()
-    resid = y - T
-    return float(-0.5 * np.sum(model.Ninv * resid * resid))
+    resid = y - T  # both at the unmasked pixels
+    return float(-0.5 * np.sum(model.Ninv[model.unmasked_idx] * resid * resid))
 
 
 def main():
@@ -156,23 +202,21 @@ def main():
         lmax, nside = int(d["lmax"]), int(d["nside"])
         op = chain_lensing_operator(d)
         noisesig = chain_noisesig(d, args.noisesig)
-        # The replay must use the chain's own operator and noise: replaying an
-        # exact-operator chain through the bilinear one (or vice versa) builds a
-        # different data map and silently scores the sampler against it.
-        if model is None or model_key != (lmax, nside, op, noisesig):
-            model = CosmologyAdvancedSampling(
-                _lmax=lmax, _NSIDE=nside, _noisesig=noisesig,
-                data_mode="synthetic", dtype=tf.complex128,
-                use_matrixfree_sht=True, lensing_operator=op,
-            )
-            model._ensure_tf_tensors()
-            model_key = (lmax, nside, op, noisesig)
+        beam, amp, idx = chain_geometry(d)
+        # The replay must use the chain's own operator, noise, beam and mask:
+        # replaying an exact-operator chain through the bilinear one, or a
+        # masked chain on the full sky, builds a different data map and
+        # silently scores the sampler against it.
+        key = (lmax, nside, op, noisesig, beam, amp,
+               None if idx is None else idx.tobytes())
+        if model is None or model_key != key:
+            model = build_model(lmax, nside, op, noisesig, beam, amp, idx)
+            model_key = key
 
         alm_t, phi_t, y = rebuild_truth_and_data(model, d, lmax, noisesig)
-        model.prior_map = y
-        model.prior_map_masked = tf.convert_to_tensor(
-            y[model.unmasked_idx], dtype=tf.float64
-        )
+        model.prior_map = np.zeros(model.NPIX)
+        model.prior_map[model.unmasked_idx] = y
+        model.prior_map_masked = tf.convert_to_tensor(y, dtype=tf.float64)
 
         alm_s, phi_s = d["alm_samples"], d["phi_samples"]
         n = alm_s.shape[0]

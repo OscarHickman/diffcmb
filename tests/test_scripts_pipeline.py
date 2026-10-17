@@ -526,3 +526,44 @@ def test_validate_qe_noise_runs_and_records_configuration(tmp_path):
     assert d["cl_tt_lensed"].shape == (17,) and np.all(d["cl_tt_lensed"][2:] > 0)
     assert np.all(np.isfinite(d["nl_qe"][2:16]))
     assert d["passed"].dtype == bool
+
+
+def test_masked_beamed_anisotropic_chain_runs_and_records_its_geometry(tmp_path):
+    """ROADMAP T1.2a: aware and blind chains on a band-masked sky with a beam and
+    an ecliptic noise surrogate run end to end, and the truth is observed only
+    where the mask allows (the double mask gather broke this before 2026-10-16)."""
+    mask = np.ones(hp.nside2npix(NSIDE))
+    mask[hp.query_strip(NSIDE, 1.0, 2.1)] = 0.0  # an equatorial band is cut
+    mfile = tmp_path / "mask.fits"
+    hp.write_map(str(mfile), mask, overwrite=True)
+    extra = ("--mask_file", str(mfile), "--beam_fwhm_arcmin", "300",
+             "--noise_ecliptic_amp", "0.5")
+    out = _run_chain(tmp_path, *extra)
+    assert "of the sky observed" in out
+    _run_chain(tmp_path, "--blind", *extra)
+    for name in ("chain_r001.npz", "blind_r001.npz"):
+        d = np.load(tmp_path / name)
+        idx = d["unmasked_idx"]
+        assert 0 < len(idx) < hp.nside2npix(NSIDE)
+        assert str(d["mask_file"]).endswith("mask.fits")
+        assert float(d["beam_fwhm_arcmin"]) == 300.0
+        assert float(d["noise_ecliptic_amp"]) == 0.5
+    d = np.load(tmp_path / "chain_r001.npz")
+    assert np.all(np.isfinite(d["alm_samples"])) and np.all(np.isfinite(d["phi_samples"]))
+
+    # The joint-likelihood replay rebuilds the chain's own geometry and so the
+    # exact data map the chain saw; a full-sky, beamless, uniform-noise replay
+    # of the same chain is refused rather than scored.
+    import sbc_joint_likelihood as sjl
+
+    beam, amp, idx = sjl.chain_geometry(d)
+    assert (beam, amp) == (300.0, 0.5) and np.array_equal(idx, d["unmasked_idx"])
+    model = sjl.build_model(LMAX, NSIDE, "exact", 1.0, beam, amp, idx)
+    alm_t, phi_t, y = sjl.rebuild_truth_and_data(model, d, LMAX, 1.0)
+    np.testing.assert_allclose(y, d["data_masked"], rtol=0, atol=1e-9 * np.abs(y).max())
+    chi2_n = -2.0 * sjl.loglik(model, y, alm_t, phi_t, LMAX) / len(y)
+    assert abs(chi2_n - 1.0) < 0.3, chi2_n
+    for wrong in ((None, amp, idx), (beam, 0.0, idx), (beam, amp, None)):
+        with pytest.raises(SystemExit, match="data map"):
+            sjl.rebuild_truth_and_data(
+                sjl.build_model(LMAX, NSIDE, "exact", 1.0, *wrong), d, LMAX, 1.0)

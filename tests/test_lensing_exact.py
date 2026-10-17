@@ -356,3 +356,60 @@ def test_lens_alm_exact_tf_value_matches_numpy():
     got = lens_alm_exact_tf(tf.constant(alm, tf.complex128), tf.constant(phi, tf.float64),
                             NSIDE, LMAX, pix).numpy()
     np.testing.assert_allclose(got, exact_lens_np(alm, phi, NSIDE, LMAX, pix), atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# 6. masked sky (ROADMAP T1.2a)
+# ---------------------------------------------------------------------------
+
+def _masked_exact_model():
+    """Exact-lensing model with an equatorial-band mask (set before _ensure_tf_tensors)."""
+    from diffcmb import CosmologyAdvancedSampling
+
+    m = CosmologyAdvancedSampling(
+        _lmax=LMAX, _NSIDE=NSIDE, _noisesig=100.0, data_mode="synthetic",
+        dtype=tf.complex128, use_matrixfree_sht=True, lensing_operator="exact")
+    theta, _ = hp.pix2ang(NSIDE, np.arange(m.NPIX))
+    # an equatorial band is cut out, so unmasked_idx is NOT the leading block of
+    # pixels (a polar cap would make a double gather the identity and hide the bug)
+    m.unmasked_idx = np.where(np.abs(theta - np.pi / 2) > 0.35)[0]
+    m.Ninv = m.Ninv.copy()
+    m.Ninv[np.setdiff1d(np.arange(m.NPIX), m.unmasked_idx)] = 0.0
+    m._ensure_tf_tensors()
+    return m
+
+
+def test_psi_lensed_on_a_masked_sky_matches_the_explicit_sum():
+    """psi_lensed must evaluate the likelihood at the unmasked pixels only.
+
+    lens_alm_exact_tf already returns values AT unmasked_idx; gathering
+    unmasked_idx from that again indexes past the end on a masked sky.
+    """
+    from diffcmb.lensing import lens_map_tf, psi_lensed
+
+    m = _masked_exact_model()
+    rng = np.random.default_rng(21)
+    lmax = LMAX
+    alm_packed = rng.standard_normal(packed_length(lmax)) * 5.0
+    phi_packed = _rand_phi_packed(lmax, rng)
+    lncl = np.full(lmax - 2, np.log(25.0))
+    params = tf.constant(np.concatenate([lncl, alm_packed]), tf.float64)
+    T = lens_map_tf(m, tf.constant(alm_packed, tf.float64),
+                    _alm_packed_to_hp(phi_packed, lmax)).numpy()
+    assert T.shape == (len(m.unmasked_idx),)
+    d = m.prior_map_masked.numpy()
+    lik = 0.5 * np.sum((d - T) ** 2 * m.Ninv_masked.numpy())
+    psi = float(psi_lensed(m, params, tf.constant(phi_packed, tf.float64)))
+    psi_full = psi_lensed(m, params, tf.constant(phi_packed, tf.float64))
+    assert np.isfinite(psi_full.numpy())
+    # likelihood term = psi minus the (mask-independent) prior terms
+    from diffcmb.alm_utils import splittosingularalm_tf
+    n_real = lmax * (lmax + 1) // 2 - 3
+    a = splittosingularalm_tf(tf.constant(alm_packed[:n_real]),
+                              tf.constant(alm_packed[n_real:]), lmax)
+    abs2 = tf.math.real(a * tf.math.conj(a))
+    seg = tf.math.unsorted_segment_sum(abs2 * m.l_weights, m.l_indices, num_segments=lmax)
+    lnc = tf.concat([tf.zeros(2, tf.float64), tf.constant(lncl)], 0)
+    prior = 0.5 * float(tf.reduce_sum(tf.cast(seg, tf.float64) / (tf.exp(lnc) + 1e-30)))
+    ent = float(tf.reduce_sum((tf.range(lmax, dtype=tf.float64) + 0.5) * lnc))
+    np.testing.assert_allclose(psi, lik + prior + ent, rtol=1e-9)

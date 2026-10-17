@@ -62,6 +62,7 @@ import time
 import healpy as hp
 import numpy as np
 import tensorflow as tf
+from real_sky_setup import apply_mask, ecliptic_noise_map, load_mask
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
@@ -151,6 +152,18 @@ def main():
     p.add_argument("--lmax", type=int, default=128)
     p.add_argument("--nside", type=int, default=128)
     p.add_argument("--noisesig", type=float, default=1.0)
+    p.add_argument("--mask_file", type=str, default=None,
+                   help="ROADMAP T1.2a: HEALPix mask (e.g. the Planck common temperature "
+                        "mask), downgraded to --nside and cut at 0.9. The pipeline is then "
+                        "run on a masked sky; default None = full sky, as every earlier "
+                        "ensemble.")
+    p.add_argument("--beam_fwhm_arcmin", type=float, default=None,
+                   help="T1.2a: Gaussian beam + HEALPix pixel window in the forward model "
+                        "(and so in the simulated data). Default None = none.")
+    p.add_argument("--noise_ecliptic_amp", type=float, default=0.0,
+                   help="T1.2a: anisotropic noise surrogate sigma*(1 + amp*cos^2 beta), "
+                        "beta the ecliptic latitude, sigma = --noisesig. 0 = uniform. "
+                        "A surrogate: Planck's per-pixel noise is not available here.")
     p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
                    help="Forward lensing operator. 'exact' (default since 2026-09-23) "
                         "evaluates the alm at the deflected positions and lenses by "
@@ -280,13 +293,22 @@ def main():
               "priors.\nSpectrum-level ranks are interval coverage, NOT strict SBC "
               "(improper flat\nimplied prior -- see this script's header).\n")
 
+    noise_map = None
+    if args.noise_ecliptic_amp > 0:
+        noise_map = ecliptic_noise_map(nside, args.noisesig, args.noise_ecliptic_amp)
     model = CosmologyAdvancedSampling(
         _lmax=lmax, _NSIDE=nside, _noisesig=args.noisesig,
         data_mode="synthetic", dtype=tf.complex128, use_matrixfree_sht=True,
         lensing_operator=args.lensing_operator,
+        beam_fwhm_arcmin=args.beam_fwhm_arcmin, noise_map=noise_map,
     )
+    if args.mask_file is not None:
+        # Before _ensure_tf_tensors, which builds the SHT and Ninv_masked from these.
+        keep = load_mask(args.mask_file, nside)
+        apply_mask(model, keep)
+        print(f"  Mask {args.mask_file}: {keep.mean():.3f} of the sky observed")
     model._ensure_tf_tensors()
-    assert len(model.unmasked_idx) == model.NPIX, "ensemble assumes full-sky data"
+    sigma_pix = (1.0 / np.sqrt(model.Ninv[model.unmasked_idx]))
 
     if args.fiducial == "corrected":
         cl_tt_fid, cl_phiphi_fid = fiducial_spectra(lmax)
@@ -339,7 +361,10 @@ def main():
         raise RuntimeError(f"realization {r}: lens_map_tf produced NaN/Inf")
 
     rng_noise = np.random.default_rng(_STREAM_NOISE + r)
-    noisy_map = T_lensed_true + rng_noise.normal(0.0, args.noisesig, size=model.NPIX)
+    # T_lensed_true is at the unmasked pixels only; masked pixels carry zero.
+    noisy_map = np.zeros(model.NPIX)
+    noisy_map[model.unmasked_idx] = T_lensed_true + rng_noise.normal(
+        0.0, 1.0, size=len(model.unmasked_idx)) * sigma_pix
     model.prior_map = noisy_map
     model.prior_map_masked = tf.convert_to_tensor(
         noisy_map[model.unmasked_idx], dtype=tf.float64
@@ -439,6 +464,11 @@ def main():
                  phi_true_packed=phi_true_packed, n_burnin=args.n_burnin,
                  seconds_total=elapsed, lensing_operator=args.lensing_operator,
                  fiducial=args.fiducial, noisesig=args.noisesig,
+                 mask_file=args.mask_file or "", unmasked_idx=model.unmasked_idx,
+                 data_masked=noisy_map[model.unmasked_idx],
+                 beam_fwhm_arcmin=(np.nan if args.beam_fwhm_arcmin is None
+                                   else float(args.beam_fwhm_arcmin)),
+                 noise_ecliptic_amp=args.noise_ecliptic_amp,
                  phi_amplitude=args.phi_amplitude, cl_init=args.cl_init,
                  cl_prior_nu=np.nan if not strict else float(args.cl_prior_nu),
                  cl_tt_fid=cl_tt_fid, start_spectra=start_spectra)
@@ -540,6 +570,13 @@ def main():
         "phi_calibration_ok": phi_calibration_ok,
         "lensing_operator": args.lensing_operator, "fiducial": args.fiducial,
         "noisesig": args.noisesig, "phi_amplitude": args.phi_amplitude,
+        "mask_file": args.mask_file or "", "unmasked_idx": model.unmasked_idx,
+        # The observed data, so a replay (sbc_joint_likelihood) can verify it
+        # rebuilt the same map rather than trust its reconstruction.
+        "data_masked": noisy_map[model.unmasked_idx],
+        "beam_fwhm_arcmin": (np.nan if args.beam_fwhm_arcmin is None
+                             else float(args.beam_fwhm_arcmin)),
+        "noise_ecliptic_amp": args.noise_ecliptic_amp,
         "cl_prior_nu": np.nan if not strict else float(args.cl_prior_nu),
         "cl_tt_fid": cl_tt_fid, "start_spectra": start_spectra,
         "phi_fixed_truth": bool(args.phi_fixed_truth),

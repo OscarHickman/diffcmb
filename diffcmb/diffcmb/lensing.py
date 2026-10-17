@@ -1341,7 +1341,10 @@ def psi_lensed(
 
     # Lensed likelihood
     if getattr(model, "use_matrixfree_sht", False):
-        T_lensed_masked = tf.gather(T_lensed, tf.constant(model.unmasked_idx, dtype=tf.int32))
+        # Both lensing operators already return the lensed map AT the unmasked
+        # pixels. Gathering unmasked_idx again was the identity on a full sky
+        # and on a leading-block mask, and indexed out of range on any other.
+        T_lensed_masked = T_lensed
         psi_lik = 0.5 * tf.reduce_sum(
             (model.prior_map_masked - T_lensed_masked) ** 2 * model.Ninv_masked
         )
