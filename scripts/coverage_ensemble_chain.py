@@ -170,6 +170,11 @@ def main():
                         "as before, so the likelihood's noise is exact. Needs --mask_file "
                         "and the map's own --beam_fwhm_arcmin, --nside and --lmax. Truth "
                         "arrays are saved as NaN; the drawn ones only scale the phi check.")
+    p.add_argument("--noise_realization", type=int, default=None,
+                   help="Seed the noise draw from this index instead of --realization. "
+                        "With --data_map every chain must see the same data (one sky, "
+                        "one noise draw) and differ only in its start, or R-hat across "
+                        "them means nothing.")
     p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
                    help="Forward lensing operator. 'exact' (default since 2026-09-23) "
                         "evaluates the alm at the deflected positions and lenses by "
@@ -378,7 +383,8 @@ def main():
         print(f"  REAL DATA {args.data_map}: the drawn truths are not the sky; "
               "they are saved as NaN")
 
-    rng_noise = np.random.default_rng(_STREAM_NOISE + r)
+    r_noise = r if args.noise_realization is None else args.noise_realization
+    rng_noise = np.random.default_rng(_STREAM_NOISE + r_noise)
     # T_lensed_true is at the unmasked pixels only; masked pixels carry zero.
     noisy_map = np.zeros(model.NPIX)
     noisy_map[model.unmasked_idx] = T_lensed_true + rng_noise.normal(
@@ -498,7 +504,7 @@ def main():
                  phi_amplitude=args.phi_amplitude, cl_init=args.cl_init,
                  cl_prior_nu=np.nan if not strict else float(args.cl_prior_nu),
                  cl_tt_fid=cl_tt_fid, start_spectra=start_spectra,
-                 data_map=args.data_map or "")
+                 data_map=args.data_map or "", noise_realization=r_noise)
         print(f"  blind chain done in {elapsed / 3600:.2f}h; alm accept="
               f"{accepts.mean():.3f}; saved {out}")
         if os.path.exists(ckpt):
@@ -616,6 +622,7 @@ def main():
     if cl_phiphi_samples is not None:
         save_kwargs["cl_phiphi_samples"] = cl_phiphi_samples
     save_kwargs["data_map"] = args.data_map or ""
+    save_kwargs["noise_realization"] = r_noise
     np.savez(out, **save_kwargs)
     print(f"Saved realization {r} to {out}")
 

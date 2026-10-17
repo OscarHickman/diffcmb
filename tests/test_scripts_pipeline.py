@@ -602,6 +602,14 @@ def test_data_map_replaces_the_simulated_sky_and_hides_the_truth(tmp_path):
     d = np.load(tmp_path / "data_chain_r001.npz")
     assert np.all(np.isfinite(d["phi_samples"])) and bool(d["phi_calibration_ok"])
 
+    # Chains on one data set: same noise draw, different starts.
+    _run_chain(tmp_path, *geom, "--data_map", str(dfile), "--noise_realization", "1",
+               realization=2)
+    d2 = np.load(tmp_path / "data_chain_r002.npz")
+    assert int(d2["noise_realization"]) == 1 == int(d["noise_realization"])
+    np.testing.assert_array_equal(d2["data_masked"], d["data_masked"])
+    assert not np.array_equal(d2["phi_initial"], d["phi_initial"])
+
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     base = [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
             "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
