@@ -49,6 +49,23 @@ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so
 
 The strict configuration on the Planck common temperature mask (f_sky 0.751), a 5′ beam + pixel window and an ecliptic noise surrogate, 4 skies (job 12172310), compared sky by sky with `_nu30_strict` on identical truths. Posterior widths grow by 1.01–1.15 below ℓ = 60 (f_sky^−1/2 = 1.15) and 1.25–1.46 at the band edge; no more bias than the full sky (rms z ≤ 1.24, against ≤ 1.67 full-sky) and half-to-half drift ≤ 0.33 sd. The cost is mixing: ESS falls 2–4× at ℓ = 63 (C_ℓ) and L < 10 (C_L^φφ). Table: `docs/dashboard.md` → CURRENT. Production r004–r047 queued (12183261), harvest 12183262. The pipeline needed one fix first: `psi_lensed` gathered `unmasked_idx` a second time (identity on a full sky, out of range on a general mask).
 
+## 2026-10-17 — T1.2a data preparation: band-limit SMICA in harmonic space
+
+The simulation test draws band-limited truths, so its data hold no ℓ ≥ 64 power; the real sky does. `scripts/real_data_bandlimit_budget.py` (log `logs/realdata_bandlimit_budget_20261017.log`) measures, on SMICA R3.00 at nside 64 and the common mask, what the lmax = 64 model cannot explain (in-band signal rms 53.6 μK, σ = 30 μK):
+
+| preparation | ℓ ≥ 64 residual rms | mask-region leak (data / CMB-only sim) | band-edge S/N per mode |
+|---|---|---|---|
+| `ud_grade` (model.py's real-data path) | **54.8 μK (1.83σ)** | — | 10.2 |
+| Gaussian 5′, no cut | 59.6 μK | 6.0 / 5.6 μK | 11.2 |
+| Gaussian 120′ | 16.8 μK | 5.2 / 4.7 μK | 4.6 |
+| Gaussian 200′ | 4.8 μK | 4.7 / 4.2 μK | 1.0 |
+| **harmonic cut at ℓ < 64 (any beam)** | **0** | as the Gaussian of the same beam | as the Gaussian |
+
+- **`ud_grade` would have misfit the data by ~4× the noise variance.** Smoothing alone cannot fix this without erasing the band edge (S/N ≤ 1 by 200′).
+- **The harmonic cut removes all of it.** What remains is masked-region content (2 ≤ ℓ < 64) spread into the observed pixels: 6.0 μK for SMICA against 5.6 μK for one pure-CMB realisation of its own spectrum. The CMB part is sky the model describes, so the non-CMB excess is ≈ √(6.0² − 5.6²) ≈ 2.2 μK, 0.07σ (one simulation, so a rough figure).
+- **SMICA's noise in the band is ≤ 0.26 μK rms** (high-ℓ raw plateau ≤ 2 × 10⁻⁴ μK²), so the σ = 30 noise the chain adds is the noise model and its likelihood is exact; neither half-mission maps nor FFP10 are needed at this scale.
+- Built and tested (`tests/test_real_sky_setup.py`, `test_data_map_replaces_the_simulated_sky_and_hides_the_truth`; both mutation-checked): `real_sky_setup.bandlimited_map` (drops ℓ < 2 and ℓ ≥ lmax), `read_data_map` (refuses a map made for another nside, band or beam), `scripts/prepare_real_data.py`, and `coverage_ensemble_chain.py --data_map` (needs `--mask_file`; writes `data_chain_rNNN` / `data_blind_rNNN` with NaN truths, so no harvest glob or simulated checkpoint meets a real-data chain; an independent review caught the blind save missing this before commit). Prepared: `results/analysis/realdata_prep/smica_l64_ns64_b5.fits` (rms 55.1 μK).
+
 ## 2026-10-15 — T1.1 width gap: no route closes it (D9)
 
 Seven variants scored on the 48 strict skies (`logs/npe_gap_12164772_*`, `_12164773_*`, `_12170564_*`; route c rescored 2026-10-15 on the correct summaries). Held-out SBC passes for every variant except the compressor. Width ratio, learned/exact, C_ℓ^TT [30,60) and C_L^φφ [30,60):
