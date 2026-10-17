@@ -6,7 +6,7 @@
 
 ---
 
-## Where the project stands (2026-10-14)
+## Where the project stands (2026-10-17)
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -20,7 +20,8 @@
 - figure 2's physics: the blind fit lands on the lensing each sky received, the joint fit stays within ~1 %;
 - a learned (NPE) posterior that is calibrated and unbiased against the exact one, and 3–55 % wider (T1.1);
 - a QE validated at the production configuration;
-- a test suite that covers the scripts as well as the package.
+- a test suite that covers the scripts as well as the package;
+- the pipeline on the real observing geometry (Planck mask, beam, anisotropic noise): pilot passes, production queued (T1.2a).
 
 **Nothing is blocking.** T0.1 is closed by D7 (2026-10-14; `achievements.md` → T0.1). The exactness claim is the strict SBC with its stated power: three blocks pass, and φ `[30,60)` is a stated limitation.
 
@@ -85,6 +86,9 @@ Each extension is validated to the core's standard (gate → production → cali
    - Likely figures: per-mode width ratio, learned against exact (the headline); rank histograms with drawn nulls; correlation-structure comparison. The strict SBC passes at ℓ ≥ 60 (D7), so the band edge can be pooled; report it separately as well.
 2. **Real Planck data.**
    - **2a — A_L post-mortem:** a real-data consistency test on Planck 2018 vs PR4, framed as a demonstration, not a competitive measurement. First the pipeline on a simulation carrying the real mask, `noise_map` and beam (note the beam path's prior fix, `achievements.md`), then data. Figures: real-data C_ℓ and C_L^φφ posteriors vs Planck spectra and the QE; the posterior-mean φ on the real mask.
+     - **Pilot done (2026-10-17, `achievements.md` → T1.2a):** the strict ensemble on the Planck common mask, 5′ beam and an ecliptic noise surrogate passes its gate (widths ×f_sky^−1/2, no extra bias, drift ≤ 0.33 sd; ESS 2–4× lower at ℓ = 63 and L < 10). **Production r004–r047 = 12183261, harvest 12183262 (queued 2026-10-17).** Read the harvest's strict SBC (thin 50 alongside thin 20) and joint-likelihood SBC before any real-data run.
+     - **Data on disk:** Planck 2018 SMICA (`COM_CMB_IQU-smica_2048_R3.00_full.fits`) and the common Int/Pol masks are in `/cosma8/data/dp004/dc-hick2/Plank`, the path `model.py`'s real-data mode expects. PR4 (NPIPE) maps are not there; fetch them before the 2018-vs-PR4 comparison. A real-data job reads `/cosma8` and writes `results/analysis` (`/cosma5`), so it needs a node with both (mad*, b*, hardwarelab; AGENTS.md).
+     - **Still to decide before data:** the noise model (the SMICA half-mission difference or the FFP10 noise sims give a per-pixel σ; the surrogate is only for the simulation test) and the beam (SMICA is 5′, then smoothed to the analysis resolution at nside 64).
    - **2b — low-L C_L^φφ, conditional on scale.** The claim would be "an exact joint posterior on C_L^φφ at L < 30 from Planck temperature, where the QE is noise-dominated" (largest reconstruction noise, mask and mean-field problems), on real data with the real mask.
      - **⚠ Feasibility check first.** Planck's low-L lensing information comes from temperature at ℓ ≳ 1000. At the certified lmax = 64 the physical S/N is 0.002, so the posterior would return the prior. It needs the sampler at lmax ≳ 1000 (Parked: scaling), or a formulation that infers low-L φ from high-ℓ T.
      - Scope it before building anything, starting from what Planck's own low-L lensing analysis reports there.
@@ -189,7 +193,7 @@ Each extension is validated to the core's standard (gate → production → cali
   leg of the validation barrier. Commit and re-tag first (last code commit `8f8a0f5`, 2026-10-07).
 - **Real data: T1 item 2a is the realistic route.** The A_L consistency test on Planck 2018 vs PR4, framed
   as a demonstration. Steps already set: the pipeline on a simulation carrying the real mask, `noise_map`
-  and beam, then the data. A quick check found no Planck maps in this repo (`data/` does not exist);
-  confirm where the maps and masks will come from before scoping.
+  and beam, then the data. The simulation step is running (T1 item 2a above); the Planck 2018
+  maps and masks are in `/cosma8/data/dp004/dc-hick2/Plank`, and PR4 still has to be fetched.
 - **2b (low-L C_L^φφ) stays behind its feasibility check:** at lmax = 64 the posterior would return the
   prior.

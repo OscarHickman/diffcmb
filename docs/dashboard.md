@@ -1,10 +1,32 @@
 # Sampling & Validation Dashboard
-*Last updated: 2026-10-14*
+*Last updated: 2026-10-17*
 
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-10-14): D7 — figure 1 is the strict SBC; three blocks pass, φ `[30,60)` fails
+## CURRENT (2026-10-17): T1.2a real-sky pilot passes its gate; production r004–r047 queued
+
+Pilot 12172310 (r000–r003, completed 2026-10-16, 9.5–9.6 h per sky on ga006): the strict ensemble's configuration (ν = 30 on both spectra, A_φ = 3000, σ = 30, 1000 + 3600 sweeps) on the **Planck common temperature mask** (f_sky 0.751 at nside 64), a **5′ beam + pixel window** and the **ecliptic noise surrogate** (σ(1 + 0.5 cos²β); Planck's per-pixel noise is not used). Same realization index, same truths as `_nu30_strict` (checked: `cl_true`, `cl_phiphi_true`, `phi_true_packed` identical), so each sky is compared with itself (`scripts/compare_realsky_fullsky.py`; medians over the 4 skies, rms z and rms half-to-half drift in posterior sd):
+
+| block | bin | sd ratio real/full | rms z real / full | drift real / full | ESS real / full |
+|---|---|---|---|---|---|
+| C_ℓ^TT | [2,10) | 1.01 | 0.52 / 0.57 | 0.03 / 0.04 | 2770 / 3441 |
+| | [10,30) | 1.09 | 1.13 / 0.59 | 0.06 / 0.11 | 633 / 1738 |
+| | [30,60) | 1.15 | 1.24 / 1.44 | 0.15 / 0.05 | 424 / 920 |
+| | [60,64) | 1.33 | 0.61 / 0.69 | 0.10 / 0.13 | 98 / 189 |
+| | ℓ = 63 | 1.46 | 0.70 / 1.67 | 0.32 / 0.23 | **70** / 275 |
+| C_L^φφ | [2,10) | 1.08 | 0.69 / 0.69 | 0.14 / 0.10 | **222** / 893 |
+| | [10,30) | 1.17 | 1.22 / 1.43 | 0.23 / 0.18 | 184 / 305 |
+| | [30,60) | 1.24 | 0.92 / 0.54 | 0.15 / 0.06 | 306 / 325 |
+| | [60,64) | 1.25 | 0.90 / 0.90 | 0.33 / 0.12 | 247 / 402 |
+| | L = 63 | 1.26 | 0.94 / 1.26 | 0.26 / 0.15 | 255 / 352 |
+
+- **Gate passed.** Widths grow as the mask predicts (f_sky^−1/2 = 1.15 in `[30,60)`; more at the band edge, where the beam and pixel window bite), with no more bias than the full sky and drift ≤ 0.33 sd. Acceptance α 0.61–0.69, φ 0.57–0.71; every task exited 0, `phi_calibration_ok`. ⟨φ⟩ correlates with φ_true at 0.66–0.77 (full sky 0.85–0.95): 25 % of the sky is unobserved.
+- **Mixing is slower** at the a_ℓm band edge (ℓ = 63 C_ℓ ESS 40–121) and for low-L C_L^φφ (`[2,10)` ESS 120–366): 2–4× fewer effective draws. The harvest adds a thin-50 strict pass so the draws per chain stay below the ESS.
+- **Harvest bug caught before use:** `sbc_joint_likelihood.py` rebuilt the data full-sky, beamless and uniform-noise. On r000 that gives χ²/n = 2.43 for a posterior draw against 1.005 with the chain's own geometry (truth 1.009), so every rank would have been pushed to one end. Fixed in `ec0df2d` (see `achievements.md` → bugs).
+- **Queued 2026-10-17:** production r004–r047 = **12183261** (`durham`, 16 h); harvest **12183262** (`afterany`, strict SBC thin 20 / thin 10 second half / thin 50, field ranks, joint-likelihood SBC, paired comparison; `logs/harvest_realsky_12183262.out`).
+
+## 2026-10-14 record: D7 — figure 1 is the strict SBC; three blocks pass, φ `[30,60)` fails
 
 Figure 1 rebuilt from `_nu30_strict` (D7). `fig1_validation.py` strict mode reads the a_ℓm row against uniform and adds the C_ℓ^TT strict panel; log `logs/fig1_d7_20261014.log`. Each entry is `p_bin`, thin 50, N = 48:
 
