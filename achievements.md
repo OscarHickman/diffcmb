@@ -66,6 +66,29 @@ The simulation test draws band-limited truths, so its data hold no ℓ ≥ 64 po
 - **SMICA's noise in the band is ≤ 0.26 μK rms** (high-ℓ raw plateau ≤ 2 × 10⁻⁴ μK²), so the σ = 30 noise the chain adds is the noise model and its likelihood is exact; neither half-mission maps nor FFP10 are needed at this scale.
 - Built and tested (`tests/test_real_sky_setup.py`, `test_data_map_replaces_the_simulated_sky_and_hides_the_truth`; both mutation-checked): `real_sky_setup.bandlimited_map` (drops ℓ < 2 and ℓ ≥ lmax), `read_data_map` (refuses a map made for another nside, band or beam), `scripts/prepare_real_data.py`, and `coverage_ensemble_chain.py --data_map` (needs `--mask_file`; writes `data_chain_rNNN` / `data_blind_rNNN` with NaN truths, so no harvest glob or simulated checkpoint meets a real-data chain; an independent review caught the blind save missing this before commit). Prepared: `results/analysis/realdata_prep/smica_l64_ns64_b5.fits` (rms 55.1 μK).
 
+### 2018 vs PR4 and SMICA vs SEVEM at lmax = 64 (2026-10-17)
+
+PR4 (NPIPE) has component-separated maps only from SEVEM and Commander; `COM_CMB_IQU-sevem_2048_R4.00.fits` and its 2018 counterpart `COM_CMB_IQU-sevem_2048_R3.01_full.fits` are now in `/cosma8/data/dp004/dc-hick2/Plank` (from the PLA `product-action?MAP.MAP_ID=` endpoint), with the Planck 2018 TT spectrum in `Plank/spectra/`. All three maps band-limited by `prepare_real_data.py --map` (`results/analysis/realdata_prep/{smica,sevemR3,sevemR4}_l64_ns64_b5.fits`), then compared on the common mask at nside 64. Pseudo-C_ℓ ratio per bin, against the posterior's fractional width (cosmic variance at f_sky 0.75):
+
+| bin | SMICA / SEVEM 2018 | SEVEM 2018 / PR4 | posterior sd of C |
+|---|---|---|---|
+| [2,10) | 1.021 | 0.990 | 0.167 |
+| [10,30) | 0.994 | 0.997 | 0.058 |
+| [30,60) | 0.999 | 0.998 | 0.031 |
+| [60,64) | 0.963 | 0.988 | 0.073 |
+| ℓ = 63 | 0.931 | 0.983 | 0.145 |
+
+- **2018 and PR4 agree to ≤ 1.7 % in every bin (≤ 0.15 posterior sd); the map difference is 1.1 μK rms on the observed sky.** At lmax = 64 a 2018-vs-PR4 posterior comparison is a null by construction; it can only be a reproducibility check.
+- **The component-separation method matters more:** SMICA vs SEVEM differ by 5.4 μK rms on the observed sky (≤ 2 % in power in the bulk, 4–7 % at ℓ ≥ 60, ~0.5 sd). Most of it is in-mask content (the two differ by 50 μK rms inside the mask) leaking through the ℓ < 64 cut. The leak is global, not at the mask edge: growing the mask by 1–6 rings leaves the SMICA–SEVEM leak difference at 3.7 μK while f_sky falls from 0.75 to 0.07. A SEVEM run alongside SMICA measures this systematic.
+- The real-data MAP objective on SMICA (smoke job 12184339) is 21 583, inside the 18 800–30 600 range of the simulated real-sky skies.
+
+### Real-data smoke runs on SMICA (2026-10-17/18; one chain each, short, not science)
+
+- **Flat C_ℓ^TT prior collapses the band edge on real data** (12184339, 20 + 40 sweeps, A_φ 3000): `find_map_estimate` leaves ln C_ℓ at its −12 clip for ℓ ≥ 60 (e^−12.9 below the fiducial), and ℓ = 63 never left it (D_63 ≈ 0 against Planck's ~1700 μK²); ℓ = 54 collapsed too. The certified real-sky pilot starts from the same clip and recovers under its ν = 30 prior. `submit_realdata_lmax64.slurm` now defaults to CLNU = 30, and `realdata_summary.py` names any ℓ whose median is below e^−3 × the fiducial.
+- **ν = 30 on both spectra, 100 + 200 sweeps** (12184369 A_φ 3000, 12184370 A_φ 1; 1.0–1.1 h): no collapsed ℓ; Planck 2018 D_ℓ / posterior median 0.95–0.99 in `[10,30)` and `[30,60)`, 0.96–1.04 in `[60,64)`, 1.08–1.16 at ℓ = 63.
+- **At ℓ < 10 the posterior sits 19 % above Planck (ratio 0.84 in both runs).** The data carry f_sky(2ℓ+1) ≈ 4–14 modes per ℓ there against the prior's ν = 30, so the prior holds 70–90 % of the weight and pulls the known low-ℓ power deficit toward ΛCDM. A real-data C_ℓ^TT figure at ν = 30 must say the low ℓ are prior-dominated.
+- **C_L^φφ:** at A_φ = 3000 the posterior median is 0.68–0.87 of the prior centre (e.g. `[30,60)` 0.683, 68 % 0.659–0.710), already several posterior sd below the amplified hypothesis after 300 sweeps; at A_φ = 1 it is 1.0 ± 0.1 of the prior centre (the prior returned, as the S/N of 0.002 predicts).
+
 ## 2026-10-15 — T1.1 width gap: no route closes it (D9)
 
 Seven variants scored on the 48 strict skies (`logs/npe_gap_12164772_*`, `_12164773_*`, `_12170564_*`; route c rescored 2026-10-15 on the correct summaries). Held-out SBC passes for every variant except the compressor. Width ratio, learned/exact, C_ℓ^TT [30,60) and C_L^φφ [30,60):
