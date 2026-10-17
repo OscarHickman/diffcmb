@@ -62,7 +62,7 @@ import time
 import healpy as hp
 import numpy as np
 import tensorflow as tf
-from real_sky_setup import apply_mask, ecliptic_noise_map, load_mask
+from real_sky_setup import apply_mask, ecliptic_noise_map, load_mask, read_data_map
 
 from diffcmb import CosmologyAdvancedSampling, run_gibbs_chain
 from diffcmb.lensing import _alm_hp_to_packed, lens_map_tf
@@ -164,6 +164,12 @@ def main():
                    help="T1.2a: anisotropic noise surrogate sigma*(1 + amp*cos^2 beta), "
                         "beta the ecliptic latitude, sigma = --noisesig. 0 = uniform. "
                         "A surrogate: Planck's per-pixel noise is not available here.")
+    p.add_argument("--data_map", type=str, default=None,
+                   help="T1.2a real data: a band-limited map from prepare_real_data.py "
+                        "replaces the simulated lensed sky; the noise realisation is added "
+                        "as before, so the likelihood's noise is exact. Needs --mask_file "
+                        "and the map's own --beam_fwhm_arcmin, --nside and --lmax. Truth "
+                        "arrays are saved as NaN; the drawn ones only scale the phi check.")
     p.add_argument("--lensing_operator", choices=("exact", "bilinear"), default="exact",
                    help="Forward lensing operator. 'exact' (default since 2026-09-23) "
                         "evaluates the alm at the deflected positions and lenses by "
@@ -268,12 +274,18 @@ def main():
     if args.start_truth and (args.blind or args.cl_init != "map"):
         raise SystemExit("--start_truth does not combine with --blind or --cl_init data: "
                          "it replaces the whole start, and the blind fit has no phi")
+    if args.data_map is not None and (args.mask_file is None or args.start_truth
+                                      or args.phi_fixed_truth):
+        raise SystemExit("--data_map needs --mask_file (SMICA is inpainted inside the mask) "
+                         "and has no truth for --start_truth or --phi_fixed_truth")
     sample_cl_phiphi = not (args.no_sample_cl_phiphi or args.phi_fixed_truth)
     strict = args.cl_prior_nu is not None
 
     lmax, nside, r = args.lmax, args.nside, args.realization
     os.makedirs(args.outdir, exist_ok=True)
     tag = "blind" if args.blind else "chain"
+    if args.data_map is not None:
+        tag = "data_" + tag  # never resumed from, or globbed as, a simulated chain
     ckpt = os.path.join(args.outdir, f"{tag}_r{r:03d}_ckpt.npz")
     out = os.path.join(args.outdir, f"{tag}_r{r:03d}.npz")
 
@@ -360,6 +372,12 @@ def main():
     if not np.all(np.isfinite(T_lensed_true)):
         raise RuntimeError(f"realization {r}: lens_map_tf produced NaN/Inf")
 
+    if args.data_map is not None:
+        T_lensed_true = read_data_map(args.data_map, nside, lmax,
+                                      args.beam_fwhm_arcmin)[model.unmasked_idx]
+        print(f"  REAL DATA {args.data_map}: the drawn truths are not the sky; "
+              "they are saved as NaN")
+
     rng_noise = np.random.default_rng(_STREAM_NOISE + r)
     # T_lensed_true is at the unmasked pixels only; masked pixels carry zero.
     noisy_map = np.zeros(model.NPIX)
@@ -387,6 +405,14 @@ def main():
         / (np.linalg.norm(phi_start_packed) * np.linalg.norm(phi_true_packed))
     )
     print(f"  start-vs-truth phi cosine similarity={start_corr:+.4f} (~0 expected)")
+    phi_power_truth = float(np.mean(phi_true_packed ** 2))  # scale of the phi check
+    if args.data_map is not None:
+        # No harvest may rank a real-data chain against a prior draw, so the
+        # truths are NaN from here on, in every save. The draw's phi power stays
+        # as the phi check's scale: it guards against the 1e3-1e5 inflation.
+        cl_true, cl_phiphi_true, alm_true_packed, phi_true_packed = (
+            np.full(np.shape(a), np.nan)
+            for a in (cl_true, cl_phiphi_true, alm_true_packed, phi_true_packed))
 
     # --- alm start: the data-driven MAP, not the cold prior draw ---
     # MUST come after the data is installed on the model above, since psi (and
@@ -471,7 +497,8 @@ def main():
                  noise_ecliptic_amp=args.noise_ecliptic_amp,
                  phi_amplitude=args.phi_amplitude, cl_init=args.cl_init,
                  cl_prior_nu=np.nan if not strict else float(args.cl_prior_nu),
-                 cl_tt_fid=cl_tt_fid, start_spectra=start_spectra)
+                 cl_tt_fid=cl_tt_fid, start_spectra=start_spectra,
+                 data_map=args.data_map or "")
         print(f"  blind chain done in {elapsed / 3600:.2f}h; alm accept="
               f"{accepts.mean():.3f}; saved {out}")
         if os.path.exists(ckpt):
@@ -539,7 +566,6 @@ def main():
     # in between is genuinely ambiguous and worth a human look, which is what
     # the error message asks for.
     phi_power_chain = float(np.mean(phi_samples[len(phi_samples) // 2:] ** 2))
-    phi_power_truth = float(np.mean(phi_true_packed ** 2))
     ratio = phi_power_chain / max(phi_power_truth, 1e-300)
     print(f"  phi power vs truth: chain={phi_power_chain:.4e} "
           f"truth={phi_power_truth:.4e} ratio={ratio:.3e}")
@@ -589,6 +615,7 @@ def main():
     # and no allow_pickle-requiring object array reaches the output.
     if cl_phiphi_samples is not None:
         save_kwargs["cl_phiphi_samples"] = cl_phiphi_samples
+    save_kwargs["data_map"] = args.data_map or ""
     np.savez(out, **save_kwargs)
     print(f"Saved realization {r} to {out}")
 

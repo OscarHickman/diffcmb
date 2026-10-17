@@ -567,3 +567,68 @@ def test_masked_beamed_anisotropic_chain_runs_and_records_its_geometry(tmp_path)
         with pytest.raises(SystemExit, match="data map"):
             sjl.rebuild_truth_and_data(
                 sjl.build_model(LMAX, NSIDE, "exact", 1.0, *wrong), d, LMAX, 1.0)
+
+
+def test_data_map_replaces_the_simulated_sky_and_hides_the_truth(tmp_path):
+    """ROADMAP T1.2a real data: --data_map observes a given map (with the
+    chain's own noise realisation added) instead of the simulated lensed sky,
+    saves no truth a harvest could rank against, and refuses a map prepared for
+    another model or a run without a mask."""
+    mask = np.ones(hp.nside2npix(NSIDE))
+    mask[hp.query_strip(NSIDE, 1.0, 2.1)] = 0.0
+    mfile = tmp_path / "mask.fits"
+    hp.write_map(str(mfile), mask, overwrite=True)
+    np.random.seed(3)
+    sky = hp.alm2map(hp.synalm(np.r_[0.0, 0.0, 3e4 / np.arange(2, LMAX) ** 2], lmax=LMAX - 1),
+                     NSIDE, lmax=LMAX - 1)
+    dfile = tmp_path / "data.fits"
+    hp.write_map(str(dfile), sky, dtype=np.float64, overwrite=True,
+                 extra_header=[("LMAX", LMAX), ("BEAMFWHM", 300.0)])
+    geom = ("--mask_file", str(mfile), "--beam_fwhm_arcmin", "300")
+    out = _run_chain(tmp_path, *geom, "--data_map", str(dfile))
+    assert "REAL DATA" in out
+    _run_chain(tmp_path, *geom, "--data_map", str(dfile), "--blind")
+    # Own file names: a harvest's chain_r*.npz glob and a simulated run's
+    # checkpoint never meet a real-data chain.
+    assert not (tmp_path / "chain_r001.npz").exists()
+    for name in ("data_chain_r001.npz", "data_blind_r001.npz"):
+        d = np.load(tmp_path / name)
+        assert str(d["data_map"]) == str(dfile)
+        resid = d["data_masked"] - sky[d["unmasked_idx"]]
+        assert 0.7 < resid.std() < 1.3  # --noisesig 1, against a sky of rms ~60
+        for k in ("cl_true", "cl_phiphi_true", "alm_true_packed", "phi_true_packed"):
+            assert np.all(np.isnan(d[k])), (name, k)
+        assert np.all(np.isfinite(d["alm_samples"]))
+    d = np.load(tmp_path / "data_chain_r001.npz")
+    assert np.all(np.isfinite(d["phi_samples"])) and bool(d["phi_calibration_ok"])
+
+    env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
+    base = [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+            "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
+            "--n_burnin", "1", "--n_samples", "1", "--map_steps", "1",
+            "--outdir", str(tmp_path / "x"), "--data_map", str(dfile)]
+    for extra, msg in (((), "needs --mask_file"),
+                       (("--mask_file", str(mfile), "--beam_fwhm_arcmin", "30"), "beam")):
+        res = subprocess.run(base + list(extra), env=env, capture_output=True, text=True, timeout=600)
+        assert res.returncode != 0 and msg in res.stdout + res.stderr, res.stderr[-2000:]
+
+
+def test_prepare_real_data_writes_a_map_the_chain_accepts(tmp_path):
+    """prepare_real_data.py's header is what read_data_map checks, so the chain
+    takes its output only with the matching nside, band and beam."""
+    from real_sky_setup import read_data_map
+    np.random.seed(5)
+    sky = hp.synfast(1e-9 / (np.arange(96) + 5.0) ** 2, 32)  # in K, as SMICA
+    hp.write_map(str(tmp_path / "COM_CMB_IQU-smica_2048_R3.00_full.fits"), sky, overwrite=True)
+    out = tmp_path / "d.fits"
+    env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
+    res = subprocess.run([sys.executable, os.path.join(SCRIPTS, "prepare_real_data.py"),
+                          "--planck_dir", str(tmp_path), "--nside", str(NSIDE), "--lmax", str(LMAX),
+                          "--beam_fwhm_arcmin", "300", "--out", str(out)],
+                         env=env, capture_output=True, text=True, timeout=300)
+    assert res.returncode == 0, res.stderr[-2000:]
+    m = read_data_map(str(out), NSIDE, LMAX, 300.0)
+    assert m.size == hp.nside2npix(NSIDE) and 0 < m.std() < 1e3  # muK
+    assert abs(m.mean()) < 1e-3 * m.std()  # no monopole (nside-8 quadrature is good to ~4e-4)
+    with pytest.raises(ValueError):
+        read_data_map(str(out), NSIDE, LMAX, 5.0)
