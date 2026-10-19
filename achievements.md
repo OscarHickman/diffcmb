@@ -45,6 +45,20 @@ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so
 
 ---
 
+## 2026-10-19 — T1.2a: the real-sky production (N = 48) passes every calibration test
+
+Harvest 12187701 (`logs/harvest_realsky_12187701.out`; 12183262 had stopped at its completeness guard because r029 timed out at 16 h on mad02, resumed from its checkpoint as 12187700). The strict configuration on the Planck common mask, 5′ beam + pixwin and the ecliptic noise surrogate, 48 skies:
+
+- **Strict SBC passes.** p per bin, thin 20 / second half thin 10 / thin 50:
+  - C_ℓ^TT: `[2,10)` 0.96 / 0.58 / 0.36, `[10,30)` 0.87 / 0.41 / 0.53, `[30,60)` 0.095 / 0.66 / 0.73, `[60,64)` 0.47 / 0.26 / 0.18, ℓ = 63 0.43 / 0.66 / 0.79;
+  - C_L^φφ: `[2,10)` 0.87 / 0.87 / 0.85, `[10,30)` 0.99 / 0.41 / 0.029, `[30,60)` 0.22 / 0.47 / 0.42, `[60,64)` 0.17 / 0.22 / 0.82, ℓ = 63 0.051 / 0.96 / 0.025.
+  - The two thin-50 values near 0.03 are both C_L^φφ, out of ten bins (Bonferroni 0.005), and neither reappears in the second half. No collapsed C_ℓ.
+- **Joint-likelihood SBC passes:** mean_u 0.513, KS p 0.78 (thin 40).
+- **Field ranks pass in every bin:** φ pooled cal_p 0.29 (`[30,60)` mean_u 0.581, cal_p 0.94), a_ℓm pooled 0.95 (min bin cal_p 0.090 at `[60,64)`).
+- The ℓ < 10 interval-coverage rows flag (C_ℓ^TT mean_u 0.405, C_L^φφ 0.355), but they are labelled "NOT calibration", and the full-sky strict ensemble flags the same bins with nearly the same ranks (0.407, 0.348; re-run 2026-10-19). That is the coverage statistic under a proper prior, not the mask.
+- **Paired with the full sky:** sd ratio 1.02–1.38 for C_ℓ^TT and 1.07–1.28 for C_L^φφ (f_sky^−1/2 = 1.15, more at the band edge). rms z 0.80–1.19 (full sky 0.82–1.20); drift ≤ 0.33 sd; ESS 2–3× lower at ℓ ≥ 60 and L < 10.
+- **Verdict:** the joint sampler is calibrated on the real observing geometry. The real-data runs on SMICA (both A_φ) and PR4 SEVEM were submitted on the 47-sky preview (12187756/57/64), and this confirms that gate.
+
 ## 2026-10-17 — T1.2a: the real-sky pilot passes its gate
 
 The strict configuration on the Planck common temperature mask (f_sky 0.751), a 5′ beam + pixel window and an ecliptic noise surrogate, 4 skies (job 12172310), compared sky by sky with `_nu30_strict` on identical truths. Posterior widths grow by 1.01–1.15 below ℓ = 60 (f_sky^−1/2 = 1.15) and 1.25–1.46 at the band edge; no more bias than the full sky (rms z ≤ 1.24, against ≤ 1.67 full-sky) and half-to-half drift ≤ 0.33 sd. The cost is mixing: ESS falls 2–4× at ℓ = 63 (C_ℓ) and L < 10 (C_L^φφ). Table: `docs/dashboard.md` → CURRENT. Production r004–r047 queued (12183261), harvest 12183262. The pipeline needed one fix first: `psi_lensed` gathered `unmasked_idx` a second time (identity on a full sky, out of range on a general mask).

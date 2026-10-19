@@ -4,7 +4,11 @@
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-10-19): real-sky production 47/48 passes the strict SBC preview; real-data production running
+## CURRENT (2026-10-19): real-sky production N = 48 passes every calibration test; real-data production running
+
+- **Harvest 12187701** (after r029 resumed as 12187700): strict SBC passes at thin 20 / half-2 thin 10 / thin 50 (min p 0.051 / 0.22 / 0.025 over ten bins); joint-likelihood SBC mean_u 0.513, KS p 0.78; φ and a_ℓm field ranks pass in every bin (pooled cal_p 0.29 / 0.95); no collapsed C_ℓ. The ℓ < 10 coverage-row flags are identical on the full-sky strict ensemble (statistic, not mask). Paired comparison as in the 47-sky preview below (sd ratio 1.02–1.38, rms z ≤ 1.19). Full numbers: `achievements.md` → 2026-10-19.
+
+### 2026-10-19 preview (47 skies)
 
 - **12183261:** 43/44 completed; r029 TIMEOUT at 16 h (mad02, ~sample 3400) → resumed from checkpoint as 12187700. Harvest 12183262 FAILED at its completeness guard (r029 missing), re-queued as 12187701 (`afterok:12187700`).
 - **Preview on 47 skies** (`strict_sbc_ranks.py`, same as the harvest's step 2): mean rank / p, thin 50 (72 draws; uniform 36.0):
