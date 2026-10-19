@@ -80,3 +80,35 @@ def test_planck_table_is_read_by_multipole(tmp_path):
     np.testing.assert_array_equal(rs.read_planck_dl(str(f), LMAX), 10.0 * np.arange(2, LMAX))
     with pytest.raises(SystemExit):
         rs.read_planck_dl(str(f), 64)
+
+
+def _summary_file(tmp_path, name, spectra, amp, shift=0.0):
+    cl_tt, cl_pp = spectra
+    rng = np.random.default_rng(int(amp) % 97)
+    d = tmp_path / name
+    d.mkdir()
+    for i in range(2):
+        _chain(d / f"data_chain_r{i:03d}.npz", rng, np.zeros(30), cl_tt, cl_pp, shift=shift, amp=amp)
+    planck = (np.full(LMAX - 2, 1000.0), np.full(LMAX - 2, 50.0), np.full(LMAX - 2, 50.0))
+    s = rs.summarise(rs.load_chains(str(d))[1], planck[0])
+    s["planck_dl_ell"], s["planck_dl_lo"], s["planck_dl_hi"] = planck
+    np.savez(d / "summary.npz", **{k: np.asarray(v) for k, v in s.items()})
+    return d / "summary.npz"
+
+
+def test_realdata_figure_builds_and_refuses_a_collapsed_run(tmp_path, spectra):
+    import subprocess
+    repo = os.path.join(os.path.dirname(__file__), "..")
+    fig = os.path.join(repo, "scripts", "paper", "fig_realdata.py")
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        [os.path.join(repo, d) for d in ("diffcmb", "scripts", "scripts/paper")]))
+    a1 = _summary_file(tmp_path, "a1", spectra, 1.0)
+    a3 = _summary_file(tmp_path, "a3", spectra, 3000.0)
+    res = subprocess.run([sys.executable, fig, "--a1", str(a1), "--a3000", str(a3), "--sevem", str(a1),
+                          "--outdir", str(tmp_path / "out")], env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr[-2000:]
+    assert (tmp_path / "out" / "realdata_cltt.pdf").exists() and (tmp_path / "out" / "realdata_clpp.pdf").exists()
+    bad = _summary_file(tmp_path, "bad", spectra, 1.0, shift=-12.0)
+    res = subprocess.run([sys.executable, fig, "--a1", str(bad), "--a3000", str(a3),
+                          "--outdir", str(tmp_path / "out2")], env=env, capture_output=True, text=True)
+    assert res.returncode != 0 and "collapsed" in res.stdout + res.stderr

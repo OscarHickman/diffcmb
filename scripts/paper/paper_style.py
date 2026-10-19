@@ -65,6 +65,7 @@ COL_CLTT = "#CC79A7"      # C_l^TT (Block 1), strict SBC panel
 COL_QE = "#555555"        # quadratic-estimator reference curve
 COL_NULL = "#BBBBBB"      # null bands, uniform expectation, reference lines
 COL_TRUTH = "#000000"
+COL_ALTMAP = "#E69F00"    # second component-separation map (PR4 SEVEM) on real data
 
 GREY_TEXT = "0.30"
 

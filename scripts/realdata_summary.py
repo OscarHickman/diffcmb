@@ -79,14 +79,20 @@ def load_chains(indir):
     return files, ds
 
 
-def read_planck_dl(path, lmax):
-    """Planck D_l [muK^2] for l = 2..lmax-1 from a COM_PowerSpect TT table."""
+def read_planck_table(path, lmax):
+    """(D_l, -dD_l, +dD_l) [muK^2] for l = 2..lmax-1 from a COM_PowerSpect TT table."""
     t = np.loadtxt(path)
-    ell, dl = t[:, 0].astype(int), t[:, 1]
+    ell = t[:, 0].astype(int)
     want = np.arange(2, lmax)
     if not np.all(np.isin(want, ell)):
         raise SystemExit(f"{path} does not cover l = 2..{lmax - 1}")
-    return dl[np.searchsorted(ell, want)]
+    rows = t[np.searchsorted(ell, want)]
+    return rows[:, 1], rows[:, 2], rows[:, 3]
+
+
+def read_planck_dl(path, lmax):
+    """Planck D_l [muK^2] for l = 2..lmax-1."""
+    return read_planck_table(path, lmax)[0]
 
 
 def summarise(ds, planck_dl):
@@ -103,6 +109,9 @@ def summarise(ds, planck_dl):
     ln_tt_fid = np.log(np.asarray(ds[0]["cl_tt_fid"], dtype=np.float64)[2:lmax])
     ln_ratio = np.median(np.concatenate(blocks["C_l^TT"]), axis=0) - ln_tt_fid
     out["collapsed_ell"] = ell[ln_ratio < COLLAPSE_LN]
+    out["ell"] = ell
+    out["C_l^TT/dl_ell_q16"], out["C_l^TT/dl_ell_q50"], out["C_l^TT/dl_ell_q84"] = (
+        np.exp(q + to_dl) for q in np.percentile(np.concatenate(blocks["C_l^TT"]), [16, 50, 84], axis=0))
     for b, chains in blocks.items():
         binned = [np.stack([c[:, sl].mean(1) for _, sl in cols], axis=1) for c in chains]
         pooled = np.concatenate(binned)
@@ -148,7 +157,9 @@ def main():
     p.add_argument("--out", required=True, help="output prefix (.npz written)")
     args = p.parse_args()
     files, ds = load_chains(args.chains)
-    s = summarise(ds, read_planck_dl(args.planck_tt, int(ds[0]["lmax"])))
+    planck = read_planck_table(args.planck_tt, int(ds[0]["lmax"]))
+    s = summarise(ds, planck[0])
+    s["planck_dl_ell"], s["planck_dl_lo"], s["planck_dl_hi"] = planck
     report(s)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     np.savez(args.out + ".npz", files=np.array(files), **{k: np.asarray(v) for k, v in s.items()})

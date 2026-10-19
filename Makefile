@@ -3,7 +3,7 @@ PYTHON=${venv}/bin/python
 PIP=${venv}/bin/pip
 ACTIVATE=. ${venv}/bin/activate
 
-.PHONY: all setup install precommit test build-rust clean figures
+.PHONY: all setup install precommit test build-rust clean figures figure-realdata
 
 all: setup
 
@@ -53,6 +53,11 @@ figures:
 	${FIG_ENV} ${PYTHON} scripts/paper/fig4_joint_posterior.py --indir ${ENSEMBLE} --thin 45
 	${FIG_ENV} ${PYTHON} scripts/paper/fig2_bias_reduction.py --indir ${ENSEMBLE}
 	${FIG_ENV} ${PYTHON} scripts/paper/fig3_uncertainty_propagation.py --indir ${ENSEMBLE}
+
+# ROADMAP T1.2a: needs the realdata_summary.py outputs of the three real-data runs.
+REALDATA=results/analysis/realdata
+figure-realdata:
+	${FIG_ENV} ${PYTHON} scripts/paper/fig_realdata.py --a1 ${REALDATA}_smica_l64_A1_n30_clnu30/summary.npz --a3000 ${REALDATA}_smica_l64_A3000_n30_clnu30/summary.npz --sevem ${REALDATA}_sevemR4_l64_A1_n30_clnu30/summary.npz --outdir ${PLOTS}/figure_realdata
 
 clean:
 	rm -rf ${venv}
