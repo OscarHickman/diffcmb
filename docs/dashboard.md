@@ -4,7 +4,23 @@
 Live status of the production chains. Forward plan: `ROADMAP.md`. Closed-out
 results and the bug record: `achievements.md`.
 
-## CURRENT (2026-10-17): T1.2a real-sky pilot passes its gate; production r004–r047 queued
+## CURRENT (2026-10-19): real-sky production 47/48 passes the strict SBC preview; real-data production running
+
+- **12183261:** 43/44 completed; r029 TIMEOUT at 16 h (mad02, ~sample 3400) → resumed from checkpoint as 12187700. Harvest 12183262 FAILED at its completeness guard (r029 missing), re-queued as 12187701 (`afterok:12187700`).
+- **Preview on 47 skies** (`strict_sbc_ranks.py`, same as the harvest's step 2): mean rank / p, thin 50 (72 draws; uniform 36.0):
+
+| bin | C_ℓ^TT | C_L^φφ |
+|---|---|---|
+| [2,10) | 33.2 / 0.48 | 31.8 / 0.76 |
+| [10,30) | 36.0 / 0.60 | 36.8 / 0.051 |
+| [30,60) | 31.6 / 0.76 | 39.2 / 0.30 |
+| [60,64) | 35.6 / 0.15 | 32.7 / 0.81 |
+| ℓ = 63 | 33.6 / 0.81 | 35.0 / 0.029 |
+
+  Thin 20: min p 0.044 (C_L^φφ ℓ = 63). No collapsed C_ℓ; all 47 `phi_calibration_ok` (φ power 0.54–1.92 × truth). Paired with the full sky (`compare_fullsky.npz`): sd ratio 1.02–1.38, rms z real 0.80–1.20 vs full 0.82–1.21, drift ≤ 0.33 sd, ESS 2–3× lower at ℓ ≥ 60 and L < 10.
+- **Real-data production (2026-10-19):** SMICA A_φ 3000 = 12187756, SMICA A_φ 1 = 12187757, PR4 SEVEM A_φ 1 = 12187764 (4 chains each, ν = 30, 24 h); summaries 12187765.
+
+## 2026-10-17 record: T1.2a real-sky pilot passes its gate; production r004–r047 queued
 
 Pilot 12172310 (r000–r003, completed 2026-10-16, 9.5–9.6 h per sky on ga006): the strict ensemble's configuration (ν = 30 on both spectra, A_φ = 3000, σ = 30, 1000 + 3600 sweeps) on the **Planck common temperature mask** (f_sky 0.751 at nside 64), a **5′ beam + pixel window** and the **ecliptic noise surrogate** (σ(1 + 0.5 cos²β); Planck's per-pixel noise is not used). Same realization index, same truths as `_nu30_strict` (checked: `cl_true`, `cl_phiphi_true`, `phi_true_packed` identical), so each sky is compared with itself (`scripts/compare_realsky_fullsky.py`; medians over the 4 skies, rms z and rms half-to-half drift in posterior sd):
 

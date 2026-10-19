@@ -6,7 +6,9 @@
 
 ---
 
-## Where the project stands (2026-10-17)
+## Where the project stands (2026-10-19)
+
+***Portfolio review (2026-10-18):** proposals for this project are in § "Portfolio review proposals (2026-10-18)" at the end of this file. They are proposed, not decided.*
 
 **Cautionary core:**
 - **The legacy bias-reduction headline was an interpolation artefact.** The 93.7 % / 98.4 % came from the bilinear operator, not lensing (retracted; `achievements.md`).
@@ -21,7 +23,7 @@
 - a learned (NPE) posterior that is calibrated and unbiased against the exact one, and 3–55 % wider (T1.1);
 - a QE validated at the production configuration;
 - a test suite that covers the scripts as well as the package;
-- the pipeline on the real observing geometry (Planck mask, beam, anisotropic noise): pilot passes, production queued (T1.2a).
+- the pipeline on the real observing geometry (Planck mask, beam, anisotropic noise): 47 of 48 skies pass the strict SBC preview (T1.2a); real-data production on SMICA and PR4 SEVEM running.
 
 **Nothing is blocking.** T0.1 is closed by D7 (2026-10-14; `achievements.md` → T0.1). The exactness claim is the strict SBC with its stated power: three blocks pass, and φ `[30,60)` is a stated limitation.
 
@@ -86,8 +88,13 @@ Each extension is validated to the core's standard (gate → production → cali
    - Likely figures: per-mode width ratio, learned against exact (the headline); rank histograms with drawn nulls; correlation-structure comparison. The strict SBC passes at ℓ ≥ 60 (D7), so the band edge can be pooled; report it separately as well.
 2. **Real Planck data.**
    - **2a — A_L post-mortem:** a real-data consistency test on Planck 2018 vs PR4, framed as a demonstration, not a competitive measurement. First the pipeline on a simulation carrying the real mask, `noise_map` and beam (note the beam path's prior fix, `achievements.md`), then data. Figures: real-data C_ℓ and C_L^φφ posteriors vs Planck spectra and the QE; the posterior-mean φ on the real mask.
-     - **Pilot done (2026-10-17, `achievements.md` → T1.2a):** the strict ensemble on the Planck common mask, 5′ beam and an ecliptic noise surrogate passes its gate (widths ×f_sky^−1/2, no extra bias, drift ≤ 0.33 sd; ESS 2–4× lower at ℓ = 63 and L < 10). **Production r004–r047 = 12183261, harvest 12183262 (queued 2026-10-17).** Read the harvest's strict SBC (thin 50 alongside thin 20) and joint-likelihood SBC before any real-data run.
-     - **Data on disk:** Planck 2018 SMICA (`COM_CMB_IQU-smica_2048_R3.00_full.fits`) and the common Int/Pol masks are in `/cosma8/data/dp004/dc-hick2/Plank`, the path `model.py`'s real-data mode expects. PR4 (NPIPE) maps are not there; fetch them before the 2018-vs-PR4 comparison. A real-data job reads `/cosma8` and writes `results/analysis` (`/cosma5`), so it needs a node with both (mad*, b*, hardwarelab; AGENTS.md).
+     - **Live (2026-10-19) — read these first:**
+       - production 12183261: 43 of 44 completed; r029 hit the 16 h limit at sample ~3400 (mad02) and resumes from its checkpoint as **12187700**; the harvest's completeness guard stopped 12183262 as designed, re-queued as **12187701** (`afterok`).
+       - **preview on 47 skies (2026-10-19):** strict SBC passes (thin 50 min p 0.029, C_L^φφ ℓ = 63; thin 20 min p 0.044; ten bins, so not significant), no collapsed C_ℓ, every chain `phi_calibration_ok`; paired with the full sky, widths ×1.02–1.38, rms z 0.80–1.20 (full sky 0.82–1.21), drift ≤ 0.33 sd. The joint-likelihood SBC and field ranks come from 12187701.
+       - **real-data production submitted 2026-10-19 on the preview** (both A_φ, so the A_φ decision stays open; ν = 30 on both spectra, 4 chains each on one noise draw, 1000 + 3600, 24 h): SMICA A_φ 3000 **12187756**, SMICA A_φ 1 **12187757**, PR4 SEVEM A_φ 1 **12187764** (method systematic); summaries **12187765** (`afterany`, `logs/realdata_summary_<id>.out`). Cancel them if 12187701 fails its gate.
+       - **Next:** read 12187701 (strict SBC thin 20/10/50, joint-likelihood SBC, field ranks) → read 12187765 (R̂ across the 4 chains, D_ℓ vs Planck, C_L^φφ vs prior, collapse flag) → the user picks the A_φ to present → real-data figures (posterior D_ℓ^TT vs Planck 2018 with the ℓ < 10 prior-dominance stated, C_L^φφ, ⟨φ⟩ on the mask; SMICA vs SEVEM as the systematic).
+     - **Pilot done (2026-10-17, `achievements.md` → T1.2a):** the strict ensemble on the Planck common mask, 5′ beam and an ecliptic noise surrogate passes its gate (widths ×f_sky^−1/2, no extra bias, drift ≤ 0.33 sd; ESS 2–4× lower at ℓ = 63 and L < 10). Production r004–r047 = 12183261 (see Live above).
+     - **Data on disk:** Planck 2018 SMICA (`COM_CMB_IQU-smica_2048_R3.00_full.fits`) and the common Int/Pol masks are in `/cosma8/data/dp004/dc-hick2/Plank`, the path `model.py`'s real-data mode expects. PR4 SEVEM (`COM_CMB_IQU-sevem_2048_R4.00.fits`) and SEVEM 2018 are there too (2026-10-17). A real-data job reads `/cosma8` and writes `results/analysis` (`/cosma5`), so it needs a node with both (mad*, b*, hardwarelab; AGENTS.md).
      - **Data preparation settled (2026-10-17, `achievements.md` → T1.2a data preparation):** pixel-averaging SMICA to nside 64 leaves 55 μK rms of ℓ ≥ 64 sky in the data (1.8σ at σ = 30), which the band-limited model cannot describe and the simulation test never saw. The harmonic band limit (`prepare_real_data.py`: deconvolve 5′ + pixwin 2048, apply the model's 5′ × pixwin 64, keep 2 ≤ ℓ < 64) removes it; the only residual is ≈ 2 μK of non-CMB content spread from inside the mask. SMICA's own noise in that band is ≤ 0.26 μK, so the chain's added σ = 30 noise (`--data_map`) is the noise model, and its likelihood is exact. Prepared map: `results/analysis/realdata_prep/smica_l64_ns64_b5.fits`. A real-data run is then the T1.2a simulation pipeline with only the sky changed.
      - **Ready (2026-10-17):** `submit_realdata_lmax64.slurm` (4 chains on one data set via `--noise_realization 0`; AMP, CLNU, MODE=blind as parameters), `realdata_summary.py` (posterior D_ℓ vs Planck 2018 TT, C_L^φφ vs prior and physical, multi-chain R̂/ESS), SEVEM 2018 and PR4 maps prepared. 2018 vs PR4 differ by ≤ 1.7 % in power at ℓ < 64 (a null at this scale); SMICA vs SEVEM by up to 7 % at the band edge (the method systematic). Smoke jobs 12184339 (A_φ 3000) / 12184340 (A_φ 1).
      - **Smoke runs (2026-10-18, `achievements.md`):** the flat C_ℓ^TT prior collapses ℓ = 54, 63 on real data (MAP start at the ln C clip), so real-data runs default to the certified ν = 30. With it the pipeline runs clean at both amplitudes, D_ℓ^TT matches Planck 2018 to ≤ 5 % for ℓ ≥ 10, but ℓ < 10 is prior-dominated (19 % above Planck's low-ℓ deficit). A flat-prior real-data run would need a C_ℓ start that is not the MAP's clipped value (`--cl_init`, sign-off).
@@ -197,6 +204,12 @@ Each extension is validated to the core's standard (gate → production → cali
 - **Real data: T1 item 2a is the realistic route.** The A_L consistency test on Planck 2018 vs PR4, framed
   as a demonstration. Steps already set: the pipeline on a simulation carrying the real mask, `noise_map`
   and beam, then the data. The simulation step is running (T1 item 2a above); the Planck 2018
-  maps and masks are in `/cosma8/data/dp004/dc-hick2/Plank`, and PR4 still has to be fetched.
+  maps and masks are in `/cosma8/data/dp004/dc-hick2/Plank`, with PR4 SEVEM fetched 2026-10-17.
 - **2b (low-L C_L^φφ) stays behind its feasibility check:** at lmax = 64 the posterior would return the
   prior.
+
+## Portfolio review proposals (2026-10-18)
+
+*From the 2026-10-18 portfolio review (home session; see `../PAPERS.md`). Proposed, not authorised: nothing here changes the order of the work above or starts a job until you take it. Literature named here that is not already in this repo's `literature.md` needs an `arxiv.org/abs` check first.*
+
+- **The A_φ prior is the one user decision before the real-data run** (T1 item 2a). The choice is A_φ = 1, a C_ℓ^TT demonstration, or A_φ = 3000, a consistency test the real sky should fail. The portfolio review counts it among the ~30 user calls that cost more agent time than compute. It should be taken before the production harvest (12183262) lands. *(2026-10-19: both amplitudes are now running, 12187756/12187757, so the decision is which to present, not which to compute.)*
