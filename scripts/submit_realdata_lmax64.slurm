@@ -16,7 +16,7 @@
 # T1.2a pilot's geometry (common mask, 5' beam + pixwin, ecliptic noise surrogate at
 # sigma = NOISE, which the chain adds; SMICA's own noise is <= 0.26 muK in this band).
 # Only the sky differs from the certified real-sky simulation (submit_ensemble_realsky).
-# One sky, so every array task gets the SAME noise draw (--noise_realization 0) and a
+# One sky, so every array task gets the SAME noise draw (--noise_realization NREAL) and a
 # different start (--realization = task id): the tasks are chains for R-hat, not skies.
 # Gate (ROADMAP): read harvest 12183262's strict SBC before submitting this.
 # Submit: sbatch --export=ALL,AMP=<1|3000>,BURNIN=1000,SAMPLES=3600[,CLNU=][,MODE=blind] this.slurm
@@ -30,21 +30,24 @@
 #         Planck's ~1700 muK^2); the nu = 30 prior pulls it back in burn-in (pilot
 #         12172310 started from the same clip).
 #   MODE  aware (default) or blind (lensing-blind fit to the same data).
+#   NREAL noise draw the chain adds (default 0); a second draw (NREAL=1, its own _nr1
+#         directory) measures how far the posterior moves with the regularisation noise.
 #   DATA  prepared map (default SMICA; realdata_prep/sevemR4_l64_ns64_b5.fits is PR4 SEVEM,
 #         sevemR3_* its 2018 counterpart: the method systematic and the release check).
-# Output: results/analysis/realdata_<map>_l64_A<AMP>_n<NOISE>[_clnu<CLNU>]/data_{chain,blind}_rNNN.npz
+# Output: results/analysis/realdata_<map>_l64_A<AMP>_n<NOISE>[_clnu<CLNU>][_nr<NREAL>]/data_{chain,blind}_rNNN.npz
 set -u
 NOISE=${NOISE:-30}
 NU=${NU:-30}
 MODE=${MODE:-aware}
 CLNU=${CLNU-30}
+NREAL=${NREAL:-0}
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 DATA=${DATA:-results/analysis/realdata_prep/smica_l64_ns64_b5.fits}
 MAPTAG=$(basename $DATA | cut -d_ -f1)
-OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}${TAG:-}
+OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}$([ "$NREAL" != 0 ] && echo _nr$NREAL)${TAG:-}
 GEOM="--mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
-EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization 0"
+EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization $NREAL"
 [ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"
 case $MODE in
   aware) ;;
@@ -63,7 +66,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 # /cosma5-mounting partitions (results/analysis is on /cosma5); bluefield1 (32c, all
 # three filesystems, probe 12171189) is overflow. Walltime as the real-sky pilot
 # (9.5-12.4 h per chain); chains checkpoint every 50 sweeps.
-echo "REAL DATA mode=$MODE A_phi=$AMP noise=$NOISE nu=$NU clnu=${CLNU:-none} chain=${SLURM_ARRAY_TASK_ID} burnin=$BURNIN samples=$SAMPLES -> $OUT"
+echo "REAL DATA mode=$MODE A_phi=$AMP noise=$NOISE nu=$NU clnu=${CLNU:-none} nreal=$NREAL chain=${SLURM_ARRAY_TASK_ID} burnin=$BURNIN samples=$SAMPLES -> $OUT"
 .venv/bin/python -u scripts/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax 64 --nside 64 \
     --n_burnin $BURNIN --n_samples $SAMPLES --n_lfs 10 --phi_n_lfs 240 \

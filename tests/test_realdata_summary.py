@@ -112,3 +112,15 @@ def test_realdata_figure_builds_and_refuses_a_collapsed_run(tmp_path, spectra):
     res = subprocess.run([sys.executable, fig, "--a1", str(bad), "--a3000", str(a3),
                           "--outdir", str(tmp_path / "out2")], env=env, capture_output=True, text=True)
     assert res.returncode != 0 and "collapsed" in res.stdout + res.stderr
+
+
+def test_map_comparison_reports_a_shift_in_posterior_sd_and_refuses_unlike_runs(tmp_path, spectra):
+    import realdata_compare as rc
+    a = np.load(_summary_file(tmp_path, "a", spectra, 1.0))
+    b = np.load(_summary_file(tmp_path, "b", spectra, 1.0, shift=0.05))
+    c = rc.compare(a, b)
+    np.testing.assert_allclose(c["ell/ratio"], np.exp(0.05), rtol=0.03)
+    np.testing.assert_allclose(c["ell/shift_sd"], 0.5, atol=0.25)  # 0.05 against a 0.1 sd
+    assert np.all(rc.compare(a, a)["bin/shift_sd"] == 0)
+    with pytest.raises(SystemExit, match="phi_amplitude"):
+        rc.compare(a, np.load(_summary_file(tmp_path, "c", spectra, 3000.0)))
