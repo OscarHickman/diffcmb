@@ -640,3 +640,30 @@ def test_prepare_real_data_writes_a_map_the_chain_accepts(tmp_path):
     assert abs(m.mean()) < 1e-3 * m.std()  # no monopole (nside-8 quadrature is good to ~4e-4)
     with pytest.raises(ValueError):
         read_data_map(str(out), NSIDE, LMAX, 5.0)
+
+
+def test_hot_phi_start_scales_only_the_phi_start(tmp_path, smoke_ensemble):
+    # The hot-start test of the A_phi = 1 real-data runaway (2026-10-20): same sky,
+    # same MAP a_lm start, phi start multiplied; recorded so no harvest mistakes it.
+    out = _run_chain(tmp_path, "--phi_start_scale", "4.5")
+    assert "HOT PHI START" in out
+    d = np.load(tmp_path / "chain_r001.npz")
+    base = np.load(smoke_ensemble / "chain_r001.npz")
+    assert float(d["phi_start_scale"]) == 4.5 and float(base["phi_start_scale"]) == 1.0
+    np.testing.assert_allclose(d["phi_initial"], 4.5 * base["phi_initial"], rtol=1e-12)
+    # same sky (the MAP a_lm start is a TF descent, not bitwise reproducible across runs)
+    np.testing.assert_array_equal(d["alm_true_packed"], base["alm_true_packed"])
+    np.testing.assert_array_equal(d["phi_true_packed"], base["phi_true_packed"])
+
+
+@pytest.mark.parametrize("other", [("--start_truth",), ("--blind",), ("--phi_start_scale", "0")])
+def test_hot_phi_start_refuses_conflicting_flags(tmp_path, other):
+    env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
+    extra = ("--phi_start_scale", "4.5", *other) if other[0] != "--phi_start_scale" else other
+    res = subprocess.run(
+        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+         "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
+         "--outdir", str(tmp_path), *extra],
+        env=env, capture_output=True, text=True, timeout=300)
+    assert res.returncode != 0
+    assert "--phi_start_scale" in res.stderr + res.stdout

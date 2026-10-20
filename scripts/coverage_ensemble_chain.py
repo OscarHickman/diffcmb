@@ -251,6 +251,13 @@ def main():
                         "independent phi draw; every block is sampled as in production. "
                         "Paired with the MAP-start chain on the same sky it tells a "
                         "stationary posterior offset from slow a-phi mixing.")
+    p.add_argument("--phi_start_scale", type=float, default=1.0,
+                   help="DIAGNOSTIC ONLY, never SBC: multiply the phi start draw by this "
+                        "(power x scale^2; Block 4 refits C_L^phiphi from it in the first "
+                        "sweep). The hot-start test of the A_phi = 1 real-data runaway "
+                        "(SMICA chain 0 held ~18x the prior at L >= 30, 2026-10-20): "
+                        "a chain that returns from scale 4.5 shows the inflated state "
+                        "is not an attractor of that sky.")
     p.add_argument("--no_sample_cl_phiphi", action="store_true",
                    help="Disable Block 4 (C_L^phiphi|phi). Required for the "
                         "lmax=64 GO configuration: Block 4 ON degrades phi "
@@ -279,6 +286,11 @@ def main():
     if args.start_truth and (args.blind or args.cl_init != "map"):
         raise SystemExit("--start_truth does not combine with --blind or --cl_init data: "
                          "it replaces the whole start, and the blind fit has no phi")
+    if not args.phi_start_scale > 0:
+        raise SystemExit("--phi_start_scale must be > 0")
+    if args.phi_start_scale != 1.0 and (args.blind or args.start_truth or args.phi_fixed_truth):
+        raise SystemExit("--phi_start_scale scales the prior-draw phi start; it does not "
+                         "combine with --blind, --start_truth or --phi_fixed_truth")
     if args.data_map is not None and (args.mask_file is None or args.start_truth
                                       or args.phi_fixed_truth):
         raise SystemExit("--data_map needs --mask_file (SMICA is inpainted inside the mask) "
@@ -512,7 +524,10 @@ def main():
         return
 
     phi_initial = (phi_true_packed if (args.phi_fixed_truth or args.start_truth)
-                   else phi_start_packed)
+                   else args.phi_start_scale * phi_start_packed)
+    if args.phi_start_scale != 1.0:
+        print(f"  ! HOT PHI START: phi start x {args.phi_start_scale:g} (power x "
+              f"{args.phi_start_scale ** 2:g}). Diagnostic only; never an SBC ensemble.")
     t0 = time.time()
     # run_gibbs_chain's return arity depends on which blocks are enabled: a
     # 5-tuple with Block 3 only, a 6-tuple with Block 3 + Block 4. Unpack
@@ -614,6 +629,7 @@ def main():
         "phi_fixed_truth": bool(args.phi_fixed_truth),
         # The exact start, so a harvest can check which start a chain had.
         "start_truth": bool(args.start_truth),
+        "phi_start_scale": float(args.phi_start_scale),
         "x0_start": x0, "phi_initial": phi_initial,
     }
     # Omit the key entirely (rather than storing None) when Block 4 is off, so

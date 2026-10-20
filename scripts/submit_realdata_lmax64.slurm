@@ -32,6 +32,8 @@
 #   MODE  aware (default) or blind (lensing-blind fit to the same data).
 #   NREAL noise draw the chain adds (default 0); a second draw (NREAL=1, its own _nr1
 #         directory) measures how far the posterior moves with the regularisation noise.
+#   PHISCALE  phi start x this (default 1); != 1 is the hot-start diagnostic of the
+#         A_phi = 1 chain-0 runaway, in its own _hotphi<PHISCALE> directory, never a posterior.
 #   DATA  prepared map (default SMICA; realdata_prep/sevemR4_l64_ns64_b5.fits is PR4 SEVEM,
 #         sevemR3_* its 2018 counterpart: the method systematic and the release check).
 # Output: results/analysis/realdata_<map>_l64_A<AMP>_n<NOISE>[_clnu<CLNU>][_nr<NREAL>]/data_{chain,blind}_rNNN.npz
@@ -41,13 +43,14 @@ NU=${NU:-30}
 MODE=${MODE:-aware}
 CLNU=${CLNU-30}
 NREAL=${NREAL:-0}
+PHISCALE=${PHISCALE:-1}
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 DATA=${DATA:-results/analysis/realdata_prep/smica_l64_ns64_b5.fits}
 MAPTAG=$(basename $DATA | cut -d_ -f1)
-OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}$([ "$NREAL" != 0 ] && echo _nr$NREAL)${TAG:-}
+OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU}}$([ "$NREAL" != 0 ] && echo _nr$NREAL)$([ "$PHISCALE" != 1 ] && echo _hotphi$PHISCALE)${TAG:-}
 GEOM="--mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
-EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization $NREAL"
+EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization $NREAL --phi_start_scale $PHISCALE"
 [ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"
 case $MODE in
   aware) ;;
@@ -66,7 +69,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 # /cosma5-mounting partitions (results/analysis is on /cosma5); bluefield1 (32c, all
 # three filesystems, probe 12171189) is overflow. Walltime as the real-sky pilot
 # (9.5-12.4 h per chain); chains checkpoint every 50 sweeps.
-echo "REAL DATA mode=$MODE A_phi=$AMP noise=$NOISE nu=$NU clnu=${CLNU:-none} nreal=$NREAL chain=${SLURM_ARRAY_TASK_ID} burnin=$BURNIN samples=$SAMPLES -> $OUT"
+echo "REAL DATA mode=$MODE A_phi=$AMP noise=$NOISE nu=$NU clnu=${CLNU:-none} nreal=$NREAL phiscale=$PHISCALE chain=${SLURM_ARRAY_TASK_ID} burnin=$BURNIN samples=$SAMPLES -> $OUT"
 .venv/bin/python -u scripts/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax 64 --nside 64 \
     --n_burnin $BURNIN --n_samples $SAMPLES --n_lfs 10 --phi_n_lfs 240 \
