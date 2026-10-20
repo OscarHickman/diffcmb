@@ -189,6 +189,21 @@ def run_chain_hmc(
     return samples, WrapperResults(*trace_results)
 
 
+def _write_checkpoint(path, **arrays):
+    """np.savez to a side file, then rename over path: a node that dies mid-write
+    leaves the previous checkpoint whole (b109 left a 0-byte one, 2026-10-20)."""
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "wb") as f:
+            np.savez(f, **arrays)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 def _build_inv_cl_diag(lmax, cl_full, n_real, n_imag):
     """Per-alm 1/C_l diagonal matching the real+imag alm parameter layout.
 
@@ -1792,7 +1807,7 @@ def run_gibbs_chain(
                         cl_phiphi_samples=np.array(cl_phiphi_out, dtype=np.float64),
                         cl_phiphi_state=cl_phiphi_full.astype(np.float64),
                     )
-                np.savez(checkpoint_path, **ckpt_kwargs)
+                _write_checkpoint(checkpoint_path, **ckpt_kwargs)
 
     print(
         f"Gibbs chain done. Final step_size={step_float:.4g}, "

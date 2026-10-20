@@ -1322,3 +1322,36 @@ def test_checkpoint_packing_version_mismatch(small_model, tmp_path):
 
     with pytest.raises(ValueError, match="Checkpoint packing version 999 does not match current code PACKING_VERSION"):
         run_gibbs_chain(small_model, n_samples=2, checkpoint_path=ckpt_file)
+
+
+def test_a_checkpoint_write_that_dies_midway_keeps_the_previous_checkpoint(tmp_path, monkeypatch):
+    """Node b109 died inside np.savez and left a 0-byte _ckpt.npz (realdata nr1 chain 3,
+    2026-10-20): the write must go to a side file and replace the checkpoint only when whole."""
+    from diffcmb import samplers
+
+    ckpt = str(tmp_path / "chain_r000_ckpt.npz")
+    samplers._write_checkpoint(ckpt, samples=np.arange(3.0))
+
+    def dies(f, **kw):
+        f.write(b"PK\x03")
+        raise OSError("node down")
+
+    monkeypatch.setattr(samplers.np, "savez", dies)
+    with pytest.raises(OSError):
+        samplers._write_checkpoint(ckpt, samples=np.arange(5.0))
+    np.testing.assert_array_equal(np.load(ckpt)["samples"], np.arange(3.0))
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["chain_r000_ckpt.npz"]
+
+
+@skip_no_tfp
+def test_a_chain_resumes_from_its_checkpoint_and_keeps_the_samples_it_had(small_model, tmp_path):
+    """The resubmitted real-data chains continue from _ckpt.npz: the samples already
+    drawn come back unchanged and the run carries on to the new n_samples."""
+    from diffcmb import run_gibbs_chain
+
+    ckpt = str(tmp_path / "chain_r000_ckpt.npz")
+    kw = {"n_burnin": 2, "n_lfs": 3, "seed": 0, "checkpoint_path": ckpt, "checkpoint_every": 2}
+    first = run_gibbs_chain(small_model, n_samples=4, **kw)[0]
+    resumed = run_gibbs_chain(small_model, n_samples=6, **kw)[0]
+    assert resumed.shape[0] == 6
+    np.testing.assert_array_equal(resumed[:4], first)
