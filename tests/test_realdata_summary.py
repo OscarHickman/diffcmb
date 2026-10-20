@@ -73,6 +73,14 @@ def test_chains_that_saw_different_data_are_refused(tmp_path, spectra):
         rs.load_chains(str(tmp_path))
 
 
+def test_chains_whose_data_differ_by_roundoff_are_one_run(tmp_path, spectra):
+    rng = np.random.default_rng(4)
+    data = 60.0 * rng.standard_normal(30)
+    _chain(tmp_path / "data_chain_r000.npz", rng, data, *spectra)
+    _chain(tmp_path / "data_chain_r001.npz", rng, data + 6e-14, *spectra)  # an ulp, another CPU
+    assert len(rs.load_chains(str(tmp_path))[1]) == 2
+
+
 def test_planck_table_is_read_by_multipole(tmp_path):
     t = np.column_stack([np.arange(2, 40), 10.0 * np.arange(2, 40), np.ones(38), np.ones(38)])
     f = tmp_path / "tt.txt"

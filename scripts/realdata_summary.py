@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fig_convergence import _rank_normalise, bulk_ess  # noqa: E402
 from strict_sbc_ranks import columns  # noqa: E402
 
+DATA_RTOL = 1e-9  # chains of one run see the same data to this, relative (as sbc_joint_likelihood)
 RHAT_WARN = 1.05  # max R-hat above which the chains disagree
 COLLAPSE_LN = -3.0  # median ln(C_l / C_l^fid) below this flags a collapsed multipole
 PLANCK_TT = "/cosma8/data/dp004/dc-hick2/Plank/spectra/COM_PowerSpect_CMB-TT-full_R3.01.txt"
@@ -73,8 +74,10 @@ def load_chains(indir):
     for f, d in zip(files, ds):
         if not str(d["data_map"]):
             raise SystemExit(f"{f}: not a --data_map chain")
-        if (d["data_masked"].shape != ds[0]["data_masked"].shape
-                or not np.array_equal(d["data_masked"], ds[0]["data_masked"])):
+        y, y0 = d["data_masked"], ds[0]["data_masked"]
+        # Bitwise equality is too strict: the noise map's trigonometry differs in the
+        # last ulp between Intel and AMD nodes (5.7e-14 muK, SEVEM 2018 run 12188089).
+        if y.shape != y0.shape or np.max(np.abs(y - y0)) > DATA_RTOL * np.max(np.abs(y0)):
             raise SystemExit(f"{f}: observed different data from {files[0]}; chains of one "
                              "run must share the map and the noise draw (--noise_realization)")
     return files, ds
