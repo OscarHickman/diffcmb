@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fig_convergence import _rank_normalise, bulk_ess  # noqa: E402
 from strict_sbc_ranks import columns  # noqa: E402
 
+RHAT_WARN = 1.05  # max R-hat above which the chains disagree
 COLLAPSE_LN = -3.0  # median ln(C_l / C_l^fid) below this flags a collapsed multipole
 PLANCK_TT = "/cosma8/data/dp004/dc-hick2/Plank/spectra/COM_PowerSpect_CMB-TT-full_R3.01.txt"
 
@@ -138,6 +139,10 @@ def report(s):
     if len(s["collapsed_ell"]):
         print(f"!! COLLAPSED C_l (median < e^{COLLAPSE_LN:g} x fiducial) at l = "
               f"{', '.join(map(str, s['collapsed_ell']))}: these bins are not a posterior")
+    for b in ("C_l^TT", "C_L^phiphi"):
+        if np.max(s[f"{b}/rhat"]) > RHAT_WARN:
+            print(f"!! {b} NOT CONVERGED: max R-hat {np.max(s[f'{b}/rhat']):.3f} > {RHAT_WARN}; "
+                  "compare the chains before reading this posterior")
     print()
     print(f"{'bin':<10}{'D_l^TT 16/50/84 [muK^2]':>28}{'Planck/median':>15}{'R-hat':>8}{'ESS':>8}")
     for i, c in enumerate(s["columns"]):

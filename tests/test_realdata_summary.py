@@ -124,3 +124,18 @@ def test_map_comparison_reports_a_shift_in_posterior_sd_and_refuses_unlike_runs(
     assert np.all(rc.compare(a, a)["bin/shift_sd"] == 0)
     with pytest.raises(SystemExit, match="phi_amplitude"):
         rc.compare(a, np.load(_summary_file(tmp_path, "c", spectra, 3000.0)))
+
+
+def test_realdata_figure_refuses_chains_that_disagree(tmp_path, spectra):
+    import subprocess
+    repo = os.path.join(os.path.dirname(__file__), "..")
+    fig = os.path.join(repo, "scripts", "paper", "fig_realdata.py")
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        [os.path.join(repo, d) for d in ("diffcmb", "scripts", "scripts/paper")]))
+    a3 = _summary_file(tmp_path, "a3", spectra, 3000.0)
+    s = dict(np.load(_summary_file(tmp_path, "a1", spectra, 1.0)))
+    s["C_L^phiphi/rhat"] = s["C_L^phiphi/rhat"] + 0.5  # one chain ran off
+    np.savez(tmp_path / "split.npz", **s)
+    res = subprocess.run([sys.executable, fig, "--a1", str(tmp_path / "split.npz"), "--a3000", str(a3),
+                          "--outdir", str(tmp_path / "out")], env=env, capture_output=True, text=True)
+    assert res.returncode != 0 and "R-hat" in res.stdout + res.stderr

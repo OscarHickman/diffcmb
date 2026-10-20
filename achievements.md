@@ -45,6 +45,14 @@ The ν = 30 skies share the unlensed T with the ν = 6 skies but not φ_true, so
 
 ---
 
+## 2026-10-20 — T1.2a real data: at A_φ = 1 one start's C_L^φφ runs away (sampler, not data)
+
+- **SMICA A_φ = 1, 4 chains (12187757, 1000 + 3600):** C_ℓ^TT is clean (R̂ ≤ 1.001 in every bin; Planck 2018 / posterior median 0.97, 1.00, 1.03 in `[10,30)`, `[30,60)`, `[60,64)`; 0.83 at ℓ < 10, the known ν = 30 prior dominance; 1.16 at ℓ = 63, ≈ 1 sd). **C_L^φφ is not:** chains 1–3 sit at the prior centre (median ln(C/C₀) 0.01–0.08 in every bin), but **chain 0 drifts away during sampling**: in `[30,60)` ln(C/C₀) goes 0.07 → 0.35 → 1.1 → 2.0 (samples 0, 100, 400, 800) and plateaus at ≈ 3 (20× the prior), `[60,64)` at 3.9. 4-chain R̂ on C_L^φφ is 1.56–1.67 for L ≥ 10.
+- **The same start (`--realization 0`) does the same on SEVEM 2018** (12188089_0: 0.95, 2.81, 4.01, 3.74 in the four L ≥ 10 bins); PR4 SEVEM chain 0 does not (0.03–0.04). The trajectory is start- and seed-driven, not a feature of one map.
+- **It is not a mode the data support.** Chain 0's data log-likelihood is the *lowest* of the four (−18652 vs −18643 to −18648, 12 thinned states each); its φ buys 34 in log-likelihood at fixed a_ℓm against ≈ 5 in the other chains, while the ν = 30 InvGamma prior costs ≈ 30 nats per L at ln(C/C₀) = 3, ~10³ over the L ≥ 30 range. The A_φ = 3000 runs show the data constrain C_L^φφ only at ≈ 2000× physical (all 4 chains at 0.69–0.71 of the prior centre in `[30,60)`, agreeing). A π-invariant kernel started in the typical set does not walk 60 prior sd out for no likelihood: this is a sampler failure at A_φ = 1, the configuration that was never certified (SBC is at A_φ = 3000). φ acceptance (0.44–0.63) and the Block-4 conditional (exact conjugate draw) look normal; no rescaling move is on.
+- **Test (no tuning, ROADMAP sign-off rule):** the certified real-sky ensemble at A_φ = 1 on simulated skies, 8 skies, 1000 + 3600 (**12189451**, `ens_realsky_l64_A1_n30_nu30_strict/`). A runaway there from a prior-drawn truth confirms the sampler; none points at the real data.
+- `fig_realdata.py` now refuses a run whose R̂ on either spectrum exceeds 1.05, and `realdata_summary.py` prints a NOT CONVERGED line, so the pending figure job (12189426) will not plot this C_L^φφ band.
+
 ## 2026-10-19 — T1.2a: the real-sky production (N = 48) passes every calibration test
 
 Harvest 12187701 (`logs/harvest_realsky_12187701.out`; 12183262 had stopped at its completeness guard because r029 timed out at 16 h on mad02, resumed from its checkpoint as 12187700). The strict configuration on the Planck common mask, 5′ beam + pixwin and the ecliptic noise surrogate, 48 skies:

@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import paper_style as ps  # noqa: E402
 
 BULK_FROM_ELL = 10  # the prior-dominated bins below this are left out of the stat box
+RHAT_MAX = 1.05  # a bin above this on either spectrum is not a converged posterior
 
 
 def _bin_centres(columns):
@@ -97,6 +98,10 @@ def main():
     for s, name in ((s1, "--a1"), (s3, "--a3000")):
         if len(s["collapsed_ell"]):
             raise SystemExit(f"{name}: collapsed C_l at l = {list(s['collapsed_ell'])}; not a posterior")
+        for b in ("C_l^TT", "C_L^phiphi"):
+            if np.max(s[f"{b}/rhat"]) > RHAT_MAX:
+                raise SystemExit(f"{name}: {b} R-hat {np.max(s[f'{b}/rhat']):.3f} > {RHAT_MAX}; "
+                                 "the chains disagree, not a posterior")
     s_alt = np.load(args.sevem) if args.sevem else None
     ps.apply()
     os.makedirs(args.outdir, exist_ok=True)
