@@ -53,7 +53,9 @@ NSTAG=""; [ "$NSIDE" != "$LMAX" ] && NSTAG="_ns${NSIDE}"
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
 cd $REPO_DIR
 BASE=results/analysis/ens_realsky_l${LMAX}_A${AMP}_n${NOISE}${NSTAG}${TAG}
-GEOM="--mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
+# GEOM overrides the observing geometry, e.g. GEOM="--beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
+# with TAG=..._nomask: the same skies without the mask (the A_phi = 1 mask-edge test, 2026-10-20).
+GEOM=${GEOM:---mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5}
 case $MODE in
   cl4)   OUT=$BASE;        EXTRA="--cl_phiphi_prior_nu $NU" ;;
   nocl4) OUT=${BASE}_nocl4; EXTRA="--no_sample_cl_phiphi" ;;
