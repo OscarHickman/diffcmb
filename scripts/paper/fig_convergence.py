@@ -53,7 +53,7 @@ from diffcmb.lensing import _packed_coord_multipole  # noqa: E402
 DEFAULT_INDIR = "results/analysis/ens_exact_l64_A3000_n30"
 DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure_convergence"
 RHAT_TARGET = 1.01          # Vehtari et al. 2021 recommendation
-COL_BLOCK = {1: ps.COL_ALM, 2: "#E69F00", 3: ps.COL_PHI, 4: ps.COL_CLPP}
+COL_BLOCK = {1: ps.COL_CLTT, 2: ps.COL_ALM, 3: ps.COL_PHI, 4: ps.COL_CLPP}  # as figure 1 and figure_npe
 
 
 # ---------------------------------------------------------------------------
@@ -201,15 +201,15 @@ def main():
         lo, med, hi = np.percentile(ess[blk], [16, 50, 84], axis=0)
         ax.fill_between(ells, lo, hi, color=COL_BLOCK[blk], alpha=0.18, lw=0)
         ax.plot(ells, med, color=COL_BLOCK[blk], lw=1.1, label=labels[blk])
-    ax.axhline(draws, color="0.35", ls="--", lw=0.8)
+    ax.axhline(draws, color="0.35", ls="--", lw=0.8, label=f"{draws} rank draws")
     ax.set_yscale("log")
     ax.set_xlim(2, lmax - 1)
     ax.set_ylim(4, 4000)
     ax.set_xlabel(r"multipole $\ell$ or $L$")
     ax.set_ylabel(f"bulk ESS per chain (of {n_sw})")
-    ax.legend(loc="upper left", ncol=4, columnspacing=0.8, handlelength=1.2)
-    ax.text(0.5 * lmax, draws * 0.93, f"{draws} rank draws", fontsize=6.5,
-            color="0.35", ha="center", va="top")
+    # Lower right is the one empty corner: every curve crosses the draws line
+    # mid-panel, and C_l^TT sits near the top at low l.
+    ax.legend(loc="lower right", ncol=3, columnspacing=0.8, handlelength=1.2)
     ps.save(fig, os.path.join(a.outdir, "convergence_autocorr_ess.pdf"))
 
     print("\nCAPTION FACTS (do not draw these into the panels):")

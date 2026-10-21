@@ -15,6 +15,7 @@
 # Submit with --dependency=afterany:<strict array>:<npe_train job>. Only skies
 # whose chain file exists are compared; the count is printed, so a failed task
 # shows as a missing sky rather than stopping the comparison.
+# OUT overrides the output (default $FLOW/vs_exact_strict.npz, which make figure-npe reads).
 # Not dine2: results/analysis is a symlink into /cosma5, which dine2 does not mount.
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
@@ -36,7 +37,7 @@ done
 echo "skies with a chain: $(echo $REALS | wc -w)/48:$REALS"
 [ -n "$REALS" ] || exit 1
 .venv/bin/python -u scripts/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
-    --realizations $REALS --n_learned 4000 --out $FLOW/vs_exact_strict.npz
+    --realizations $REALS --n_learned 4000 --out ${OUT:-$FLOW/vs_exact_strict.npz}
 rc=$?
 echo "exit status $rc"
 exit $rc

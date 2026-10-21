@@ -1815,6 +1815,9 @@ def run_gibbs_chain(
     )
     if sample_phi:
         print(f"  phi block: final step_size={phi_step_float:.4g}, mean accept={float(np.mean(phi_accepts_out)):.3f}")
+        if phi_rescale_move and phi_rescale_accepts:
+            print(f"  phi rescale move: mean accept={float(np.mean(phi_rescale_accepts)):.3f} "
+                  f"over {len(phi_rescale_accepts)} sweeps")
         if sample_cl_phiphi:
             return (
                 np.array(samples_out, dtype=np.float64),

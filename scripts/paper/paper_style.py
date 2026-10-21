@@ -55,7 +55,11 @@ FIG_MAP = (_J["w2"] / 3.0 - 0.04, 1.62)
 
 # Semantic palette, fixed across all figures so a colour means the same thing
 # everywhere. Okabe-Ito derived: distinguishable in the common forms of colour
-# blindness and in greyscale print.
+# blindness and in greyscale print. Two families: the four Gibbs blocks (C_l^TT pink,
+# a_lm vermillion, phi blue, C_L^phiphi green; figure 1, convergence, schematic,
+# figure_npe) and the sampler comparison (aware blue, blind vermillion, figures 2-4,
+# realdata). phi/a_lm reuse the aware/blind hues, so never put both families in
+# one panel.
 COL_AWARE = "#0072B2"     # lensing-aware joint sampler (this work)
 COL_BLIND = "#D55E00"     # lensing-blind / Commander-style baseline
 COL_PHI = "#0072B2"       # phi field

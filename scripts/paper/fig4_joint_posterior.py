@@ -78,7 +78,7 @@ def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
                     alpha=0.55, lw=0, zorder=1,
                     label=rf"95% null, $|r|<{r_null:.2f}$")
     fit = np.polyfit(x, y, 1)
-    ax.plot(xs, np.polyval(fit, xs), color=ps.COL_BLIND, lw=1.4, zorder=3,
+    ax.plot(xs, np.polyval(fit, xs), color=ps.COL_TRUTH, lw=1.2, zorder=3,
             label=rf"measured, $r={corr[i, j]:+.3f}$")
 
     ax.axhline(0, color="0.8", lw=0.5, zorder=0)

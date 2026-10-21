@@ -159,7 +159,7 @@ def load_validated_qe(validation_npz, lmax, nside, noisesig, chain=None):
         raise SystemExit(
             f"missing {validation_npz}.\\nThe QE noise curve may not appear in a "
             "figure until it has been validated against the forward model's own "
-            "curvature -- run scripts/submit_validate_qe_noise.slurm first. See "
+            "curvature -- run scripts/slurm/submit_validate_qe_noise.slurm first. See "
             "plots/STORY.md.")
     v = np.load(validation_npz)
     if not bool(v["passed"]):
@@ -184,7 +184,7 @@ def load_validated_qe(validation_npz, lmax, nside, noisesig, chain=None):
             f"{validation_npz} was validated at (lmax, nside, noisesig, A_phi, "
             f"fiducial, operator)={got}, "
             f"but the chains are {want}. N_L is configuration-specific -- "
-            "re-run scripts/submit_validate_qe_noise.slurm with matching "
+            "re-run scripts/slurm/submit_validate_qe_noise.slurm with matching "
             "arguments rather than reusing this curve.")
 
     noise = float(v["median_ratio"])
@@ -225,7 +225,7 @@ def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath):
     ax.plot(L[low], (sigma_post / prior)[low], ":", color=ps.COL_AWARE,
             alpha=0.5)
     ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
-    ax.set_xlabel("$L$")
+    ax.set_xlabel(r"multipole $L$")
     ax.set_ylabel(r"width / prior width $\sqrt{C_L^{\phi\phi}}$")
     ax.legend(loc="lower right")
     ps.save(fig, outpath)
@@ -271,11 +271,11 @@ def plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var, outpath):
                 ms=3.4, capsize=2, lw=1.2,
                 elinewidth=0.8, capthick=0.8)
     ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
-    ax.set_xlabel("$L$")
+    ax.set_xlabel(r"multipole $L$")
     ax.set_ylabel("joint posterior / (QE " r"$\oplus$" " prior)")
     if vals:
         ps.stat_box(ax, rf"$L\sim{centres[0]:.0f}$: ${vals[0]:.3f}\pm{errs[0]:.3f}$",
-                    loc="upper left")
+                    loc="lower right")      # upper left sits on the dashed 1.0 line
     ps.save(fig, outpath)
     for c, v, e in zip(centres, vals, errs):
         print(f"    L~{c:5.1f}   ratio {v:.3f} +/- {e:.3f}")

@@ -258,6 +258,14 @@ def main():
                         "(SMICA chain 0 held ~18x the prior at L >= 30, 2026-10-20): "
                         "a chain that returns from scale 4.5 shows the inflated state "
                         "is not an attractor of that sky.")
+    p.add_argument("--phi_rescale_move", action="store_true",
+                   help="NOT CERTIFIED: add the ancillary joint rescaling move (phi -> s phi, "
+                        "C_L^phiphi -> s^2 C_L^phiphi; samplers.run_gibbs_chain) after Block 4 "
+                        "every sweep. The candidate fix for the A_phi = 1 phi trap (ROADMAP "
+                        "decision 1): off in every certified ensemble; turning it on for "
+                        "production needs sign-off and a new SBC certification.")
+    p.add_argument("--phi_rescale_proposal_scale", type=float, default=0.1,
+                   help="log-normal proposal width of --phi_rescale_move's s (default 0.1)")
     p.add_argument("--no_sample_cl_phiphi", action="store_true",
                    help="Disable Block 4 (C_L^phiphi|phi). Required for the "
                         "lmax=64 GO configuration: Block 4 ON degrades phi "
@@ -291,6 +299,9 @@ def main():
     if args.phi_start_scale != 1.0 and (args.blind or args.start_truth or args.phi_fixed_truth):
         raise SystemExit("--phi_start_scale scales the prior-draw phi start; it does not "
                          "combine with --blind, --start_truth or --phi_fixed_truth")
+    if args.phi_rescale_move and (args.blind or args.phi_fixed_truth or args.no_sample_cl_phiphi):
+        raise SystemExit("--phi_rescale_move rescales a sampled phi and C_L^phiphi together; it "
+                         "does not combine with --blind, --phi_fixed_truth or --no_sample_cl_phiphi")
     if args.data_map is not None and (args.mask_file is None or args.start_truth
                                       or args.phi_fixed_truth):
         raise SystemExit("--data_map needs --mask_file (SMICA is inpainted inside the mask) "
@@ -525,6 +536,9 @@ def main():
 
     phi_initial = (phi_true_packed if (args.phi_fixed_truth or args.start_truth)
                    else args.phi_start_scale * phi_start_packed)
+    if args.phi_rescale_move:
+        print(f"  ! PHI RESCALE MOVE ON (proposal scale {args.phi_rescale_proposal_scale:g}): "
+              "not the certified sampler; never mix with certified ensembles.")
     if args.phi_start_scale != 1.0:
         print(f"  ! HOT PHI START: phi start x {args.phi_start_scale:g} (power x "
               f"{args.phi_start_scale ** 2:g}). Diagnostic only; never an SBC ensemble.")
@@ -556,6 +570,8 @@ def main():
         cl_prior_nu=args.cl_prior_nu,
         cl_prior_fid=cl_tt_fid if strict else None,
         phi_fixed=args.phi_fixed_truth,
+        phi_rescale_move=args.phi_rescale_move,
+        phi_rescale_proposal_scale=args.phi_rescale_proposal_scale,
     )
     expected_arity = 6 if sample_cl_phiphi else 5
     if len(result) != expected_arity:
@@ -630,6 +646,8 @@ def main():
         # The exact start, so a harvest can check which start a chain had.
         "start_truth": bool(args.start_truth),
         "phi_start_scale": float(args.phi_start_scale),
+        "phi_rescale_move": bool(args.phi_rescale_move),
+        "phi_rescale_proposal_scale": float(args.phi_rescale_proposal_scale),
         "x0_start": x0, "phi_initial": phi_initial,
     }
     # Omit the key entirely (rather than storing None) when Block 4 is off, so

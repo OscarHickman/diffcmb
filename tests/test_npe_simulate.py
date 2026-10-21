@@ -273,3 +273,19 @@ def test_cli_v2_block_records_its_summary_set_and_data_alm(tmp_path):
     b = np.load(tmp_path / "b.npz")
     assert str(b["summary_set"]) == "v2" and b["x"].shape == (2, 6 * (LMAX - 2))
     assert b["data_alm"].shape == (2, packed_length(LMAX)) and b["data_alm"].dtype == np.float32
+
+
+def test_compare_sky_reports_the_width_ratio_per_multipole():
+    # ROADMAP T1.1: the per-bin width ratio averages over modes; the per-l one says
+    # whether the learned posterior is wider at every l or only at some.
+    import npe_vs_exact as nve
+    from npe_sbc import bin_slices
+
+    lmax = 12
+    rng = np.random.default_rng(0)
+    exact = rng.standard_normal((4000, 2 * (lmax - 2)))
+    scale = np.linspace(1.0, 2.0, 2 * (lmax - 2))
+    learned = rng.standard_normal((4000, 2 * (lmax - 2))) * scale + 0.3
+    out = nve.compare_sky(exact, learned, bin_slices(lmax))
+    assert out["width_ratio_ell"].shape == (2 * (lmax - 2),)
+    np.testing.assert_allclose(out["width_ratio_ell"], scale, rtol=0.06)

@@ -67,6 +67,13 @@ case $MODE in
   *) echo "unknown MODE=$MODE"; exit 2 ;;
 esac
 EXTRA="$EXTRA --cl_init $CL_INIT"
+# RESCALE=1 adds the NOT-CERTIFIED phi rescaling move (ROADMAP decision 1: the A_phi = 1
+# trap fix; needs the user's sign-off) and writes to its own _rescale directory, so it can
+# never be harvested with a certified ensemble.
+if [ "${RESCALE:-0}" = 1 ]; then
+  EXTRA="$EXTRA --phi_rescale_move --phi_rescale_proposal_scale ${RESCALE_SCALE:-0.1}"
+  OUT=${OUT}_rescale
+fi
 CLNU=${CLNU:-}
 [ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"
 mkdir -p logs $OUT

@@ -52,6 +52,11 @@ OUT=results/analysis/realdata_${MAPTAG}_l64_A${AMP}_n${NOISE}${CLNU:+_clnu${CLNU
 GEOM="--mask_file data/planck_common_mask_int_ns64.fits --beam_fwhm_arcmin 5 --noise_ecliptic_amp 0.5"
 EXTRA="--cl_phiphi_prior_nu $NU --data_map $DATA --noise_realization $NREAL --phi_start_scale $PHISCALE"
 [ -n "$CLNU" ] && EXTRA="$EXTRA --cl_prior_nu $CLNU"
+# RESCALE=1: the NOT-CERTIFIED phi rescaling move (ROADMAP decision 1), in its own _rescale directory.
+if [ "${RESCALE:-0}" = 1 ]; then
+  EXTRA="$EXTRA --phi_rescale_move --phi_rescale_proposal_scale ${RESCALE_SCALE:-0.1}"
+  OUT=${OUT}_rescale
+fi
 case $MODE in
   aware) ;;
   blind) EXTRA="$EXTRA --blind" ;;

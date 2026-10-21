@@ -61,7 +61,7 @@ def panel_tt(ax, s, s_alt):
                 drawstyle="steps-mid", label="joint posterior, PR4 SEVEM")
     ax.errorbar(ell, s["planck_dl_ell"], yerr=[s["planck_dl_lo"], s["planck_dl_hi"]],
                 fmt="o", ms=1.8, lw=0.6, color=ps.COL_TRUTH, label="Planck 2018 TT")
-    ax.set_xlabel(r"$\ell$")
+    ax.set_xlabel(r"multipole $\ell$")
     ax.set_ylabel(r"$\ell(\ell+1)C_\ell^{TT}/2\pi\ [\mu{\rm K}^2]$")
     ax.set_xlim(1.5, ell[-1] + 0.5)
     ax.set_ylim(0, None)
@@ -79,7 +79,7 @@ def panel_pp(ax, s_hi, s_lo):
         q16, q50, q84 = (s[f"C_L^phiphi/over_prior_q{q}"] for q in (16, 50, 84))
         ax.errorbar(x + dx, q50, yerr=[q50 - q16, q84 - q50], fmt=marker, ms=3.5, lw=0.8,
                     color=ps.COL_CLPP, mfc=face, label=rf"$A_\phi = {float(s['phi_amplitude']):g}$")
-    ax.set_xlabel(r"$L$ (bin centre)")
+    ax.set_xlabel(r"multipole $L$ (bin centre)")
     ax.set_ylabel(r"$C_L^{\phi\phi}$ / prior centre")
     r = s_hi["C_L^phiphi/over_prior_q50"]
     ps.stat_box(ax, rf"$A_\phi = {float(s_hi['phi_amplitude']):g}$: {r.min():.2f} to {r.max():.2f}",
@@ -87,31 +87,52 @@ def panel_pp(ax, s_hi, s_lo):
     ax.legend(loc="upper right", frameon=False, fontsize=6.5)
 
 
+def check_run(s, name, blocks):
+    """Refuse a run that is not a posterior for the spectra a panel draws from it."""
+    if len(s["collapsed_ell"]):
+        raise SystemExit(f"{name}: collapsed C_l at l = {list(s['collapsed_ell'])}; not a posterior")
+    for b in blocks:
+        if np.max(s[f"{b}/rhat"]) > RHAT_MAX:
+            raise SystemExit(f"{name}: {b} R-hat {np.max(s[f'{b}/rhat']):.3f} > {RHAT_MAX}; "
+                             "the chains disagree, not a posterior")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--a1", required=True, help="summary.npz of the SMICA A_phi = 1 run")
-    p.add_argument("--a3000", required=True, help="summary.npz of the SMICA A_phi = 3000 run")
+    p.add_argument("--a3000", default=None, help="summary.npz of the SMICA A_phi = 3000 run "
+                   "(needed for the clpp panel)")
     p.add_argument("--sevem", default=None, help="summary.npz of a PR4 SEVEM run (optional)")
+    p.add_argument("--panels", default="cltt,clpp",
+                   help="comma-separated subset of cltt,clpp. Each panel checks only the spectra it "
+                        "draws, so a C_l^TT panel can be built while C_L^phiphi has not converged")
     p.add_argument("--outdir", required=True)
     args = p.parse_args()
-    s1, s3 = np.load(args.a1), np.load(args.a3000)
-    for s, name in ((s1, "--a1"), (s3, "--a3000")):
-        if len(s["collapsed_ell"]):
-            raise SystemExit(f"{name}: collapsed C_l at l = {list(s['collapsed_ell'])}; not a posterior")
-        for b in ("C_l^TT", "C_L^phiphi"):
-            if np.max(s[f"{b}/rhat"]) > RHAT_MAX:
-                raise SystemExit(f"{name}: {b} R-hat {np.max(s[f'{b}/rhat']):.3f} > {RHAT_MAX}; "
-                                 "the chains disagree, not a posterior")
+    panels = set(args.panels.split(","))
+    if not panels or panels - {"cltt", "clpp"}:
+        raise SystemExit(f"--panels must be a subset of cltt,clpp (got {args.panels!r})")
+    if "clpp" in panels and args.a3000 is None:
+        raise SystemExit("the clpp panel needs --a3000")
+    s1 = np.load(args.a1)
+    s3 = np.load(args.a3000) if args.a3000 else None
     s_alt = np.load(args.sevem) if args.sevem else None
+    if "cltt" in panels:
+        check_run(s1, "--a1", ("C_l^TT",))
+        if s_alt is not None:
+            check_run(s_alt, "--sevem", ("C_l^TT",))
+    if "clpp" in panels:
+        for s, name in ((s1, "--a1"), (s3, "--a3000")):
+            check_run(s, name, ("C_l^TT", "C_L^phiphi"))
     ps.apply()
     os.makedirs(args.outdir, exist_ok=True)
-    fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    panel_tt(ax, s1, s_alt)
-    ps.save(fig, os.path.join(args.outdir, "realdata_cltt.pdf"))
-    fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    panel_pp(ax, s3, s1)
-    ps.save(fig, os.path.join(args.outdir, "realdata_clpp.pdf"))
-
+    if "cltt" in panels:
+        fig, ax = plt.subplots(figsize=ps.FIG_1COL)
+        panel_tt(ax, s1, s_alt)
+        ps.save(fig, os.path.join(args.outdir, "realdata_cltt.pdf"))
+    if "clpp" in panels:
+        fig, ax = plt.subplots(figsize=ps.FIG_1COL)
+        panel_pp(ax, s3, s1)
+        ps.save(fig, os.path.join(args.outdir, "realdata_clpp.pdf"))
 
 if __name__ == "__main__":
     main()

@@ -19,11 +19,21 @@ starts; refused otherwise) and reports, per l-bin of strict_sbc_ranks.columns:
     e^-3 x the fiducial (the flat-prior band-edge collapse, achievements.md,
     which a bin average hides).
 
+Several --chains directories are noise draws of one map (same map, different
+--noise_realization; refused otherwise). They are pooled with equal weight per
+draw, each thinned evenly to the shortest draw, which marginalises the posterior
+over the added noise. R-hat is then the worst over the draws (each draw is its
+own target), and the report adds the between-draw sd of the median per bin in
+units of the per-draw posterior sd.
+
 Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/realdata_summary.py \
       --chains results/analysis/realdata_l64_A3000_n30 \
       --planck_tt /cosma8/data/dp004/dc-hick2/Plank/spectra/COM_PowerSpect_CMB-TT-full_R3.01.txt \
       --out results/analysis/realdata_l64_A3000_n30/summary
+  # eight noise draws of SMICA at A_phi = 1:
+  ... --chains results/analysis/realdata_smica_l64_A1_n30_clnu30{,_nr1,_nr2,...,_nr7} \
+      --out results/analysis/realdata_smica_l64_A1_n30_clnu30_pooled/summary
 """
 
 import argparse
@@ -74,13 +84,34 @@ def load_chains(indir):
     for f, d in zip(files, ds):
         if not str(d["data_map"]):
             raise SystemExit(f"{f}: not a --data_map chain")
-        y, y0 = d["data_masked"], ds[0]["data_masked"]
         # Bitwise equality is too strict: the noise map's trigonometry differs in the
         # last ulp between Intel and AMD nodes (5.7e-14 muK, SEVEM 2018 run 12188089).
-        if y.shape != y0.shape or np.max(np.abs(y - y0)) > DATA_RTOL * np.max(np.abs(y0)):
+        if not _same_data(d["data_masked"], ds[0]["data_masked"]):
             raise SystemExit(f"{f}: observed different data from {files[0]}; chains of one "
                              "run must share the map and the noise draw (--noise_realization)")
     return files, ds
+
+
+def _same_data(a, b):
+    return a.shape == b.shape and np.max(np.abs(a - b)) <= DATA_RTOL * np.max(np.abs(b))
+
+
+def load_draws(indirs):
+    """The runs of several noise draws of one map, refused if the maps or the
+    run settings differ or two runs observed the same noise draw."""
+    runs = [load_chains(d) for d in indirs]
+    ref = runs[0][1][0]
+    for d, (_, ds) in zip(indirs, runs):
+        for key in ("data_map", "lmax", "phi_amplitude"):
+            if str(ds[0][key]) != str(ref[key]):
+                raise SystemExit(f"{d}: {key} {ds[0][key]} differs from {indirs[0]} ({ref[key]}); "
+                                 "pooled runs must be noise draws of one map")
+    for i in range(len(runs)):
+        for j in range(i):
+            if _same_data(runs[i][1][0]["data_masked"], runs[j][1][0]["data_masked"]):
+                raise SystemExit(f"{indirs[i]} and {indirs[j]} observed the same data; "
+                                 "each pooled run must be a different noise draw")
+    return [f for files, _ in runs for f in files], [ds for _, ds in runs]
 
 
 def read_planck_table(path, lmax):
@@ -99,28 +130,53 @@ def read_planck_dl(path, lmax):
     return read_planck_table(path, lmax)[0]
 
 
+def _thin_to(x, n):
+    """n rows of x, evenly spaced."""
+    return x[np.linspace(0, len(x) - 1, n).round().astype(int)]
+
+
 def summarise(ds, planck_dl):
-    lmax = int(ds[0]["lmax"])
+    """One run: several chains on one data set."""
+    return summarise_draws([ds], planck_dl)
+
+
+def summarise_draws(draws, planck_dl):
+    """Noise draws of one map (a list of runs, each a list of chains), pooled
+    with equal weight per draw."""
+    ref = draws[0][0]
+    lmax = int(ref["lmax"])
     n = lmax - 2
     ell = np.arange(2, lmax)
     to_dl = np.log(ell * (ell + 1) / (2 * np.pi))
-    fid = np.asarray(ds[0]["cl_phiphi_fid"], dtype=np.float64)[2:lmax]  # prior centre
-    amp = float(ds[0]["phi_amplitude"])
+    fid = np.asarray(ref["cl_phiphi_fid"], dtype=np.float64)[2:lmax]  # prior centre
+    amp = float(ref["phi_amplitude"])
     cols = columns(lmax)
-    blocks = {"C_l^TT": [d["alm_samples"][:, :n] for d in ds],
-              "C_L^phiphi": [d["cl_phiphi_samples"][:, :n] for d in ds]}
-    out = {"columns": [c for c, _ in cols], "lmax": lmax, "n_chains": len(ds), "phi_amplitude": amp}
-    ln_tt_fid = np.log(np.asarray(ds[0]["cl_tt_fid"], dtype=np.float64)[2:lmax])
-    ln_ratio = np.median(np.concatenate(blocks["C_l^TT"]), axis=0) - ln_tt_fid
+    keys = {"C_l^TT": "alm_samples", "C_L^phiphi": "cl_phiphi_samples"}
+    blocks = {b: [[d[k][:, :n] for d in ds] for ds in draws] for b, k in keys.items()}
+    n_eq = min(sum(len(c) for c in run) for run in blocks["C_l^TT"])
+
+    def pool(runs):
+        return np.concatenate([_thin_to(np.concatenate(run), n_eq) for run in runs])
+
+    out = {"columns": [c for c, _ in cols], "lmax": lmax, "n_chains": sum(len(ds) for ds in draws),
+           "n_draws": len(draws), "phi_amplitude": amp}
+    tt = pool(blocks["C_l^TT"])
+    ln_tt_fid = np.log(np.asarray(ref["cl_tt_fid"], dtype=np.float64)[2:lmax])
+    ln_ratio = np.median(tt, axis=0) - ln_tt_fid
     out["collapsed_ell"] = ell[ln_ratio < COLLAPSE_LN]
     out["ell"] = ell
     out["C_l^TT/dl_ell_q16"], out["C_l^TT/dl_ell_q50"], out["C_l^TT/dl_ell_q84"] = (
-        np.exp(q + to_dl) for q in np.percentile(np.concatenate(blocks["C_l^TT"]), [16, 50, 84], axis=0))
-    for b, chains in blocks.items():
-        binned = [np.stack([c[:, sl].mean(1) for _, sl in cols], axis=1) for c in chains]
-        pooled = np.concatenate(binned)
-        out[f"{b}/rhat"] = multichain_rhat(binned)
-        out[f"{b}/ess"] = np.sum([bulk_ess(x) for x in binned], axis=0)
+        np.exp(q + to_dl) for q in np.percentile(tt, [16, 50, 84], axis=0))
+    for b, runs in blocks.items():
+        binned = [[np.stack([c[:, sl].mean(1) for _, sl in cols], axis=1) for c in run] for run in runs]
+        pooled = pool(binned)
+        out[f"{b}/rhat"] = np.max([multichain_rhat(run) for run in binned], axis=0)
+        out[f"{b}/ess"] = np.sum([bulk_ess(x) for run in binned for x in run], axis=0)
+        if len(draws) > 1:
+            per_draw = [np.percentile(np.concatenate(run), [16, 50, 84], axis=0) for run in binned]
+            medians = np.array([q[1] for q in per_draw])
+            sd = np.mean([0.5 * (q[2] - q[0]) for q in per_draw], axis=0)
+            out[f"{b}/draw_spread_sd"] = medians.std(axis=0, ddof=1) / sd
         q16, q50, q84 = np.percentile(pooled, [16, 50, 84], axis=0)
         if b == "C_l^TT":
             shift = np.array([to_dl[sl].mean() for _, sl in cols])
@@ -138,7 +194,9 @@ def summarise(ds, planck_dl):
 
 
 def report(s):
-    print(f"{s['n_chains']} chains, lmax {s['lmax']}, A_phi {s['phi_amplitude']:g}")
+    draws = int(s["n_draws"])
+    over = f" over {draws} noise draws (equal weight; R-hat is the worst draw's)" if draws > 1 else ""
+    print(f"{s['n_chains']} chains{over}, lmax {s['lmax']}, A_phi {s['phi_amplitude']:g}")
     if len(s["collapsed_ell"]):
         print(f"!! COLLAPSED C_l (median < e^{COLLAPSE_LN:g} x fiducial) at l = "
               f"{', '.join(map(str, s['collapsed_ell']))}: these bins are not a posterior")
@@ -156,17 +214,23 @@ def report(s):
         print(f"{c:<10}{s['C_L^phiphi/over_prior_q16'][i]:>11.3g}{s['C_L^phiphi/over_prior_q50'][i]:>10.3g}"
               f"{s['C_L^phiphi/over_prior_q84'][i]:>10.3g}{s['C_L^phiphi/over_physical_q50'][i]:>13.3g}"
               f"{s['C_L^phiphi/rhat'][i]:>9.3f}{s['C_L^phiphi/ess'][i]:>8.0f}")
+    if draws > 1:
+        print("\nbetween-draw sd of the median [per-draw posterior sd]")
+        for b in ("C_l^TT", "C_L^phiphi"):
+            print(f"  {b:<11}" + "".join(f"{c}: {v:.2f}  " for c, v in
+                                          zip(s["columns"], s[f"{b}/draw_spread_sd"])))
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--chains", required=True)
+    p.add_argument("--chains", required=True, nargs="+",
+                   help="one run's directory, or several noise draws of one map to pool")
     p.add_argument("--planck_tt", default=PLANCK_TT)
     p.add_argument("--out", required=True, help="output prefix (.npz written)")
     args = p.parse_args()
-    files, ds = load_chains(args.chains)
-    planck = read_planck_table(args.planck_tt, int(ds[0]["lmax"]))
-    s = summarise(ds, planck[0])
+    files, draws = load_draws(args.chains)
+    planck = read_planck_table(args.planck_tt, int(draws[0][0]["lmax"]))
+    s = summarise_draws(draws, planck[0])
     s["planck_dl_ell"], s["planck_dl_lo"], s["planck_dl_hi"] = planck
     report(s)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

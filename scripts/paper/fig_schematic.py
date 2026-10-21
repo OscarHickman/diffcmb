@@ -9,11 +9,14 @@ check against it whenever the sampler changes:
            InvGamma((k_L + nu)/2, (S_L + nu C_L^fid)/2)
   truth    coverage_ensemble_chain.py: C_L^phiphi,true ~ InvGamma(nu/2, nu C_L^fid/2),
            C_l^TT,true = fiducial (the sampler's C_l prior is flat)
-  operator lensing.py::precompute_lensing: bilinear interpolation (hp.get_interp_weights)
-           at the deflected angles on the nside grid.
+  operator lensing.py::lens_alm_exact_tf (D3): the alm evaluated exactly at the
+           geodesically remapped positions n' = exp_n(grad phi) (ducc0 synthesis_general);
+           gradients from its adjoint (d/dalm) and the spin-1 gradient (d/dphi).
+  nu       the paper's ensemble, ens_exact_l64_A3000_n30_nu30_long (D5): nu = 30.
 The first version of this figure had a stray "-1" in Block 4's shape, called
 Block 2 "MCLMC / HMC" (production is HMC; MCLMC failed its stationarity gate),
-and used d for both the deflection and the data. Panel letters live in the
+and used d for both the deflection and the data. Until 2026-10-20 it still
+described the legacy bilinear operator and nu = 6. Panel letters live in the
 caption, not the image.
 
 Usage:
@@ -76,7 +79,7 @@ def make(outdir: str) -> None:
     c1, c2, bw = 0.02, 0.232, 0.193
     box(ax, c1, 0.70, bw, 0.20, r"Primary spectrum",
         r"$C_\ell^{TT}$: fiducial $\Lambda$CDM" "\n" r"(flat prior in the sampler)",
-        ps.COL_ALM)
+        ps.COL_CLTT)
     box(ax, c2, 0.70, bw, 0.20, r"Lensing spectrum",
         r"$C_L^{\phi\phi}\sim\mathrm{InvGamma}\!\left(\frac{\nu}{2},\frac{\nu C_L^{\rm fid}}{2}\right)$",
         ps.COL_CLPP)
@@ -87,8 +90,8 @@ def make(outdir: str) -> None:
         r"$\phi_{LM}\sim\mathcal{N}(0,C_L^{\phi\phi})$" "\n" r"deflection $\nabla\phi(\hat n)$",
         ps.COL_PHI)
     box(ax, 0.05, 0.215, 0.345, 0.15, r"Lensing operator",
-        r"$\tilde T(\hat n)=T(\hat n+\nabla\phi)$, curved sky" "\n"
-        r"(bilinear interpolation on HEALPix)", ps.COL_AWARE)
+        r"$\tilde T(\hat n)=T(\hat n+\nabla\phi)$, geodesic remap" "\n"
+        r"(exact evaluation at the deflected positions)", ps.COL_AWARE)
     box(ax, 0.05, 0.02, 0.345, 0.14, r"Data",
         r"$d(\hat n)=\tilde T(\hat n)+n(\hat n)$,  $n\sim\mathcal{N}(0,\mathbf{N})$", GREY,
         alpha=0.07)
@@ -105,16 +108,16 @@ def make(outdir: str) -> None:
     ys = (0.715, 0.49, 0.265, 0.04)
     box(ax, bx, ys[0], bwid, bh, r"Block 1: $C_\ell^{TT}\,|\,a_{\ell m}$",
         r"$\mathrm{InvGamma}\!\left(\frac{2\ell+1}{2}-1,\,\frac{S_\ell}{2}\right)$,  "
-        r"$S_\ell=\sum_m|a_{\ell m}|^2$" "\n" "exact conjugate draw", ps.COL_ALM)
+        r"$S_\ell=\sum_m|a_{\ell m}|^2$" "\n" "exact conjugate draw", ps.COL_CLTT)
     box(ax, bx, ys[1], bwid, bh, r"Block 2: $a_{\ell m}\,|\,C_\ell^{TT},\phi,d$",
         "Hamiltonian Monte Carlo; gradients by" "\n"
         "automatic differentiation through the SHT", ps.COL_ALM)
     box(ax, bx, ys[2], bwid, bh, r"Block 3: $\phi_{LM}\,|\,a_{\ell m},C_L^{\phi\phi},d$",
         "Hamiltonian Monte Carlo; gradients through" "\n"
-        "the lensing operator (analytic adjoint)", ps.COL_PHI)
+        "the exact lensing operator (analytic adjoint)", ps.COL_PHI)
     box(ax, bx, ys[3], bwid, bh, r"Block 4: $C_L^{\phi\phi}\,|\,\phi_{LM}$",
         r"$\mathrm{InvGamma}\!\left(\frac{2L+1+\nu}{2},\,\frac{S^\phi_L+\nu C_L^{\rm fid}}{2}\right)$"
-        "\n" r"exact conjugate draw, proper prior ($\nu=6$)", ps.COL_CLPP)
+        "\n" r"exact conjugate draw, proper prior ($\nu=30$)", ps.COL_CLPP)
     xm = bx + bwid / 2
     for y_top, y_next in zip(ys[:-1], ys[1:]):
         arrow(ax, xm, y_top, xm, y_next + bh, color=ps.COL_AWARE)

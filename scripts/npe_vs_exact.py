@@ -6,7 +6,8 @@ sky bit for bit, checked against the chain's saved truth), draw from the learned
 posterior, and compare bin-averaged ln C against the exact chain:
   * shift = (learned mean - exact mean) / exact sd, with the exact chain's Monte
     Carlo error 1/sqrt(ESS) in the same units;
-  * width ratio = learned sd / exact sd;
+  * width ratio = learned sd / exact sd, per bin and per multipole (width_ratio_ell,
+    columns (ln C_l^TT, ln C_L^phiphi) at l = 2..lmax-1);
   * the correlation matrix of the bin-averaged (ln C_l^TT, ln C_L^phiphi), learned
     vs exact (the figure-4 analogue; Doeser & Jasche 2606.10023).
 Refuses chains whose configuration differs from the flow's training simulator,
@@ -77,12 +78,14 @@ def check_summaries(ctx, cfg):
 
 
 def compare_sky(exact, learned, bins):
-    """Per-bin shift, its MC error, width ratio, and both correlation matrices."""
+    """Per-bin shift, its MC error, width ratio, the per-multipole width ratio,
+    and both correlation matrices."""
     be = np.stack([exact[:, sl].mean(1) for *_, sl in bins], axis=1)
     bl = np.stack([learned[:, sl].mean(1) for *_, sl in bins], axis=1)
     sd_e = be.std(0, ddof=1)
     return {"shift": (bl.mean(0) - be.mean(0)) / sd_e, "shift_mc": 1.0 / np.sqrt(bulk_ess(be)),
             "width_ratio": bl.std(0, ddof=1) / sd_e,
+            "width_ratio_ell": learned.std(0, ddof=1) / exact.std(0, ddof=1),
             "corr_exact": np.corrcoef(be, rowvar=False),
             "corr_learned": np.corrcoef(bl, rowvar=False)}
 

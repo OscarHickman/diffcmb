@@ -51,6 +51,8 @@
 \begin{abstract}
 % RULE: lead with the joint posterior object, not the machinery.
 % Draft language from ROADMAP.md 2026-08-06 re-pitch:
+% AT RISK (2026-10-21): "first curved-sky" -- Z. Li et al. (Seljak group) in prep.,
+% MCLMC vs HMC vs MUSE for CMB lensing; see literature.md Verdict. Re-check before T2.
 We present the first curved-sky, full-sky posterior over the joint
 $(\alm, \cl, \phi, \clpp)$ — a four-block Gibbs sampler operating directly on
 HEALPix maps whose blocks alternate exact inverse-Gamma draws for the two power
@@ -194,7 +196,10 @@ gains over HMC at this dimensionality on curved-sky CMB fields, and we
 implemented it against the same target. It wins on effective samples per
 wall-clock second at every multipole bin we probed, but fails our stationarity
 gate in both an untuned and a step-size-tuned configuration --- in one tuned run
-the lag-1 autocorrelation was \emph{worse} than untuned. The No-U-Turn Sampler
+the lag-1 autocorrelation was \emph{worse} than untuned. Unadjusted MCLMC is
+known to produce biased samples, with a bias that is hard to control in
+general; its Metropolis-adjusted variant (MAMS) removes this bias
+\citep{Robnik:2025} and was not tested here. The No-U-Turn Sampler
 and a Fisher-based mass matrix were likewise tested and rejected. We therefore
 use plain HMC, and note that an efficiency metric which ignores whether the
 chain is stationary will select the wrong sampler here.
@@ -553,6 +558,7 @@ them. Not before.}
 \label{sec:discussion}
 % STATUS: [PARTIAL — framing is fixed; numbers are placeholders]
 
+% AT RISK (2026-10-21): "first" -- see the abstract comment and literature.md Verdict.
 We have presented the first full-sky, curved-sky joint Gibbs sampler over
 $(\alm, \cl, \phi, \clpp)$.
 The sampler's defining output — the joint $(\cl^{TT}, \clpp)$ posterior with
@@ -590,7 +596,7 @@ extension of the current infrastructure.
 \begin{thebibliography}{99}
 
 \bibitem{Flinch}
-Crespi, S., Bonici, M., Loureiro, A., et al.\ 2025,
+Crespi, A., Bonici, M., Loureiro, A., et al.\ 2025,
 \textit{Flinch: A Differentiable Framework for Field-Level Inference of Cosmological Parameters from Curved Sky Data},
 arXiv:2510.26691
 
@@ -627,6 +633,11 @@ arXiv:2012.01709
 Robnik, J., De Luca, G.\ B., Silverstein, E.\ \& Seljak, U.\ 2022,
 \textit{Microcanonical Hamiltonian Monte Carlo},
 arXiv:2212.08549
+
+\bibitem{Robnik:2025}
+Robnik, J., Cohn-Gordon, R.\ \& Seljak, U.\ 2025,
+\textit{Metropolis Adjusted Microcanonical Hamiltonian Monte Carlo},
+arXiv:2503.01707
 
 \bibitem{Bayer:2023}
 Bayer, A.\ E., Seljak, U.\ \& Modi, C.\ 2023,

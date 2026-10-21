@@ -147,3 +147,77 @@ def test_realdata_figure_refuses_chains_that_disagree(tmp_path, spectra):
     res = subprocess.run([sys.executable, fig, "--a1", str(tmp_path / "split.npz"), "--a3000", str(a3),
                           "--outdir", str(tmp_path / "out")], env=env, capture_output=True, text=True)
     assert res.returncode != 0 and "R-hat" in res.stdout + res.stderr
+
+
+def test_realdata_cltt_panel_builds_while_clpp_has_not_converged(tmp_path, spectra):
+    import subprocess
+    repo = os.path.join(os.path.dirname(__file__), "..")
+    fig = os.path.join(repo, "scripts", "paper", "fig_realdata.py")
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        [os.path.join(repo, d) for d in ("diffcmb", "scripts", "scripts/paper")]))
+    s = dict(np.load(_summary_file(tmp_path, "a1", spectra, 1.0)))
+    s["C_L^phiphi/rhat"] = s["C_L^phiphi/rhat"] + 0.5  # the A_phi = 1 phi trap
+    np.savez(tmp_path / "trap.npz", **s)
+    run = lambda *a: subprocess.run([sys.executable, fig, "--a1", str(tmp_path / "trap.npz"), *a],  # noqa: E731
+                                    env=env, capture_output=True, text=True)
+    res = run("--panels", "cltt", "--outdir", str(tmp_path / "out"))
+    assert res.returncode == 0, res.stderr[-2000:]
+    assert (tmp_path / "out" / "realdata_cltt.pdf").exists()
+    assert not (tmp_path / "out" / "realdata_clpp.pdf").exists()
+    # the C_l^TT check still applies, to the second map as well
+    t = dict(s)
+    t["C_l^TT/rhat"] = t["C_l^TT/rhat"] + 0.5
+    np.savez(tmp_path / "sevem_split.npz", **t)
+    res = run("--panels", "cltt", "--sevem", str(tmp_path / "sevem_split.npz"),
+              "--outdir", str(tmp_path / "out2"))
+    assert res.returncode != 0 and "--sevem: C_l^TT R-hat" in res.stdout + res.stderr
+    # the clpp panel still refuses the trapped run
+    a3 = _summary_file(tmp_path, "a3", spectra, 3000.0)
+    res = run("--a3000", str(a3), "--outdir", str(tmp_path / "out3"))
+    assert res.returncode != 0 and "C_L^phiphi R-hat" in res.stdout + res.stderr
+
+
+def _draw(path, rng, data, spectra, shift, n_chains=1, n=400):
+    path.mkdir()
+    for i in range(n_chains):
+        _chain(path / f"data_chain_r{i:03d}.npz", rng, data, *spectra, shift=shift, n=n, amp=1.0)
+    return str(path)
+
+
+def test_noise_draws_pool_with_equal_weight_and_report_their_spread(tmp_path, spectra):
+    rng = np.random.default_rng(5)
+    # draw 0 has 4 chains, draw 1 one shorter chain: each must count once
+    a = _draw(tmp_path / "nr0", rng, rng.standard_normal(30), spectra, -0.2, n_chains=4)
+    b = _draw(tmp_path / "nr1", rng, rng.standard_normal(30), spectra, +0.2, n=300)
+    files, draws = rs.load_draws([a, b])
+    assert len(files) == 5 and [len(d) for d in draws] == [4, 1]
+    s = rs.summarise_draws(draws, np.full(LMAX - 2, 1000.0))
+    assert int(s["n_draws"]) == 2 and int(s["n_chains"]) == 5
+    # equal weight: the pooled median sits between the draws, not on the 4-chain one
+    np.testing.assert_allclose(np.log(s["C_l^TT/planck_over_median"]), 0.0, atol=0.03)
+    # between-draw sd 0.2 against a per-bin posterior sd of 0.1 / sqrt(bin width)
+    assert np.all(s["C_l^TT/draw_spread_sd"][:-1] > 2.0)
+    # per-draw R-hat: two draws that disagree are not a convergence failure
+    assert np.all(s["C_l^TT/rhat"] < 1.05)
+
+
+def test_one_run_has_no_draw_spread(tmp_path, spectra):
+    rng = np.random.default_rng(6)
+    a = _draw(tmp_path / "nr0", rng, rng.standard_normal(30), spectra, 0.0, n_chains=2)
+    s = rs.summarise(rs.load_chains(a)[1], np.full(LMAX - 2, 1000.0))
+    assert int(s["n_draws"]) == 1 and "C_l^TT/draw_spread_sd" not in s
+
+
+def test_draws_of_different_maps_or_the_same_noise_are_refused(tmp_path, spectra):
+    rng = np.random.default_rng(7)
+    data = rng.standard_normal(30)
+    a = _draw(tmp_path / "nr0", rng, data, spectra, 0.0)
+    b = _draw(tmp_path / "nr0_again", rng, data, spectra, 0.0)
+    with pytest.raises(SystemExit, match="same data"):
+        rs.load_draws([a, b])
+    c = _draw(tmp_path / "sevem", rng, rng.standard_normal(30), spectra, 0.0)
+    d = dict(np.load(tmp_path / "sevem" / "data_chain_r000.npz"))
+    d["data_map"] = "sevem.fits"
+    np.savez(tmp_path / "sevem" / "data_chain_r000.npz", **d)
+    with pytest.raises(SystemExit, match="map"):
+        rs.load_draws([a, c])

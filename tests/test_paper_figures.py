@@ -413,6 +413,22 @@ def test_schematic_conditionals_match_code_shapes():
     assert "MCLMC" not in src.split('"""', 2)[2]      # outside the docstring
 
 
+def test_schematic_describes_the_figures_ensemble():
+    """The operator and nu it prints are those of the Makefile's ENSEMBLE.
+
+    Until 2026-10-20 it still said "bilinear interpolation" and nu = 6.
+    """
+    make = open(os.path.join(REPO, "Makefile")).read()
+    ensemble = re.search(r"^ENSEMBLE=(\S+)", make, re.M).group(1)
+    nu = re.search(r"_nu(\d+)_", ensemble).group(1)
+    assert "ens_exact_" in ensemble
+    body = open(os.path.join(REPO, "scripts", "paper", "fig_schematic.py")).read()
+    body = body.split('"""', 2)[2]                    # outside the docstring
+    assert rf"($\nu={nu}$)" in body
+    assert "bilinear" not in body
+    assert "exact" in body
+
+
 def test_schematic_builds_at_figure_star_width(tmp_path):
     import fig_schematic
 
@@ -604,3 +620,90 @@ def test_fig1_alm_row_passes_an_offset_that_the_null_predicts(tmp_path, capsys, 
     p_unif = float(re.search(r"alm_power.*?corrected min ([\d.]+)", out).group(1))
     assert p_null["alm_power"] > 0.01, p_null
     assert p_unif < 0.01, p_unif
+
+
+# ---------------------------------------------------------------------------
+# fig_npe: learned vs exact posterior (ROADMAP T1.1)
+# ---------------------------------------------------------------------------
+
+_NPE_BINS = np.array([(2, 10), (10, 30), (30, 60), (60, 64)] * 2)
+_NPE_BLOCKS = np.array(["C_l^TT"] * 4 + ["C_L^phiphi"] * 4)
+
+
+def _write_npe_products(flow_dir, width=1.3, shift=0.0, sbc_flow=None, seed=4, width_ell=None):
+    """Synthetic npe_vs_exact / npe_sbc / npe_c2st outputs on the production bin grid;
+    width_ell (per-sky, per-multipole width ratios, (48, 124)) is written only if given."""
+    rng = np.random.default_rng(seed)
+    flow_dir.mkdir(parents=True, exist_ok=True)
+    n_sky, n_bin = 48, 8
+    corr = np.broadcast_to(np.eye(n_bin), (n_sky, n_bin, n_bin))
+    extra = {} if width_ell is None else {"width_ratio_ell": width_ell}
+    np.savez(flow_dir / "vs_exact_strict.npz", realization=np.arange(n_sky), **extra,
+             shift=shift + 0.1 * rng.standard_normal((n_sky, n_bin)),
+             shift_mc=np.full((n_sky, n_bin), 0.05),
+             width_ratio=width + 0.02 * rng.standard_normal((n_sky, n_bin)),
+             corr_exact=corr, corr_learned=corr.copy(), bins=_NPE_BINS,
+             bin_blocks=_NPE_BLOCKS, flow=str(flow_dir), chains_dir="strict", n_learned=4000)
+    n_draws = 99
+    np.savez(flow_dir / "sbc_heldout.npz", bin_ranks=rng.integers(0, n_draws + 1, (500, n_bin)),
+             bin_p=rng.uniform(0.1, 0.9, n_bin), bins=_NPE_BINS, bin_blocks=_NPE_BLOCKS,
+             n_draws=n_draws, flow=str(sbc_flow or flow_dir))
+    np.savez(flow_dir / "c2st_strict.npz", raw=rng.uniform(0.6, 0.9, n_sky),
+             shape=rng.uniform(0.4, 0.55, n_sky), null=rng.uniform(0.45, 0.55, n_sky),
+             null_shape=rng.uniform(0.4, 0.5, n_sky), flow=str(flow_dir))
+
+
+def _run_fig_npe(flow_dir, outdir, monkeypatch, capsys):
+    import fig_npe
+
+    monkeypatch.setattr(sys, "argv", ["fig_npe", "--flow", str(flow_dir), "--outdir", str(outdir)])
+    fig_npe.main()
+    return capsys.readouterr().out
+
+
+def test_fig_npe_builds_every_panel_and_reports_the_headline(tmp_path, monkeypatch, capsys):
+    flow = tmp_path / "flow"
+    _write_npe_products(flow, width=1.3)
+    out = _run_fig_npe(flow, tmp_path / "out", monkeypatch, capsys)
+    for name in ("npe_width_ratio", "npe_shift", "npe_sbc_cltt", "npe_sbc_clpp", "npe_c2st"):
+        w, h = _pdf_size_inches(tmp_path / "out" / f"{name}.pdf")
+        assert (w, h) == pytest.approx(paper_style.FIG_1COL, abs=1e-3)
+    assert (tmp_path / "out" / "npe_corr.pdf").exists()
+    row = re.search(r"C_l\^TT\s+\[30,60\)\s+([\d.]+)", out)
+    assert float(row.group(1)) == pytest.approx(1.3, abs=0.02)
+    assert "[60,64)" in out and "band edge, not pooled" in out
+    assert "max |r_learned - r_exact| = 0.000" in out
+
+
+def test_fig_npe_reports_a_shifted_learned_posterior(tmp_path, monkeypatch, capsys):
+    flow = tmp_path / "flow"
+    _write_npe_products(flow, shift=0.5)
+    out = _run_fig_npe(flow, tmp_path / "out", monkeypatch, capsys)
+    zs = [float(z) for z in re.findall(r"[+-][\d.]+\s+([+-][\d.]+)(?:  band edge|\n)", out)]
+    assert len(zs) == 8 and min(zs) > 10          # 0.5 sd over SE 0.1/sqrt(48)
+
+
+def test_fig_npe_refuses_products_of_another_flow(tmp_path, monkeypatch, capsys):
+    flow = tmp_path / "flow"
+    _write_npe_products(flow, sbc_flow=tmp_path / "other_flow")
+    with pytest.raises(SystemExit, match="sbc_heldout.npz was made by"):
+        _run_fig_npe(flow, tmp_path / "out", monkeypatch, capsys)
+
+
+def test_fig_npe_draws_the_per_multipole_width_only_when_saved(tmp_path, monkeypatch, capsys):
+    # npe_vs_exact.py saves width_ratio_ell since 2026-10-21; older products lack it.
+    flow = tmp_path / "flow"
+    _write_npe_products(flow)
+    out = _run_fig_npe(flow, tmp_path / "out", monkeypatch, capsys)
+    assert not (tmp_path / "out" / "npe_width_ratio_ell.pdf").exists() and "per multipole" not in out
+    ell = np.arange(2, 64)
+    ramp = 1.0 + 0.01 * (ell - 2)                       # wider with l; C_L^phiphi twice as fast
+    flow2 = tmp_path / "flow2"
+    _write_npe_products(flow2, width_ell=np.tile(np.r_[ramp, 2 * ramp - 1], (48, 1)))
+    out = _run_fig_npe(flow2, tmp_path / "out2", monkeypatch, capsys)
+    w, h = _pdf_size_inches(tmp_path / "out2" / "npe_width_ratio_ell.pdf")
+    assert (w, h) == pytest.approx(paper_style.FIG_1COL, abs=1e-3)
+    row = re.search(r"per multipole, \[30,60\) mean: C_l\^TT ([\d.]+), C_L\^phiphi ([\d.]+)", out)
+    expect = ramp[(ell >= 30) & (ell < 60)].mean()
+    assert float(row.group(1)) == pytest.approx(expect, abs=0.005)
+    assert float(row.group(2)) == pytest.approx(2 * expect - 1, abs=0.005)

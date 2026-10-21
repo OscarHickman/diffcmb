@@ -42,7 +42,9 @@ from diffcmb.alm_utils import packed_dof_per_multipole, packed_length  # noqa: E
 LMAX, NSIDE, AMP = 8, 8, 3000.0
 
 
-def _run_chain(outdir, *extra, realization=1):
+def _run_chain(outdir, *extra, realization=1, allow_phi_guard=False):
+    """Run one smoke chain. allow_phi_guard accepts the driver's post-save phi-power guard
+    (a 9-sweep chain from a 20x-power phi start can trip it; the chain is still saved)."""
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"), OMP_NUM_THREADS="2")
     cmd = [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
            "--realization", str(realization), "--lmax", str(LMAX), "--nside", str(NSIDE),
@@ -51,7 +53,8 @@ def _run_chain(outdir, *extra, realization=1):
            "--phi_amplitude", str(AMP), "--lensing_operator", "exact",
            "--checkpoint_every", "100", "--outdir", str(outdir), *extra]
     res = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=900)
-    assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
+    guard = allow_phi_guard and "the job-11887897 failure signature" in res.stderr
+    assert res.returncode == 0 or guard, res.stdout[-3000:] + res.stderr[-3000:]
     return res.stdout
 
 
@@ -645,7 +648,7 @@ def test_prepare_real_data_writes_a_map_the_chain_accepts(tmp_path):
 def test_hot_phi_start_scales_only_the_phi_start(tmp_path, smoke_ensemble):
     # The hot-start test of the A_phi = 1 real-data runaway (2026-10-20): same sky,
     # same MAP a_lm start, phi start multiplied; recorded so no harvest mistakes it.
-    out = _run_chain(tmp_path, "--phi_start_scale", "4.5")
+    out = _run_chain(tmp_path, "--phi_start_scale", "4.5", allow_phi_guard=True)
     assert "HOT PHI START" in out
     d = np.load(tmp_path / "chain_r001.npz")
     base = np.load(smoke_ensemble / "chain_r001.npz")
@@ -654,6 +657,29 @@ def test_hot_phi_start_scales_only_the_phi_start(tmp_path, smoke_ensemble):
     # same sky (the MAP a_lm start is a TF descent, not bitwise reproducible across runs)
     np.testing.assert_array_equal(d["alm_true_packed"], base["alm_true_packed"])
     np.testing.assert_array_equal(d["phi_true_packed"], base["phi_true_packed"])
+
+
+def test_phi_rescale_move_is_opt_in_recorded_and_reported(tmp_path, smoke_ensemble):
+    # The candidate fix for the A_phi = 1 phi trap (ROADMAP decision 1): off by
+    # default, and a chain that used it says so in its log and its metadata.
+    out = _run_chain(tmp_path, "--phi_rescale_move", "--phi_rescale_proposal_scale", "0.2")
+    assert "PHI RESCALE MOVE ON" in out and "phi rescale move: mean accept" in out
+    d = np.load(tmp_path / "chain_r001.npz")
+    base = np.load(smoke_ensemble / "chain_r001.npz")
+    assert bool(d["phi_rescale_move"]) and float(d["phi_rescale_proposal_scale"]) == 0.2
+    assert not bool(base["phi_rescale_move"])
+
+
+@pytest.mark.parametrize("other", [("--no_sample_cl_phiphi",), ("--blind",), ("--phi_fixed_truth",)])
+def test_phi_rescale_move_refuses_runs_without_a_sampled_phi_and_spectrum(tmp_path, other):
+    env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
+    res = subprocess.run(
+        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+         "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
+         "--outdir", str(tmp_path), "--phi_rescale_move", *other],
+        env=env, capture_output=True, text=True, timeout=300)
+    assert res.returncode != 0
+    assert "--phi_rescale_move" in res.stderr + res.stdout
 
 
 @pytest.mark.parametrize("other", [("--start_truth",), ("--blind",), ("--phi_start_scale", "0")])
