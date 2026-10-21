@@ -58,8 +58,26 @@ dmypy.json
 # Ruff stuff:
 .ruff_cache/
 
-#VSCode
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors / OS
 .vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# LaTeX build products (docs/paper)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+*.synctex.gz
+docs/paper/*.pdf
 
 # Logs and bulk outputs
 logs/
@@ -73,6 +91,9 @@ archive/
 /results/
 *.bak
 
-# Per-user tool state
+# Per-user tool / agent state
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+CLAUDE.local.md
 .antigravitycli/
+
