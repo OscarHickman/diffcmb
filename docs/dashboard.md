@@ -26,7 +26,7 @@ results and the bug record: `achievements.md`.
 
 ## 2026-10-17 record: T1.2a real-sky pilot passes its gate; production r004–r047 queued
 
-Pilot 12172310 (r000–r003, completed 2026-10-16, 9.5–9.6 h per sky on ga006): the strict ensemble's configuration (ν = 30 on both spectra, A_φ = 3000, σ = 30, 1000 + 3600 sweeps) on the **Planck common temperature mask** (f_sky 0.751 at nside 64), a **5′ beam + pixel window** and the **ecliptic noise surrogate** (σ(1 + 0.5 cos²β); Planck's per-pixel noise is not used). Same realization index, same truths as `_nu30_strict` (checked: `cl_true`, `cl_phiphi_true`, `phi_true_packed` identical), so each sky is compared with itself (`scripts/compare_realsky_fullsky.py`; medians over the 4 skies, rms z and rms half-to-half drift in posterior sd):
+Pilot 12172310 (r000–r003, completed 2026-10-16, 9.5–9.6 h per sky on ga006): the strict ensemble's configuration (ν = 30 on both spectra, A_φ = 3000, σ = 30, 1000 + 3600 sweeps) on the **Planck common temperature mask** (f_sky 0.751 at nside 64), a **5′ beam + pixel window** and the **ecliptic noise surrogate** (σ(1 + 0.5 cos²β); Planck's per-pixel noise is not used). Same realization index, same truths as `_nu30_strict` (checked: `cl_true`, `cl_phiphi_true`, `phi_true_packed` identical), so each sky is compared with itself (`scripts/diagnostics/compare_realsky_fullsky.py`; medians over the 4 skies, rms z and rms half-to-half drift in posterior sd):
 
 | block | bin | sd ratio real/full | rms z real / full | drift real / full | ESS real / full |
 |---|---|---|---|---|---|
@@ -197,7 +197,7 @@ Reading: the C_63 deficit is not a generic sampler band-edge effect (lmax 32 is 
 
 ## 2026-09-27 (evening) record: the a_ℓm `[60,64)` offset is a non-stationary C_63 deficit from the MAP start
 
-**Diagnostic** `scripts/diagnose_alm_band_edge.py` (job 12066643, log `logs/alm_band_edge_12066643.out`;
+**Diagnostic** `scripts/diagnostics/diagnose_alm_band_edge.py` (job 12066643, log `logs/alm_band_edge_12066643.out`;
 results in `<ensemble>/diagnose_alm_band_edge.npz`; tests in `tests/test_diagnose_alm_band_edge.py`). Per-ℓ z against the effective null, thin 50:
 
 | ensemble | ℓ = 60 | 61 | 62 | **63** | `[56,60)` | quarters of `[60,64)` u |
@@ -211,7 +211,7 @@ results in `<ensemble>/diagnose_alm_band_edge.npz`; tests in `tests/test_diagnos
 It holds at thin 100 and 150 (ν = 30: +3.46 / +3.70) and in both sky halves (+3.08 / +2.23). By m: m = 0 is clean
 (−0.57), while 0 < m ≤ ℓ/2 is +3.23 and m > ℓ/2 +2.69; real parts +4.17, imaginary parts +2.07.
 
-**Exact dense reference** (`scripts/exact_dense_alm_reference.py`, job 12066700, 48/48;
+**Exact dense reference** (`scripts/diagnostics/exact_dense_alm_reference.py`, job 12066700, 48/48;
 `results/analysis/exact_dense_alm_reference_l64_nu30/`; tests in `tests/test_exact_dense_alm_reference.py`).
 It builds the full 49152 × 4092 lensed operator at φ_true from `lens_map_tf` (linearity check 6e-15),
 rebuilds the production data from the production seeds, and runs an exact Gibbs sampler: a Cholesky a | C draw,
@@ -255,7 +255,7 @@ Next steps: `ROADMAP.md` T0.1 a–c.
 
 ## 2026-09-27 (morning) record: N = 48 harvested — everything passes except a_ℓm `[60,64)`
 
-Harvest job **12065737** (36 min, m5005; `scripts/submit_harvest_t01e.slurm`, log
+Harvest job **12065737** (36 min, m5005; `scripts/slurm/submit_harvest_t01e.slurm`, log
 `logs/harvest_t01e_12065737.out`, exit 0). Guard: 48 chain + blind files present, all chains 3600
 samples. Block-4-ON tasks 12065119 ran 14.0–15.1 h each; blind pairs 12065120 ran 3–9 min. The
 N = 24 products are kept as `*_n24.npz` in `ens_exact_l64_A3000_n30_nu30_long/`.
@@ -347,7 +347,7 @@ noise treats it as data noise, which overstates both the offset and the scatter.
 inside the bracket (z −0.4 vs effective). Action for the paper: draw the exact-sampler expectation
 as the figure 2 reference, or quote the residual against it, not against zero.
 
-**Figure 4, 2/16 cells: chance** (`scripts/inspect_fig4_cells.py`). `C_ℓ[30,60)×C_L^φφ[10,30)`
+**Figure 4, 2/16 cells: chance** (`scripts/diagnostics/inspect_fig4_cells.py`). `C_ℓ[30,60)×C_L^φφ[10,30)`
 has r +0.049 against a null of 0.045 (ratio 1.07). `[60,64)×[60,64)` has +0.046 against 0.045
 (1.02). The cells are not adjacent. A chain-level z, robust to autocorrelation, gives +2.56 /
 +1.77, not significant over 16 cells. At thin 150, 0/16 cells clear the null. Every |r| ≤ 0.05:
@@ -355,7 +355,7 @@ no C_ℓ^TT–C_L^φφ posterior correlation is detected.
 
 ## 2026-09-25 record: T0.1 resolved — ν = 30 adopted (D5), figures rebuilt from it
 
-Harvest job **12062700** (35 min, cosma8-ska; `scripts/submit_harvest_t01c_long.slurm`,
+Harvest job **12062700** (35 min, cosma8-ska; `scripts/slurm/submit_harvest_t01c_long.slurm`,
 log `logs/harvest_t01c_12062700.out`). It ran stationarity, the joint-likelihood SBC,
 the rank nulls + strict SBC + Block 4 PIT, and the a_ℓm null on both long ensembles.
 Both long ensembles are complete, 24/24 tasks each, with no tracebacks. Tasks took
@@ -981,14 +981,14 @@ response 0.883, valid only at lmax=64, nside=64, σ_pix=1.0), 12015488 (lmax=192
 98.4 %; bias reduction only, not an exactness claim) and 12015538 (invalid first QE design,
 superseded, do not cite).
 
-**Previously in flight, now complete: job 11980637** — `scripts/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
+**Previously in flight, now complete: job 11980637** — `scripts/archive/slurm/submit_coverage_ensemble_lmax64_prior_cl4_properprior_packingv2_extendN.slurm`,
 extending the Block-4-ON proper-prior ensemble from N=12 to N=24 (realizations
 12–23, same outdir as job 11965813, byte-identical config — not a φ-tuning
 run). Doubles the chain count for the joint (C_ℓ^TT, C_L^φφ) differentiator
 figure, whose error bar is a *chain*-level bootstrap, and tests whether the
 `[10,30)` strict-rank residual relaxes or sharpens at N=24. ~5h/realization.
 
-**Completed 2026-09-11: job 11980570** — `scripts/submit_lensing_blind_baseline_packingv2.slurm`,
+**Completed 2026-09-11: job 11980570** — `scripts/archive/slurm/submit_lensing_blind_baseline_packingv2.slurm`,
 re-running the Commander-style lensing-blind `C_l^TT` baseline under the
 restored packing. Required because the existing
 `lensing_blind_baseline_lmax128.npz` (2026-08-12) is packed at the OLD 2L width
@@ -1024,7 +1024,7 @@ pass (`--control_lags 1,10,50`; lag-1 alone is not enough).
 
 ## ✅ `C_l^TT` bias reduction — DEMONSTRATED, 93% (2026-09-11)
 
-`scripts/compare_cl_bias_reduction.py` →
+`scripts/archive/compare_cl_bias_reduction.py` →
 `results/analysis/figures/cl_bias_reduction_lmax128.png`. Lensing-aware joint
 sampler (job 11966631) vs Commander-style lensing-blind Gibbs (job 11980570),
 **identical simulation**, both packing-v2.

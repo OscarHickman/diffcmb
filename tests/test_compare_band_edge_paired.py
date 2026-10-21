@@ -1,4 +1,4 @@
-"""scripts/compare_band_edge_paired.py (ROADMAP T0.1 a, 2026-10-07).
+"""scripts/diagnostics/compare_band_edge_paired.py (ROADMAP T0.1 a, 2026-10-07).
 
 The T0.1 a harvest compares posterior C_l / (S_true/(k-4)) at the band edge
 between ensembles run on the SAME skies (the phi-fixed run, the production
@@ -20,7 +20,7 @@ pytest.importorskip("scipy")
 pytest.importorskip("matplotlib")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for sub in ("scripts", os.path.join("scripts", "paper")):
+for sub in ("scripts", os.path.join("scripts", "paper"), os.path.join("scripts", "diagnostics")):
     path = os.path.join(REPO, sub)
     if path not in sys.path:
         sys.path.insert(0, path)

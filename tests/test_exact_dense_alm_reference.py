@@ -1,4 +1,4 @@
-"""scripts/exact_dense_alm_reference.py (ROADMAP T0.1, 2026-09-27).
+"""scripts/diagnostics/exact_dense_alm_reference.py (ROADMAP T0.1, 2026-09-27).
 
 The dense reference is only a reference if its draws are exact: the a | C
 draw must have mean P^-1 A^T d / sigma^2 and covariance P^-1, and the C_l
@@ -17,6 +17,7 @@ pytest.importorskip("scipy")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "scripts"))
+sys.path.insert(0, os.path.join(REPO, "scripts", "diagnostics"))
 
 import exact_dense_alm_reference as edr  # noqa: E402
 from null_alm_power_rank_flat_prior import packed_layout  # noqa: E402

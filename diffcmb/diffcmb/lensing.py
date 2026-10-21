@@ -1571,7 +1571,7 @@ def estimate_phi_block_hessian(
     Block-2 messenger sampler (messenger.py::build_block_cholesky,
     samplers.py::_calibrate_block_AtA): there, same-m coupling in the SHT
     operator's A^T A was found to dominate (>99% of off-diagonal energy,
-    scripts/analyze_AtA_structure.py) over cross-m coupling, with magnitude
+    scripts/archive/analyze_AtA_structure.py) over cross-m coupling, with magnitude
     roughly flat across the whole L range rather than decaying -- i.e. a
     long-range-in-L, same-m structure, not a local band. The cross-L
     coupling diagnose_phi_hessian_coupling.py found (between bins spanning

@@ -111,7 +111,7 @@ def sample_s_given_t_block(At_t, tau2, rng, block_chol):
     ROADMAP.md Phase 0c Step 5 found the off-diagonal A^T A a real HEALPix
     SHT carries is >99% concentrated between same-m pairs (same-parity L,
     magnitude roughly flat across the whole L range rather than decaying —
-    scripts/analyze_AtA_structure.py), and negligible (<0.3% of total
+    scripts/archive/analyze_AtA_structure.py), and negligible (<0.3% of total
     off-diagonal energy) between different m. Treating A^T A as exactly
     block-diagonal by m (dropping only that <0.3% residual) turns
     sample_s_given_t_dense's O(n_alm^3) whole-matrix Cholesky into a sum of

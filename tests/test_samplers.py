@@ -394,7 +394,7 @@ def small_masked_matrixfree_model():
     """Small masked-sky model on the matrix-free ducc0 SHT path, for
     alm_sampler='messenger' (ROADMAP.md Phase 0c). Masking is applied by
     zeroing Ninv/prior_map outside a polar-cap unmasked_idx -- overriding
-    unmasked_idx alone is not enough (see scripts/debug_messenger_masksky.py).
+    unmasked_idx alone is not enough (see scripts/archive/debug_messenger_masksky.py).
 
     Uses NSIDE=8 rather than the module-level NSIDE=4: the messenger sampler
     relies on the full-sky SHT being adequately resolved (roughly NSIDE >

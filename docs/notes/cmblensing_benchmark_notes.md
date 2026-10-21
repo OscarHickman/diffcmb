@@ -73,7 +73,7 @@ apodization.
 
 ## 2. Patch-area match is already almost exact — a genuinely useful finding
 
-diffcmb's patch-scale gate (job 11626450, `scripts/gate_patch_mixing_check.py`) used a polar-cap
+diffcmb's patch-scale gate (job 11626450, `scripts/archive/gate_patch_mixing_check.py`) used a polar-cap
 HEALPix mask at **f_sky=0.016**. Converting to solid angle: 0.016 × 41253 deg² (full sky) ≈ **660
 deg²** — essentially identical to CMBLensing.jl's BIG configuration (650 deg²), and CMBLensing.jl
 itself frames BIG as near the practical ceiling for flat-sky codes. This wasn't by design (the gate

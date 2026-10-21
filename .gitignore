@@ -83,6 +83,7 @@ docs/paper/*.pdf
 logs/
 *.log
 archive/
+!scripts/archive/
 *.png
 *.npz
 *.npy
@@ -97,3 +98,6 @@ archive/
 CLAUDE.local.md
 .antigravitycli/
 
+
+# Talk / presentation figure scripts and outputs (kept local, not published)
+/talks/

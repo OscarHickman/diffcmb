@@ -11,7 +11,7 @@ Deliberately computes no verdict: all rank statistics and all uniformity
 testing live in the aggregation step, so the per-bin statistic can be changed
 without re-running 10-20 chains.
 
-Prerequisite: scripts/pilot_coverage_equilibration.py must have returned GO at
+Prerequisite: scripts/archive/pilot_coverage_equilibration.py must have returned GO at
 this (lmax, phi_n_lfs, n_samples) configuration. A rank test on chains that
 have not equilibrated produces confidently wrong uniformity plots -- see that
 script's header and achievements.md.

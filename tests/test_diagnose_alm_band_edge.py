@@ -1,4 +1,4 @@
-"""scripts/diagnose_alm_band_edge.py (ROADMAP T0.1, 2026-09-27).
+"""scripts/diagnostics/diagnose_alm_band_edge.py (ROADMAP T0.1, 2026-09-27).
 
 The diagnostic decides whether the top a_lm bin's power-rank offset is a
 sampler defect, so it must read an exact sampler as calibrated and flag a
@@ -18,7 +18,7 @@ pytest.importorskip("scipy")
 pytest.importorskip("matplotlib")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for sub in ("scripts", os.path.join("scripts", "paper")):
+for sub in ("scripts", os.path.join("scripts", "paper"), os.path.join("scripts", "diagnostics")):
     path = os.path.join(REPO, sub)
     if path not in sys.path:
         sys.path.insert(0, path)

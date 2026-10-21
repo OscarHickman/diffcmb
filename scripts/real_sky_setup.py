@@ -47,7 +47,7 @@ def bandlimited_map(sky, nside_out, lmax, transfer, fwhm_in_arcmin=5.0, iters=3)
     Power at l >= lmax is
     dropped in harmonic space: pixel-averaging instead (hp.ud_grade) leaves the
     real sky's l >= 64 power in an nside-64 map at ~2x the production noise
-    (scripts/real_data_bandlimit_budget.py), which the band-limited model can
+    (scripts/diagnostics/real_data_bandlimit_budget.py), which the band-limited model can
     only misread.
     """
     transfer = np.asarray(transfer, dtype=np.float64)

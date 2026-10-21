@@ -37,7 +37,7 @@ offset in one only indicts the estimator's convention; a tilt in L indicts the
 coupling f inside A_L; a matched offset in both indicts the filter spectra.
 
 Usage:
-  sbatch scripts/submit_validate_qe_noise.slurm
+  sbatch scripts/slurm/submit_validate_qe_noise.slurm
 """
 
 import argparse

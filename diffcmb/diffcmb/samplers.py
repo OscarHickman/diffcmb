@@ -407,7 +407,7 @@ def _build_full_sky_norm_diag(lmax, n_real, n_imag, base_norm_const):
     approximate) HEALPix grid — and the error is systematically biased
     for the m=0 (zonal) modes specifically, not just noisy — which produces
     a detectable, non-random bias in the messenger sampler's posterior mean
-    for exactly those modes (found via scripts/debug_messenger_masksky.py's
+    for exactly those modes (found via scripts/archive/debug_messenger_masksky.py's
     per-mode diagnostic, z-scores 40-80 sigma for m=0 vs <8 sigma elsewhere).
     _calibrate_full_sky_norm_diag replaces this with the empirically probed
     diagonal, which _sample_alm_messenger actually uses; this analytic
@@ -431,7 +431,7 @@ def _calibrate_full_sky_norm_diag(sht_full, lmax, n_real, n_imag, progress_every
     full-sky synthesis operator (see _build_full_sky_norm_diag's docstring
     for why the analytic NPIX/(4pi)*w_lm approximation is not accurate
     enough, particularly for m=0). Off-diagonal A^T A terms are small
-    (~1% of the diagonal, verified in scripts/debug_messenger_masksky.py) so
+    (~1% of the diagonal, verified in scripts/archive/debug_messenger_masksky.py) so
     a diagonal calibration removes the dominant error.
 
     O(n_alm) full-sky synthesis calls — a one-time cost, cache the result
@@ -472,7 +472,7 @@ def _alm_index_lm(lmax, n_real, n_imag):
 def _calibrate_block_AtA(sht_full, lmax, n_real, n_imag, progress_every=None, m_group_size=1):
     """Empirical block-diagonal-by-m A^T A, exact within each block (see
     messenger.sample_s_given_t_block's docstring for why same-m dominates
-    >99% of the total off-diagonal energy — scripts/analyze_AtA_structure.py
+    >99% of the total off-diagonal energy — scripts/archive/analyze_AtA_structure.py
     — making this a much closer approximation than the pure diagonal
     calibration while staying far cheaper than the full dense A^T A).
 
@@ -480,7 +480,7 @@ def _calibrate_block_AtA(sht_full, lmax, n_real, n_imag, progress_every=None, m_
     (default 1 = one block per m, exact for the dominant same-m coupling
     only). The residual cross-m coupling this discards is small in
     aggregate (~0.3% of total off-diagonal energy) but decays with |dm|
-    rather than vanishing exactly (scripts/analyze_AtA_structure.py), so
+    rather than vanishing exactly (scripts/archive/analyze_AtA_structure.py), so
     widening the block to a small window of neighbouring m's captures
     more of it at a modest extra cost — a size/accuracy knob, not a
     correctness one (m_group_size=1 already reproduces the exact same-m
@@ -551,7 +551,7 @@ def sample_alm_messenger(
     off-diagonal coupling, which is enough to make the messenger Gibbs
     sampler's effective single-step transition operator have spectral
     radius > 1 on a masked sky — not just biased, but genuinely divergent
-    (found via scripts/debug_messenger_masksky.py: |alm| grew geometrically,
+    (found via scripts/archive/debug_messenger_masksky.py: |alm| grew geometrically,
     doubling roughly every ~20 outer Gibbs steps, once real Ninv=0 masking
     was applied). Inflating the diagonal is a standard majorisation trick
     (Gershgorin-style): it over-states the precision slightly, guaranteeing
@@ -559,7 +559,7 @@ def sample_alm_messenger(
     real stability-vs-bias trade-off here: at lmax=10/NSIDE=8, margins below
     ~1.002 still diverge (slowly), while a generous margin (1.1) stabilises
     but introduces a large bias (mean error grew to >100 posterior SEs in
-    scripts/debug_messenger_masksky.py). 1.02 was chosen empirically as a
+    scripts/archive/debug_messenger_masksky.py). 1.02 was chosen empirically as a
     compromise (stable with headroom, smaller bias than 1.1) but this
     trade-off is not yet resolved and is not validated at production lmax —
     see ROADMAP.md Phase 0c Step 5 / "known limitation" note. The clean fix
@@ -576,7 +576,7 @@ def sample_alm_messenger(
     use_block_correction: use the block-diagonal-by-m A^T A correction
     (_calibrate_block_AtA / messenger.sample_s_given_t_block) instead of the
     plain diagonal approximation — captures >99% of the off-diagonal energy
-    a real HEALPix SHT carries (scripts/analyze_AtA_structure.py) at
+    a real HEALPix SHT carries (scripts/archive/analyze_AtA_structure.py) at
     O(n_alm * max_block_size) rather than AtA's O(n_alm^3); the scalable
     candidate fix for ROADMAP.md Phase 0c Step 5. Recalibrated (Cholesky
     factors rebuilt) every call since it depends on the current C_l draw.
@@ -1089,7 +1089,7 @@ def run_gibbs_chain(
     `phi_initial`, and Block 4 off): Blocks 1 + 2 against the LENSED
     likelihood with phi held at `phi_initial` for the whole chain -- Step 3 is
     skipped. With phi_initial = phi_true this is the production sampler's own
-    version of the dense exact reference (scripts/exact_dense_alm_reference.py,
+    version of the dense exact reference (scripts/diagnostics/exact_dense_alm_reference.py,
     phi fixed at truth): ROADMAP T0.1 a uses it to separate phi
     marginalisation from the a_lm/C_l blocks. Returns the usual 5-tuple; every
     phi_samples row equals phi_initial.
