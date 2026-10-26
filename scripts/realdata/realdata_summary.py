@@ -27,7 +27,7 @@ own target), and the report adds the between-draw sd of the median per bin in
 units of the per-draw posterior sd.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/realdata_summary.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/realdata/realdata_summary.py \
       --chains results/analysis/realdata_l64_A3000_n30 \
       --planck_tt /cosma8/data/dp004/dc-hick2/Plank/spectra/COM_PowerSpect_CMB-TT-full_R3.01.txt \
       --out results/analysis/realdata_l64_A3000_n30/summary
@@ -43,8 +43,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from fig_convergence import _rank_normalise, bulk_ess  # noqa: E402
 from strict_sbc_ranks import columns  # noqa: E402
 

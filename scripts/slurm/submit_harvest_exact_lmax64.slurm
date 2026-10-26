@@ -31,10 +31,10 @@ export CUDA_VISIBLE_DEVICES=0
 export TF_FORCE_GPU_ALLOW_GROWTH=true
 for D in ens_exact_l64_A3000_n30 ens_exact_l64_A3000_n30_nocl4; do
   echo "================ $D: validate_coverage_rank_nulls (thin 10) ================"
-  .venv/bin/python -u scripts/validate_coverage_rank_nulls.py \
+  .venv/bin/python -u scripts/calibration/validate_coverage_rank_nulls.py \
       --indir results/analysis/$D --thin 10
   echo "================ $D: sbc_joint_likelihood (thin 10) ================"
-  .venv/bin/python -u scripts/sbc_joint_likelihood.py \
+  .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py \
       --indir results/analysis/$D --thin 10 \
       --out results/analysis/$D/sbc_joint_likelihood_thin10.npz
 done

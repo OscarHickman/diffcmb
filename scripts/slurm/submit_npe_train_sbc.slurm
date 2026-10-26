@@ -26,9 +26,9 @@ export OMP_NUM_THREADS=16 OPENBLAS_NUM_THREADS=16 MKL_NUM_THREADS=16 RAYON_NUM_T
 export DUCC0_NUM_THREADS=16 TF_NUM_INTRAOP_THREADS=16 TF_NUM_INTEROP_THREADS=1
 export TF_ENABLE_ONEDNN_OPTS=0
 echo "================ train ================"
-.venv/bin/python -u scripts/npe_train.py --sims_dir $SIMS --out $FLOW || exit 1
+.venv/bin/python -u scripts/npe/npe_train.py --sims_dir $SIMS --out $FLOW || exit 1
 echo "================ SBC on held-out sims ================"
-.venv/bin/python -u scripts/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
+.venv/bin/python -u scripts/npe/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
     --n_sims 2000 --n_draws 199 --out $FLOW/sbc_heldout.npz
 rc=$?
 echo "exit status $rc"

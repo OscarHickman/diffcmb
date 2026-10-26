@@ -12,7 +12,7 @@ seed streams -- so a learned posterior trained here targets the same joint
 posterior as the strict exact ensemble (tests/test_npe_simulate.py pins it).
 
 The QE filter is the one validated at the production configuration
-(scripts/validate_qe_noise.py output: cl_tt_lensed and nl_qe); the CLI refuses a
+(scripts/calibration/validate_qe_noise.py output: cl_tt_lensed and nl_qe); the CLI refuses a
 QE file whose configuration differs from the simulation's.
 
 Keep training realizations disjoint from the exact ensemble's skies (0-47):
@@ -22,12 +22,16 @@ each seed-stream block.
 
 import argparse
 import os
+import sys
 import time
 from dataclasses import dataclass
 
 import healpy as hp
 import numpy as np
 import tensorflow as tf
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from coverage_ensemble_chain import (
     _STREAM_CLPP_PRIOR,
     _STREAM_CLTT_PRIOR,

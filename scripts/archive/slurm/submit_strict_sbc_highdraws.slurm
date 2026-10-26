@@ -34,7 +34,7 @@ for D in coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
     echo "################################################################"
     echo "### $D  --thin $THIN"
     echo "################################################################"
-    .venv/bin/python -u scripts/validate_coverage_rank_nulls.py \
+    .venv/bin/python -u scripts/calibration/validate_coverage_rank_nulls.py \
         --indir results/analysis/$D --thin $THIN --control_lags 1,10,50
   done
 done

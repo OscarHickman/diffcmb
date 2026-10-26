@@ -1,6 +1,6 @@
 """Null calibration for the coverage-ensemble rank statistics (2026-08-31).
 
-WHY THIS EXISTS. `scripts/aggregate_coverage_ranks.py` FLAGs a bin when its
+WHY THIS EXISTS. `scripts/calibration/aggregate_coverage_ranks.py` FLAGs a bin when its
 rank distribution is non-uniform. For the *spectrum* rows (C_l^TT, C_L^phiphi)
 that flag fires even for a perfect sampler, because the statistic ranks the
 truth against its own conditional's MODE:
@@ -38,7 +38,7 @@ It runs three checks:
      be vacuous.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/validate_coverage_rank_nulls.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/validate_coverage_rank_nulls.py \
       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_mapfix --thin 90
 """
 import argparse

@@ -68,7 +68,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 # checkpoint write for that reason). The chains are CPU-bound anyway: on dine2
 # TF logged CUDA_ERROR_NO_DEVICE and never used the GPU.
 echo "MODE=$MODE lmax=$LMAX nside=$NSIDE nu=$NU clnu=${CLNU:-none} tag=${TAG} realization=${SLURM_ARRAY_TASK_ID} A_phi=$AMP noise=$NOISE burnin=$BURNIN samples=$SAMPLES -> $OUT"
-.venv/bin/python -u scripts/coverage_ensemble_chain.py \
+.venv/bin/python -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax $LMAX --nside $NSIDE \
     --n_burnin $BURNIN --n_samples $SAMPLES --n_lfs 10 --phi_n_lfs 240 \
     --phi_mass_matrix prior --noisesig $NOISE --phi_amplitude $AMP \

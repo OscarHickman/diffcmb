@@ -52,6 +52,7 @@ Usage:
       --lmax 64 --nside 64
 """
 import argparse
+import os
 import sys
 
 import numpy as np
@@ -67,7 +68,8 @@ from diffcmb.lensing import (
 )
 from diffcmb.power import call_CAMB_map
 
-sys.path.insert(0, "scripts")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from coverage_ensemble_chain import (  # noqa: E402
     _STREAM_NOISE,
     _STREAM_START,

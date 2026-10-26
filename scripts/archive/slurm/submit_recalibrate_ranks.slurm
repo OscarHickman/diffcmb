@@ -26,7 +26,7 @@ for D in coverage_ensemble_lmax64_prior_nocl4_packingv2 \
   echo "################################################################"
   echo "### $D"
   echo "################################################################"
-  .venv/bin/python -u scripts/aggregate_coverage_ranks.py \
+  .venv/bin/python -u scripts/calibration/aggregate_coverage_ranks.py \
       --indir results/analysis/$D --thin 90
 done
 echo "Exited with status $?"

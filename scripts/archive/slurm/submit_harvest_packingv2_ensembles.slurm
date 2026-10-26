@@ -46,14 +46,14 @@ NOCL4=results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2
 CL4=results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2
 
 echo "############ A) nocl4 packing-v2, N=24 (job 11965828 extension) ############"
-$PYTHON -u scripts/aggregate_coverage_ranks.py --indir $NOCL4 --thin 90
+$PYTHON -u scripts/calibration/aggregate_coverage_ranks.py --indir $NOCL4 --thin 90
 echo "############ A2) nulls for nocl4 ############"
-$PYTHON -u scripts/validate_coverage_rank_nulls.py --indir $NOCL4 --thin 90 --control_lags 1,10,50
+$PYTHON -u scripts/calibration/validate_coverage_rank_nulls.py --indir $NOCL4 --thin 90 --control_lags 1,10,50
 
 echo "############ B) Block-4-ON proper prior, restored packing (job 11965813) ############"
-$PYTHON -u scripts/aggregate_coverage_ranks.py --indir $CL4 --thin 90
+$PYTHON -u scripts/calibration/aggregate_coverage_ranks.py --indir $CL4 --thin 90
 echo "############ B2) nulls + STRICT C_L^phiphi SBC for cl4 ############"
-$PYTHON -u scripts/validate_coverage_rank_nulls.py --indir $CL4 --thin 90 --control_lags 1,10,50
+$PYTHON -u scripts/calibration/validate_coverage_rank_nulls.py --indir $CL4 --thin 90 --control_lags 1,10,50
 
 rc=$?
 echo "Exited with status $rc"

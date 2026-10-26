@@ -23,7 +23,7 @@ Simulation-based calibration at $\ell_{\max}=64$, 12 independent chains, with $C
 
 These numbers were measured **2026-09-08 under the restored $k_L=2L+1$ packing** (job 11955622), confirming — and slightly improving on — the earlier pre-restoration pair ($\bar u_\phi=0.4688$, $\bar u_{a_{\ell m}}=0.5312$, $k_L=2L$ model). Live status: `results/analysis/dashboard.md`.
 
-Note that the rank statistic used for the *spectrum* rows is non-uniform even for an exact sampler — it ranks the truth against its own conditional's mode — so those rows must be read against the null from `scripts/validate_coverage_rank_nulls.py`, not against 0.5.
+Note that the rank statistic used for the *spectrum* rows is non-uniform even for an exact sampler — it ranks the truth against its own conditional's mode — so those rows must be read against the null from `scripts/calibration/validate_coverage_rank_nulls.py`, not against 0.5.
 
 **Resolved 2026-09-06, re-validated 2026-09-08:** the packed parameterisation used to force $\mathrm{Im}(a_{\ell,1}) = 0$, so one real degree of freedom per multipole was missing and the model could not represent a completely general sky (~20% of the modes at $\ell=2$, falling to 0.8% at $\ell=63$). That degree of freedom is now restored, $k_L = 2L+1$, and the headline calibration result above was re-earned under the new packing; see `achievements.md` and `docs/notes/restore_missing_alm_dof_scoping.md`.
 

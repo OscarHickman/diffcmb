@@ -36,7 +36,7 @@ for r in $(seq 0 47); do
 done
 echo "skies with a chain: $(echo $REALS | wc -w)/48:$REALS"
 [ -n "$REALS" ] || exit 1
-.venv/bin/python -u scripts/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
+.venv/bin/python -u scripts/npe/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
     --realizations $REALS --n_learned 4000 --out ${OUT:-$FLOW/vs_exact_strict.npz}
 rc=$?
 echo "exit status $rc"

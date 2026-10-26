@@ -35,7 +35,7 @@ exactly as figure 2 excludes its unequilibrated bins.
 
 THE QE CURVE IS VALIDATED, NOT ASSUMED. plots/STORY.md's standing instruction
 is that this curve may not be fabricated. diffcmb/qe.py derives it from first
-principles (derivation in its docstring) and scripts/validate_qe_noise.py
+principles (derivation in its docstring) and scripts/calibration/validate_qe_noise.py
 validates it by Monte Carlo against the estimator's own definition: the
 measured variance of the normalised estimator on unlensed skies matches N_L to
 better than 1% in every L bin (job 12015546). That script's docstring records
@@ -56,7 +56,7 @@ Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/fig3_uncertainty_propagation.py \
       --indir results/analysis/ens_exact_l64_A3000_n30 \
       --validation results/analysis/qe_noise_validation.npz \
-      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3
+      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure5
 """
 
 import argparse
@@ -295,7 +295,8 @@ def main():
                     default="results/analysis/qe_noise_validation_exact_A3000_n30.npz")
     ap.add_argument(
         "--outdir",
-        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3")
+        # paper renumbered 2026-10-26 (was figure3)
+        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure5")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)

@@ -37,7 +37,7 @@ DIR=results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2
 
 for THIN in 10 30; do
   echo "################ thin=${THIN} ################"
-  .venv/bin/python -u scripts/sbc_joint_likelihood.py \
+  .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py \
       --indir $DIR --noisesig 1.0 --thin $THIN \
       --out $DIR/sbc_joint_likelihood_thin${THIN}.npz
 done

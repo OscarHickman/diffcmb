@@ -1,4 +1,4 @@
-"""scripts/null_alm_power_rank_flat_prior.py (ROADMAP T0.1c).
+"""scripts/calibration/null_alm_power_rank_flat_prior.py (ROADMAP T0.1c).
 
 The null must be exact, since it decides whether the a_lm `[30,60)` offset is
 the statistic or the sampler. Tests: the flat-prior C_l marginal against grid

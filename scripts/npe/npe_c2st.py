@@ -24,7 +24,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from fig_convergence import bulk_ess  # noqa: E402
 from npe_sbc import bin_slices  # noqa: E402
 from npe_vs_exact import iter_skies  # noqa: E402

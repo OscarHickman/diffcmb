@@ -52,7 +52,7 @@ Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/fig1_validation.py \
       --indir results/analysis/ens_exact_l64_A3000_n30 \
       --thin 10 \
-      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure1
+      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3
 """
 
 import argparse
@@ -62,9 +62,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import paper_style as ps  # noqa: E402
 
 ps.apply()  # installs Agg + paper rcParams before pyplot is touched
@@ -82,7 +81,7 @@ from diffcmb.samplers import _alm_index_lm  # noqa: E402
 
 ELL_BINS = [(2, 10), (10, 30), (30, 60), (60, 64)]
 N_HIST_BINS = 10
-# Written into the ensemble directory by scripts/null_alm_power_rank_flat_prior.py.
+# Written into the ensemble directory by scripts/calibration/null_alm_power_rank_flat_prior.py.
 ALM_NULL_FILE = "null_alm_power_rank_flat_prior.npz"
 
 
@@ -475,7 +474,8 @@ def main():
               "that file is absent."))
     ap.add_argument(
         "--outdir",
-        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure1")
+        # paper renumbered 2026-10-26 (was figure1)
+        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure3")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)

@@ -46,7 +46,7 @@ def _run_chain(outdir, *extra, realization=1, allow_phi_guard=False):
     """Run one smoke chain. allow_phi_guard accepts the driver's post-save phi-power guard
     (a 9-sweep chain from a 20x-power phi start can trip it; the chain is still saved)."""
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"), OMP_NUM_THREADS="2")
-    cmd = [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+    cmd = [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
            "--realization", str(realization), "--lmax", str(LMAX), "--nside", str(NSIDE),
            "--n_burnin", "3", "--n_samples", "6", "--map_steps", "5",
            "--n_lfs", "3", "--phi_n_lfs", "5", "--cl_phiphi_prior_nu", "6",
@@ -183,7 +183,7 @@ def test_start_truth_starts_alm_and_phi_at_the_truth_on_the_production_sky(tmp_p
 def test_start_truth_refuses_conflicting_flags(tmp_path, other):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(
-        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+        [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
          "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
          "--outdir", str(tmp_path), "--start_truth", *other],
         env=env, capture_output=True, text=True, timeout=300)
@@ -194,7 +194,7 @@ def test_start_truth_refuses_conflicting_flags(tmp_path, other):
 def test_chain_script_rejects_a_nonpositive_amplitude(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(
-        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+        [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
          "--realization", "0", "--phi_amplitude", "0", "--outdir", str(tmp_path)],
         env=env, capture_output=True, text=True, timeout=300)
     assert res.returncode != 0 and "phi_amplitude" in (res.stdout + res.stderr)
@@ -519,7 +519,7 @@ def test_validate_qe_noise_runs_and_records_configuration(tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"), OMP_NUM_THREADS="2")
     out = tmp_path / "qe.npz"
     res = subprocess.run(
-        [sys.executable, os.path.join(SCRIPTS, "validate_qe_noise.py"), "--lmax", "16",
+        [sys.executable, os.path.join(SCRIPTS, "calibration", "validate_qe_noise.py"), "--lmax", "16",
          "--nside", "16", "--noisesig", "30", "--n_sims", "4", "--phi_amplitude", "300",
          "--out", str(out)], env=env, capture_output=True, text=True, timeout=900)
     assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
@@ -614,7 +614,7 @@ def test_data_map_replaces_the_simulated_sky_and_hides_the_truth(tmp_path):
     assert not np.array_equal(d2["phi_initial"], d["phi_initial"])
 
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
-    base = [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+    base = [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
             "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
             "--n_burnin", "1", "--n_samples", "1", "--map_steps", "1",
             "--outdir", str(tmp_path / "x"), "--data_map", str(dfile)]
@@ -633,7 +633,7 @@ def test_prepare_real_data_writes_a_map_the_chain_accepts(tmp_path):
     hp.write_map(str(tmp_path / "COM_CMB_IQU-smica_2048_R3.00_full.fits"), sky, overwrite=True)
     out = tmp_path / "d.fits"
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
-    res = subprocess.run([sys.executable, os.path.join(SCRIPTS, "prepare_real_data.py"),
+    res = subprocess.run([sys.executable, os.path.join(SCRIPTS, "pipeline", "prepare_real_data.py"),
                           "--planck_dir", str(tmp_path), "--nside", str(NSIDE), "--lmax", str(LMAX),
                           "--beam_fwhm_arcmin", "300", "--out", str(out)],
                          env=env, capture_output=True, text=True, timeout=300)
@@ -674,7 +674,7 @@ def test_phi_rescale_move_is_opt_in_recorded_and_reported(tmp_path, smoke_ensemb
 def test_phi_rescale_move_refuses_runs_without_a_sampled_phi_and_spectrum(tmp_path, other):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     res = subprocess.run(
-        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+        [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
          "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
          "--outdir", str(tmp_path), "--phi_rescale_move", *other],
         env=env, capture_output=True, text=True, timeout=300)
@@ -687,7 +687,7 @@ def test_hot_phi_start_refuses_conflicting_flags(tmp_path, other):
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
     extra = ("--phi_start_scale", "4.5", *other) if other[0] != "--phi_start_scale" else other
     res = subprocess.run(
-        [sys.executable, os.path.join(SCRIPTS, "coverage_ensemble_chain.py"),
+        [sys.executable, os.path.join(SCRIPTS, "pipeline", "coverage_ensemble_chain.py"),
          "--realization", "1", "--lmax", str(LMAX), "--nside", str(NSIDE),
          "--outdir", str(tmp_path), *extra],
         env=env, capture_output=True, text=True, timeout=300)

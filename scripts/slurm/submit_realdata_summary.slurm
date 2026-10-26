@@ -20,6 +20,6 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THRE
 rc=0
 for d in $DIRS; do
   echo "================ $d"
-  .venv/bin/python -u scripts/realdata_summary.py --chains $d --out $d/summary || rc=1
+  .venv/bin/python -u scripts/realdata/realdata_summary.py --chains $d --out $d/summary || rc=1
 done
 exit $rc

@@ -86,7 +86,7 @@
 # HARVEST. Check .err for tracebacks (SLURM COMPLETED is not enough -- see
 # achievements.md's return-tuple-arity entry), confirm per-realization phi
 # power ratio is O(1), then:
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_nocl4_doffix --thin 90
 # Re-derive --thin from this run's own tau_int rather than assuming 90
 # carries over from the Block-4-ON run. The cl_phiphi row will be absent by
@@ -125,7 +125,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 OFF -- proper phi prior, valid SBC)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

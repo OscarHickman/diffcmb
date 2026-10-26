@@ -11,7 +11,7 @@ noise realisation its likelihood assumes (SMICA's own noise is <= 0.26 muK
 rms in this band, against sigma = 30).
 
 Usage:
-  PYTHONPATH=diffcmb OMP_NUM_THREADS=4 .venv/bin/python scripts/prepare_real_data.py \
+  PYTHONPATH=diffcmb OMP_NUM_THREADS=4 .venv/bin/python scripts/pipeline/prepare_real_data.py \
       --out results/analysis/realdata_prep/smica_l64_ns64_b5.fits
 """
 
@@ -22,7 +22,8 @@ import sys
 import healpy as hp
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from real_sky_setup import bandlimited_map  # noqa: E402
 
 from diffcmb.power import beam_pixwin_transfer  # noqa: E402

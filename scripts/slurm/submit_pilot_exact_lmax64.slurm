@@ -31,7 +31,7 @@ export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=$PYTHONPATH:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8
 export TF_ENABLE_ONEDNN_OPTS=0
-.venv/bin/python -u scripts/coverage_ensemble_chain.py \
+.venv/bin/python -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization 0 --lmax 64 --nside 64 \
     --n_burnin 100 --n_samples ${NSAMP} --n_lfs 10 --phi_n_lfs 240 --noisesig ${NOISE} \
     --phi_mass_matrix prior --cl_phiphi_prior_nu 6.0 \

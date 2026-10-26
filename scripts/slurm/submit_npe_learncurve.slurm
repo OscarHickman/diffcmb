@@ -29,9 +29,9 @@ case ${SLURM_ARRAY_TASK_ID} in
   *) echo "no variant"; exit 1 ;;
 esac
 FLOW=$SIMS/flow_maf5x256
-.venv/bin/python -u scripts/npe_train.py --sims_dir $SIMS --out $FLOW || exit 1
-.venv/bin/python -u scripts/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
+.venv/bin/python -u scripts/npe/npe_train.py --sims_dir $SIMS --out $FLOW || exit 1
+.venv/bin/python -u scripts/npe/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
     --n_sims 2000 --n_draws 199 --out $FLOW/sbc_heldout.npz || exit 1
-.venv/bin/python -u scripts/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
+.venv/bin/python -u scripts/npe/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
     --realizations $(seq 0 47) --n_learned 4000 --out $FLOW/vs_exact_strict.npz
 echo "exit status $?"

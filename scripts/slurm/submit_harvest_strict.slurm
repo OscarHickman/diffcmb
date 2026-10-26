@@ -53,15 +53,15 @@ grep -l Traceback logs/ens_exact_l64_12100331_*.err 2>/dev/null && echo "WARNING
 rc=0
 run() { "$@" || { echo "FAILED ($?): $*"; rc=1; }; }
 echo "================ 2. strict spectrum SBC + collapse table ================"
-run .venv/bin/python -u scripts/strict_sbc_ranks.py --indir $STRICT --thin 20 \
+run .venv/bin/python -u scripts/calibration/strict_sbc_ranks.py --indir $STRICT --thin 20 \
     --out $STRICT/strict_sbc_ranks_thin20.npz
 echo "---------------- second half ----------------"
-run .venv/bin/python -u scripts/strict_sbc_ranks.py --indir $STRICT --thin 10 --burn_frac 0.5 \
+run .venv/bin/python -u scripts/calibration/strict_sbc_ranks.py --indir $STRICT --thin 10 --burn_frac 0.5 \
     --out $STRICT/strict_sbc_ranks_thin10_half2.npz
 echo "================ 3. field ranks and joint-likelihood SBC ================"
-run .venv/bin/python -u scripts/aggregate_coverage_ranks.py --indir $STRICT --thin 10 \
+run .venv/bin/python -u scripts/calibration/aggregate_coverage_ranks.py --indir $STRICT --thin 10 \
     --out $STRICT/coverage_ranks_thin10.npz
-run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $STRICT --thin 40 \
+run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $STRICT --thin 40 \
     --out $STRICT/sbc_joint_likelihood_thin40.npz
 echo "Exited with status $rc"
 exit $rc

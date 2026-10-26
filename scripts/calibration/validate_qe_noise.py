@@ -47,8 +47,8 @@ import sys
 import healpy as hp
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "diffcmb"))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 
 from diffcmb import qe  # noqa: E402
 from diffcmb.power import call_CAMB_map, fiducial_spectra  # noqa: E402

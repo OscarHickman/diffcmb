@@ -52,7 +52,7 @@
 # not enough -- achievements.md's return-tuple-arity entry), confirm each
 # realization's phi_power_ratio_to_truth is O(1) and phi_calibration_ok is
 # True, then:
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2 \
 #       --thin 90
 # Re-derive --thin from this run's own tau_int rather than assuming 90
@@ -92,7 +92,7 @@ echo "Coverage ensemble (packing v2, 2L+1 dof) realization ${SLURM_ARRAY_TASK_ID
 echo "git HEAD: $(git rev-parse --short HEAD)  branch: $(git rev-parse --abbrev-ref HEAD)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

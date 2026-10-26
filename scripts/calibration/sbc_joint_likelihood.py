@@ -34,7 +34,7 @@ Everything downstream of the truth (the lensed map, the noise draw) is a
 deterministic function of those plus the noise seed.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/sbc_joint_likelihood.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/sbc_joint_likelihood.py \
       --indir results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2 \
       --noisesig 1.0 --thin 10
 """
@@ -47,9 +47,8 @@ import sys
 import numpy as np
 from scipy import stats
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "diffcmb"))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import tensorflow as tf  # noqa: E402
 from coverage_ensemble_chain import (  # noqa: E402
     _STREAM_NOISE,

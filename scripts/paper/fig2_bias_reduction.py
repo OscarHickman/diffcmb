@@ -32,7 +32,7 @@ buries the signal; compare_cl_bias_reduction.py records the history.)
 AWARE REFERENCE BAND. Zero is not what an exact sampler gives: under the flat
 C_l prior noise inflates E[S|d], so an exact sampler's aware residual is
 positive (ROADMAP T0.2; the figure 1 a_lm offset seen from the other side).
-scripts/expected_aware_bias_flat_prior.py computes it per bin for nominal and
+scripts/calibration/expected_aware_bias_flat_prior.py computes it per bin for nominal and
 chain-calibrated effective noise, which bracket the truth, and this script
 shades that bracket when the saved result covers exactly the figure's skies.
 
@@ -57,9 +57,8 @@ import sys
 import healpy as hp
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import paper_style as ps  # noqa: E402
 
 ps.apply()
@@ -70,7 +69,8 @@ from diffcmb.alm_utils import packed_dof_per_multipole, packed_length  # noqa: E
 from diffcmb.lensing import _alm_packed_to_hp, exact_lens_np  # noqa: E402
 
 BINS = [(2, 10), (10, 20), (20, 30), (30, 45), (45, 64)]
-DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure2"
+# paper renumbered 2026-10-26 (was figure2)
+DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure4"
 
 
 EXPECTED_AWARE_FILE = "expected_aware_bias_flat_prior.npz"
@@ -90,7 +90,7 @@ def expected_aware_band(indir, chain_names):
     d = np.load(path)
     if sorted(map(str, d["files"])) != sorted(chain_names):
         print(f"  {path} was made from {len(d['files'])} skies, the figure has "
-              f"{len(chain_names)}: re-run scripts/expected_aware_bias_flat_prior.py; "
+              f"{len(chain_names)}: re-run scripts/calibration/expected_aware_bias_flat_prior.py; "
               "band not drawn")
         return None
     if [tuple(b) for b in d["bins"]] != BINS:

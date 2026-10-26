@@ -52,7 +52,7 @@
 #
 # After all tasks finish, aggregate with --thin set from the two clean bins'
 # tau_int (70-78, rounded up):
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4 --thin 90
 LMAX=64
 NSIDE=64
@@ -83,7 +83,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 ON)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

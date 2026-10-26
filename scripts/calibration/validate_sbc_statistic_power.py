@@ -34,7 +34,7 @@ Two distinct defects are therefore simulated separately:
 Distinguishing which one our data shows is the whole point.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/validate_sbc_statistic_power.py
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/validate_sbc_statistic_power.py
 """
 
 import argparse

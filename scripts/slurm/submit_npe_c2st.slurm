@@ -11,7 +11,7 @@
 #SBATCH -o logs/npe_c2st_%j.out
 #SBATCH -e logs/npe_c2st_%j.err
 # ROADMAP T1.1: classifier two-sample test, learned posterior (submit_npe_train_sbc.slurm)
-# vs the strict exact ensemble, sky by sky (scripts/npe_c2st.py). Only skies whose chain
+# vs the strict exact ensemble, sky by sky (scripts/npe/npe_c2st.py). Only skies whose chain
 # file exists are scored. Not dine2: results/analysis is a symlink into /cosma5.
 set -u
 REPO_DIR="/cosma/apps/durham/dc-hick2/diffcmb"
@@ -32,7 +32,7 @@ for r in $(seq 0 47); do
 done
 echo "skies with a chain: $(echo $REALS | wc -w)/48:$REALS"
 [ -n "$REALS" ] || exit 1
-.venv/bin/python -u scripts/npe_c2st.py --flow $FLOW --chains_dir $CHAINS \
+.venv/bin/python -u scripts/npe/npe_c2st.py --flow $FLOW --chains_dir $CHAINS \
     --realizations $REALS --n_learned 4000 --out $FLOW/c2st_strict.npz
 rc=$?
 echo "exit status $rc"

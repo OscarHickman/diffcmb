@@ -1,4 +1,4 @@
-"""scripts/real_sky_setup.py: mask loading and the ecliptic noise surrogate."""
+"""scripts/pipeline/real_sky_setup.py: mask loading and the ecliptic noise surrogate."""
 import os
 import sys
 

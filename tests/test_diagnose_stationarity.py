@@ -1,4 +1,4 @@
-"""scripts/diagnose_calibration_stationarity.py (ROADMAP T0.1 a, b).
+"""scripts/calibration/diagnose_calibration_stationarity.py (ROADMAP T0.1 a, b).
 
 The script's job is to tell burn-in drift from a stationary offset, so each
 test builds a synthetic ensemble with a known answer: exchangeable draws (a

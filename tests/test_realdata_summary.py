@@ -1,4 +1,4 @@
-"""scripts/realdata_summary.py: multi-chain R-hat, the one-data-set refusal and the Planck comparison."""
+"""scripts/realdata/realdata_summary.py: multi-chain R-hat, the one-data-set refusal and the Planck comparison."""
 import os
 import sys
 

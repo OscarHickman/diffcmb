@@ -19,7 +19,7 @@
 # WHY, two independent reasons -- this run does double duty:
 #
 #  1. THE DIFFERENTIATOR FIGURE (ROADMAP.md Next actions #3, the paper's
-#     headline object). scripts/plot_joint_cl_clpp_posterior.py measures the
+#     headline object). scripts/paper/plot_joint_cl_clpp_posterior.py measures the
 #     within-posterior (C_l^TT, C_L^phiphi) correlation and is currently a
 #     NULL at the available sample size: 1 of 16 bin-pair cells exceeds its
 #     permutation null against 0.8 expected by chance, because at ~168 pooled
@@ -61,10 +61,10 @@
 # HARVEST. .err per task for tracebacks first (SLURM COMPLETED is not
 # enough), confirm each realization's phi power ratio is O(1), then re-run
 # BOTH harvest scripts over all 24 (same outdir covers both batches):
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
 #       --thin 90
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/validate_coverage_rank_nulls.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/validate_coverage_rank_nulls.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
 #       --thin 90 --control_lags 1,10,50
 # Compare the strict C_L^phiphi rank and the [10,30) bin at N=24 against the
@@ -73,7 +73,7 @@
 # reports a rejected control (lag-1 alone is vacuous here, phi lag-1
 # decorrelation is +0.915) before quoting the aligned pass. Then rebuild the
 # differentiator figure over all 24 chains:
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/plot_joint_cl_clpp_posterior.py
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/plot_joint_cl_clpp_posterior.py
 # ===================================================================
 
 LMAX=64
@@ -105,7 +105,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 ON + PROPER C_L^phiphi prior nu=6, restored 2L+1 packing)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

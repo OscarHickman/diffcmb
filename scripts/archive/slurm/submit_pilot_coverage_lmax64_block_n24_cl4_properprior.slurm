@@ -95,7 +95,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Single-realization pilot: phi_mass_matrix=block, phi_block_n_probes=${PHI_BLOCK_N_PROBES} (4x job 11874976's rank), Block 4 ON, proper prior nu=6, phi_n_lfs=${PHI_N_LFS} (matches job 11912088)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization 0 \
     --lmax $LMAX \
     --nside $NSIDE \

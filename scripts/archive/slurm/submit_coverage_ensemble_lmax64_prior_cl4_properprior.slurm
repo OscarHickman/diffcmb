@@ -51,7 +51,7 @@
 # run a valid strict SBC statistic -- unlike job 11899585. The chain itself
 # is still handed the FIDUCIAL spectrum (the prior centre), not the truth
 # draw. C_l^TT is untouched and its row remains interval coverage only, so
-# it still needs scripts/validate_coverage_rank_nulls.py before any flag on
+# it still needs scripts/calibration/validate_coverage_rank_nulls.py before any flag on
 # that row is read as bias.
 #
 # Otherwise identical to job 11899585: lmax=64, nside=64,
@@ -64,10 +64,10 @@
 # HARVEST. Check .err for tracebacks (SLURM COMPLETED is not enough), check
 # per-realization phi power ratio is O(1), then aggregate and compare the
 # phi row against 0.5 DIRECTLY (it is a real SBC rank here):
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior --thin 90
 # Re-derive --thin from this run's own tau_int. For the two spectrum rows,
-# get the null from scripts/validate_coverage_rank_nulls.py first.
+# get the null from scripts/calibration/validate_coverage_rank_nulls.py first.
 # ===================================================================
 
 LMAX=64
@@ -99,7 +99,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 ON + PROPER C_L^phiphi prior nu=6, valid SBC)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

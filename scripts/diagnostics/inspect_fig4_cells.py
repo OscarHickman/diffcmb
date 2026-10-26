@@ -13,9 +13,10 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, ".."), os.path.join(HERE, "..", "paper")]
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 import argparse
 
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from plot_joint_cl_clpp_posterior import (
     CL_BINS,
     CLPP_BINS,

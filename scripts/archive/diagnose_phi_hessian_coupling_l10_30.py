@@ -60,7 +60,8 @@ import numpy as np
 import tensorflow as tf
 
 # scripts/ (one level up) holds coverage_ensemble_chain.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from coverage_ensemble_chain import (  # noqa: E402
     _STREAM_CLPP_PRIOR,
     _STREAM_NOISE,

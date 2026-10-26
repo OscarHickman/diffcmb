@@ -38,8 +38,8 @@ import time
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from null_alm_power_rank_flat_prior import packed_layout  # noqa: E402
 
 from diffcmb.alm_utils import invgamma_shape_for_spectrum  # noqa: E402

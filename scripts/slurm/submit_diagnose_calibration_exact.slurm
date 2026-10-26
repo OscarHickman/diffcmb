@@ -31,14 +31,14 @@ export CUDA_VISIBLE_DEVICES=0
 export TF_FORCE_GPU_ALLOW_GROWTH=true
 ON=results/analysis/ens_exact_l64_A3000_n30
 OFF=results/analysis/ens_exact_l64_A3000_n30_nocl4
-.venv/bin/python -u scripts/diagnose_calibration_stationarity.py \
+.venv/bin/python -u scripts/calibration/diagnose_calibration_stationarity.py \
     --indir $ON --indir $OFF --thins 10,40 --n_seg 4
 for D in $ON $OFF; do
   echo "================ $D: sbc_joint_likelihood (thin 40) ================"
-  .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $D --thin 40 \
+  .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $D --thin 40 \
       --out $D/sbc_joint_likelihood_thin40.npz
   echo "================ $D: sbc_joint_likelihood (second half, thin 10) ================"
-  .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $D --thin 10 \
+  .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $D --thin 10 \
       --burn_frac 0.5 --out $D/sbc_joint_likelihood_thin10_half2.npz
 done
 rc=$?

@@ -1,6 +1,6 @@
 """
 ROADMAP.md Section 1, Priority 1: pool the coverage-ensemble chains written by
-`scripts/coverage_ensemble_chain.py` into rank statistics and a uniformity
+`scripts/pipeline/coverage_ensemble_chain.py` into rank statistics and a uniformity
 assessment. This is the analysis half of the headline validation; it runs in
 seconds on a login node and can be re-run with different statistics without
 touching the chains.
@@ -34,7 +34,7 @@ because bins within one realization share a chain and are correlated -- treat it
 as indicative and read the rank histogram as the primary evidence.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
       --indir results/analysis/coverage_ensemble --thin 10
 """
 import argparse

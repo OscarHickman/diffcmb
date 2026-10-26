@@ -51,7 +51,8 @@ from diffcmb.alm_utils import packed_length  # noqa: E402
 from diffcmb.lensing import _packed_coord_multipole  # noqa: E402
 
 DEFAULT_INDIR = "results/analysis/ens_exact_l64_A3000_n30"
-DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure_convergence"
+# paper renumbered 2026-10-26 (was figure_convergence)
+DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/appendix"
 RHAT_TARGET = 1.01          # Vehtari et al. 2021 recommendation
 COL_BLOCK = {1: ps.COL_CLTT, 2: ps.COL_ALM, 3: ps.COL_PHI, 4: ps.COL_CLPP}  # as figure 1 and figure_npe
 

@@ -57,17 +57,17 @@ elif [ "${SLURM_ARRAY_TASK_ID}" = 7 ]; then
 else
 if [ -n "$COMP" ]; then
   echo "================ train the map compressor ================"
-  .venv/bin/python -u scripts/npe_compress.py --sims_dir $SIMS --out $COMP || exit 1
+  .venv/bin/python -u scripts/npe/npe_compress.py --sims_dir $SIMS --out $COMP || exit 1
   ARGS="$ARGS --compressor $COMP"
 fi
 echo "================ train ================"
-.venv/bin/python -u scripts/npe_train.py --sims_dir $SIMS --out $FLOW $ARGS || exit 1
+.venv/bin/python -u scripts/npe/npe_train.py --sims_dir $SIMS --out $FLOW $ARGS || exit 1
 echo "================ SBC on held-out sims ================"
-.venv/bin/python -u scripts/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
+.venv/bin/python -u scripts/npe/npe_sbc.py --flow $FLOW --heldout $SIMS/heldout.npz \
     --n_sims 2000 --n_draws 199 --out $FLOW/sbc_heldout.npz || exit 1
 fi
 echo "================ learned vs exact (strict ensemble) ================"
-.venv/bin/python -u scripts/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
+.venv/bin/python -u scripts/npe/npe_vs_exact.py --flow $FLOW --chains_dir $CHAINS \
     --realizations $(seq 0 47) --n_learned 4000 --out $FLOW/$OUT
 rc=$?
 echo "exit status $rc"

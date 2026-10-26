@@ -991,7 +991,7 @@ def lens_map_phi_diff_tf(
 # unlensed map on the nside grid. At nside = lmax that interpolation smooths the
 # map by an amount that grows as (l/nside)^2 and dominates the physical lensing
 # effect on C_l^TT at every l the project runs (-5.3% at [100,128) for
-# lmax=128 against a physical +0.15%; scripts/validate_lensing_power_transfer.py,
+# lmax=128 against a physical +0.15%; scripts/calibration/validate_lensing_power_transfer.py,
 # job 12037446). The exact operator below evaluates
 #     T~(n_i) = sum_lm a_lm Y_lm(theta_i + d_theta_i, phi_i + d_phi_i)
 # directly with ducc0.sht.synthesis_general (non-uniform SHT, accuracy

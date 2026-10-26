@@ -11,7 +11,7 @@
 #SBATCH -o logs/npe_sim_%A_%a.out
 #SBATCH -e logs/npe_sim_%A_%a.err
 # ROADMAP T1.1 (2026-10-07): training and held-out sets for the spectra-level NPE,
-# from scripts/npe_simulate.py (the strict-mode generative process of the exact
+# from scripts/npe/npe_simulate.py (the strict-mode generative process of the exact
 # strict ensemble, nu = 30 on both spectra, A_phi = 3000, sigma = 30, lmax = nside = 64).
 #   tasks 0-3: training, 50 000 sims each, realizations 100000-299999
 #   task  4  : held-out SBC set, 10 000 sims, realizations 500000-509999
@@ -38,7 +38,7 @@ else
   FIRST=500000; N=10000; NAME=heldout
 fi
 echo "task $T: realizations $FIRST..$((FIRST + N - 1)) -> $OUT/$NAME.npz"
-.venv/bin/python -u scripts/npe_simulate.py --first $FIRST --n $N --summary_set $SUMMARY_SET \
+.venv/bin/python -u scripts/npe/npe_simulate.py --first $FIRST --n $N --summary_set $SUMMARY_SET \
     --out $OUT/$NAME.npz
 rc=$?
 echo "task $T exited with status $rc"

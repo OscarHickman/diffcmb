@@ -42,7 +42,7 @@
 # HARVEST. Check .err per task first (SLURM COMPLETED alone is not enough),
 # confirm phi_power_ratio_to_truth O(1) for realizations 12-23, then re-run
 # the aggregator over ALL 24 realizations (same outdir covers both batches):
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_nocl4_packingv2 \
 #       --thin 90
 # Compare the phi [30,60) bin's KS_p at N=24 against the N=12 value (0.005)
@@ -79,7 +79,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 OFF, restored 2L+1 packing) -- N=12->24 extension"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

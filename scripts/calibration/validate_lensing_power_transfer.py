@@ -32,7 +32,7 @@ builds them) are used by A, B, Bh and C, so the comparison is of interpolation
 and band limits, not of the displacement convention.
 
 Usage (SLURM, see submit_validate_lensing_power_transfer.slurm):
-  PYTHONPATH=diffcmb python scripts/validate_lensing_power_transfer.py \
+  PYTHONPATH=diffcmb python scripts/calibration/validate_lensing_power_transfer.py \
       --lmax_list 64 128 192 --n_real 16 --out results/analysis/lensing_power_transfer.npz
 """
 
@@ -45,7 +45,8 @@ import sys
 import healpy as hp
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 
 from diffcmb.lensing import deflection_field, precompute_lensing  # noqa: E402
 

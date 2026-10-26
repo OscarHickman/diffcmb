@@ -42,16 +42,16 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import paper_style  # noqa: E402
 
 from diffcmb.alm_utils import packed_length  # noqa: E402
 from diffcmb.lensing import _alm_packed_to_hp  # noqa: E402
 
 DEFAULT_CHAIN = "results/analysis/ens_exact_l64_A3000_n30/chain_r000.npz"
-DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure_maps"
+# paper renumbered 2026-10-26 (was figure_maps)
+DEFAULT_OUT = "/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure2"
 PHI_SCALE = 1e4          # display phi x 1e4
 XSIZE = 1200             # Mollweide raster width (pixels) before placement
 

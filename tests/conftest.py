@@ -10,11 +10,8 @@ import sys
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _sub in ("diffcmb", "scripts", os.path.join("scripts", "paper"),
-             os.path.join("scripts", "diagnostics")):
-    _path = os.path.join(REPO, _sub)
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
+sys.path.insert(0, os.path.join(REPO, "scripts"))
+import _paths  # noqa: E402,F401  (puts the package and every script folder on sys.path)
 
 COSMA_DATA = os.path.join(REPO, "results", "analysis")
 

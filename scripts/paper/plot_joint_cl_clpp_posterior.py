@@ -41,7 +41,7 @@ METHOD, and why each step is needed.
     this estimator does on uncorrelated data -- not against zero.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/plot_joint_cl_clpp_posterior.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/paper/plot_joint_cl_clpp_posterior.py \
       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_doffix \
       --thin 45 --outdir results/analysis/figures
 """

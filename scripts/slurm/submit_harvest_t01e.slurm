@@ -68,16 +68,16 @@ for f in null_alm_power_rank_flat_prior_thin50 sbc_joint_likelihood_thin40 \
 done
 
 echo "================ 2. a_lm null (thin 50), SBC, rank nulls at N = 48 ================"
-run .venv/bin/python -u scripts/null_alm_power_rank_flat_prior.py \
+run .venv/bin/python -u scripts/calibration/null_alm_power_rank_flat_prior.py \
     --indir $NU30 --n_null 2000 --thin 50
-run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $NU30 --thin 40 \
+run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $NU30 --thin 40 \
     --out $NU30/sbc_joint_likelihood_thin40.npz
-run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $NU30 --thin 10 \
+run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $NU30 --thin 10 \
     --burn_frac 0.5 --out $NU30/sbc_joint_likelihood_thin10_half2.npz
-run .venv/bin/python -u scripts/validate_coverage_rank_nulls.py --indir $NU30 --thin 10
+run .venv/bin/python -u scripts/calibration/validate_coverage_rank_nulls.py --indir $NU30 --thin 10
 
 echo "================ 3. expected aware bias (figure 2 band) ================"
-run .venv/bin/python -u scripts/expected_aware_bias_flat_prior.py --indir $NU30
+run .venv/bin/python -u scripts/calibration/expected_aware_bias_flat_prior.py --indir $NU30
 
 echo "================ 4. make figures ================"
 run make figures

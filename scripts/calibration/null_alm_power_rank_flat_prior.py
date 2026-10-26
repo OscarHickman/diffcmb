@@ -42,7 +42,7 @@ ensemble size, the observed mean_u, and z = (obs - null) / se. |z| < 3 in
 three-block core is not rejected by it. |z| >> 3 => a sampler defect.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/null_alm_power_rank_flat_prior.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/null_alm_power_rank_flat_prior.py \
       --indir results/analysis/ens_exact_l64_A3000_n30_nocl4 \
       --indir results/analysis/ens_exact_l64_A3000_n30 --n_null 2000
 """
@@ -53,9 +53,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from aggregate_coverage_ranks import binned_power, rank_of  # noqa: E402
 from diagnose_calibration_stationarity import (  # noqa: E402
     chain_files,

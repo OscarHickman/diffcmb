@@ -46,11 +46,11 @@ for D in coverage_ensemble_lmax64_prior_nocl4_packingv2 \
     echo "################################################################"
     echo "### $D   --thin $THIN   (draws/chain ~ $((600/THIN)))"
     echo "################################################################"
-    $P -u scripts/aggregate_coverage_ranks.py \
+    $P -u scripts/calibration/aggregate_coverage_ranks.py \
         --indir results/analysis/$D --thin $THIN
   done
   echo "### joint-likelihood SBC, $D, thin=5 (~120 draws/chain)"
-  $P -u scripts/sbc_joint_likelihood.py \
+  $P -u scripts/calibration/sbc_joint_likelihood.py \
       --indir results/analysis/$D --noisesig 1.0 --thin 5 \
       --out results/analysis/$D/sbc_joint_likelihood_thin5.npz
 done

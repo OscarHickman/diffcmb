@@ -20,7 +20,7 @@ export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}-${SLURM_ARRAY_TASK_ID}"; mkdir -p "
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
 export OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 DUCC0_NUM_THREADS=8
 export TF_NUM_INTRAOP_THREADS=8 TF_NUM_INTEROP_THREADS=2 TF_ENABLE_ONEDNN_OPTS=0
-.venv/bin/python -u scripts/coverage_ensemble_chain.py \
+.venv/bin/python -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} --lmax 64 --nside 64 \
     --n_burnin 0 --n_samples 300 --n_lfs 10 --phi_n_lfs 240 \
     --phi_mass_matrix prior --noisesig 30 --phi_amplitude 3000 \

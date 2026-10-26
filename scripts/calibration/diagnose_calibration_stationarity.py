@@ -23,7 +23,7 @@ needs the model) is run separately by `sbc_joint_likelihood.py --thin 40`
 and `--burn_frac 0.5` from the same SLURM wrapper.
 
 Usage:
-  PYTHONPATH=diffcmb .venv/bin/python scripts/diagnose_calibration_stationarity.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/diagnose_calibration_stationarity.py \
       --indir results/analysis/ens_exact_l64_A3000_n30 --thins 10,40 --n_seg 4
 """
 
@@ -34,9 +34,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
-
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from aggregate_coverage_ranks import binned_power, rank_of  # noqa: E402
 from fig1_validation import ELL_BINS, mean_sd_p  # noqa: E402
 from fig_convergence import bulk_ess  # noqa: E402

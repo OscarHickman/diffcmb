@@ -37,16 +37,16 @@ export TF_ENABLE_ONEDNN_OPTS=0
 DIR=results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2
 
 echo "############ A) ranks, N=24 ############"
-.venv/bin/python -u scripts/aggregate_coverage_ranks.py --indir $DIR --thin 90
+.venv/bin/python -u scripts/calibration/aggregate_coverage_ranks.py --indir $DIR --thin 90
 
 echo "############ B) nulls + STRICT C_L^phiphi SBC, N=24 ############"
-.venv/bin/python -u scripts/validate_coverage_rank_nulls.py --indir $DIR \
+.venv/bin/python -u scripts/calibration/validate_coverage_rank_nulls.py --indir $DIR \
     --thin 90 --control_lags 1,10,50
 
 echo "############ C) joint-likelihood SBC (Modrak) ############"
 for THIN in 10 30; do
   echo "---- thin=${THIN} ----"
-  .venv/bin/python -u scripts/sbc_joint_likelihood.py \
+  .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py \
       --indir $DIR --noisesig 1.0 --thin $THIN \
       --out $DIR/sbc_joint_likelihood_thin${THIN}.npz
 done

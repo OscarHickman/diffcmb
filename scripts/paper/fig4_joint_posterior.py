@@ -27,7 +27,7 @@ Usage:
   PYTHONPATH=diffcmb .venv/bin/python scripts/paper/fig4_joint_posterior.py \
       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_doffix \
       --thin 45 \
-      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure4
+      --outdir /cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure6
 """
 
 import argparse
@@ -139,7 +139,8 @@ def main():
                    help="re-derive from the run's own tau_int; do not carry over")
     ap.add_argument(
         "--outdir",
-        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure4")
+        # paper renumbered 2026-10-26 (was figure4)
+        default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure6")
     ap.add_argument("--n_rep", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()

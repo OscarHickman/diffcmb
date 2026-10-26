@@ -31,7 +31,7 @@ def _block(path, first, n, seed, x_scale=1.0, **over):
 def _run(script, *args):
     env = dict(os.environ, PYTHONPATH=os.pathsep.join([os.path.join(REPO, "diffcmb"), SCRIPTS]),
                OMP_NUM_THREADS="2")
-    return subprocess.run([sys.executable, os.path.join(SCRIPTS, script), *map(str, args)],
+    return subprocess.run([sys.executable, os.path.join(SCRIPTS, "npe", script), *map(str, args)],
                           env=env, capture_output=True, text=True, timeout=900)
 
 

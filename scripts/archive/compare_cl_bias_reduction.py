@@ -53,9 +53,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "diffcmb"))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: aggregate_coverage_ranks
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from aggregate_coverage_ranks import _sl_from_packed, realized_spectrum  # noqa: E402
 
 from diffcmb.alm_utils import packed_dof_per_multipole, packed_length  # noqa: E402

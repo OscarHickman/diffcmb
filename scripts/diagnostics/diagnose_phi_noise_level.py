@@ -3,12 +3,14 @@ tercile (ROADMAP T1.2a: does the A_phi = 1 trapped phi follow the noise? 2026-10
 
 Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/diagnostics/diagnose_phi_noise_level.py LABEL CHAIN.npz [LABEL CHAIN.npz ...]
 """
+import os
 import sys
 
 import healpy as hp
 import numpy as np
 
-sys.path.insert(0, "scripts")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 from real_sky_setup import ecliptic_noise_map
 
 from diffcmb.lensing import _alm_packed_to_hp

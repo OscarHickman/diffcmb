@@ -36,7 +36,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 set -e
 
 echo "=== Smoke 1/2: Block 4 OFF + block mass matrix (the production config) ==="
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization 0 --lmax 16 --nside 16 \
     --n_burnin 2 --n_samples 4 --n_lfs 3 --phi_n_lfs 4 \
     --phi_mass_matrix block --no_sample_cl_phiphi \
@@ -44,7 +44,7 @@ $PYTHON -u scripts/coverage_ensemble_chain.py \
     --checkpoint_every 2
 
 echo "=== Smoke 2/2: Block 4 ON (regression: the pre-existing 6-tuple path) ==="
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization 1 --lmax 16 --nside 16 \
     --n_burnin 2 --n_samples 4 --n_lfs 3 --phi_n_lfs 4 \
     --phi_mass_matrix prior \
@@ -52,7 +52,7 @@ $PYTHON -u scripts/coverage_ensemble_chain.py \
     --checkpoint_every 2
 
 echo "=== Smoke 3/3: aggregator must tolerate the mixed/absent cl_phiphi key ==="
-$PYTHON -u scripts/aggregate_coverage_ranks.py \
+$PYTHON -u scripts/calibration/aggregate_coverage_ranks.py \
     --indir results/analysis/coverage_ensemble_smoke \
     --thin 1 \
     --out results/analysis/coverage_ensemble_smoke/agg_smoke.npz

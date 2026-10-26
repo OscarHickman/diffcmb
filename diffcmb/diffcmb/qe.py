@@ -50,7 +50,7 @@ Validation (why this is allowed in a figure).
        1/N_L per mode, so the two must agree. They share no code, no formula
        and no derivation -- one is analytic with Wigner symbols, the other is
        differentiation of the simulation itself -- so agreement validates both.
-       That cross-check is `scripts/validate_qe_noise.py`; its result is
+       That cross-check is `scripts/calibration/validate_qe_noise.py`; its result is
        recorded in achievements.md and must be re-run if either side changes.
 
 N_L is the noise on the *reconstruction*, not the posterior width: the QE is a

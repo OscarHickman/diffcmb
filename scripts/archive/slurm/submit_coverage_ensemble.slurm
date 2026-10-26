@@ -14,7 +14,7 @@
 
 # ROADMAP.md Section 1, Priority 1: the multi-realization rank/coverage
 # ensemble -- THE headline validation. One array task per realization; then
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble --thin <from pilot>
 #
 # *** DO NOT SUBMIT UNTIL BOTH OF THESE HOLD ***
@@ -29,7 +29,7 @@
 #    ranks are not draws from the rank's null distribution and the uniformity
 #    test is invalid regardless of how many chains ran.
 #
-# Also read scripts/aggregate_coverage_ranks.py's header before quoting any
+# Also read scripts/calibration/aggregate_coverage_ranks.py's header before quoting any
 # number from this: the field-level (alm, phi) ranks are the calibration
 # evidence, while the spectrum-level (C_l, C_L^phiphi) rows are interval
 # coverage only -- Blocks 1 and 4 have improper flat implied priors, so no
@@ -70,7 +70,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX}"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

@@ -28,20 +28,20 @@ LONG=results/analysis/ens_exact_l64_A3000_n30_long
 NU30=results/analysis/ens_exact_l64_A3000_n30_nu30_long
 rc=0
 run() { "$@" || { echo "FAILED ($?): $*"; rc=1; }; }
-run .venv/bin/python -u scripts/diagnose_calibration_stationarity.py \
+run .venv/bin/python -u scripts/calibration/diagnose_calibration_stationarity.py \
     --indir $LONG --indir $NU30 --thins 10,40 --n_seg 4
 for D in $LONG $NU30; do
   echo "================ $D: sbc_joint_likelihood (thin 40) ================"
-  run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $D --thin 40 \
+  run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $D --thin 40 \
       --out $D/sbc_joint_likelihood_thin40.npz
   echo "================ $D: sbc_joint_likelihood (second half, thin 10) ================"
-  run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $D --thin 10 \
+  run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $D --thin 10 \
       --burn_frac 0.5 --out $D/sbc_joint_likelihood_thin10_half2.npz
   echo "================ $D: validate_coverage_rank_nulls (thin 10) ================"
-  run .venv/bin/python -u scripts/validate_coverage_rank_nulls.py --indir $D --thin 10
+  run .venv/bin/python -u scripts/calibration/validate_coverage_rank_nulls.py --indir $D --thin 10
 done
 echo "================ a_lm power-rank null ================"
-run .venv/bin/python -u scripts/null_alm_power_rank_flat_prior.py \
+run .venv/bin/python -u scripts/calibration/null_alm_power_rank_flat_prior.py \
     --indir $LONG --indir $NU30 --n_null 2000
 echo "Exited with status $rc"
 exit $rc

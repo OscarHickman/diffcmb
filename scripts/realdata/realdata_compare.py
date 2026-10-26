@@ -12,7 +12,7 @@ against the width the paper quotes. SEVEM 2018 vs PR4 is the release check
 component-separation systematic.
 
 Usage:
-  .venv/bin/python scripts/realdata_compare.py \
+  .venv/bin/python scripts/realdata/realdata_compare.py \
       --a results/analysis/realdata_sevemR3_l64_A1_n30_clnu30/summary.npz \
       --b results/analysis/realdata_sevemR4_l64_A1_n30_clnu30/summary.npz
 """

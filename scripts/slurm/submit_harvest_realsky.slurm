@@ -55,18 +55,18 @@ grep -l Traceback logs/ens_realsky_l64_*.err 2>/dev/null && echo "WARNING: a tas
 rc=0
 run() { "$@" || { echo "FAILED ($?): $*"; rc=1; }; }
 echo "================ 2. strict spectrum SBC + collapse table ================"
-run .venv/bin/python -u scripts/strict_sbc_ranks.py --indir $STRICT --thin 20 \
+run .venv/bin/python -u scripts/calibration/strict_sbc_ranks.py --indir $STRICT --thin 20 \
     --out $STRICT/strict_sbc_ranks_thin20.npz
 echo "---------------- second half ----------------"
-run .venv/bin/python -u scripts/strict_sbc_ranks.py --indir $STRICT --thin 10 --burn_frac 0.5 \
+run .venv/bin/python -u scripts/calibration/strict_sbc_ranks.py --indir $STRICT --thin 10 --burn_frac 0.5 \
     --out $STRICT/strict_sbc_ranks_thin10_half2.npz
 echo "---------------- thin 50 (the pilot's l=63 C_l ESS was 40-120, so thin 20 oversamples it) ----------------"
-run .venv/bin/python -u scripts/strict_sbc_ranks.py --indir $STRICT --thin 50 \
+run .venv/bin/python -u scripts/calibration/strict_sbc_ranks.py --indir $STRICT --thin 50 \
     --out $STRICT/strict_sbc_ranks_thin50.npz
 echo "================ 3. field ranks and joint-likelihood SBC ================"
-run .venv/bin/python -u scripts/aggregate_coverage_ranks.py --indir $STRICT --thin 10 \
+run .venv/bin/python -u scripts/calibration/aggregate_coverage_ranks.py --indir $STRICT --thin 10 \
     --out $STRICT/coverage_ranks_thin10.npz
-run .venv/bin/python -u scripts/sbc_joint_likelihood.py --indir $STRICT --thin 40 \
+run .venv/bin/python -u scripts/calibration/sbc_joint_likelihood.py --indir $STRICT --thin 40 \
     --out $STRICT/sbc_joint_likelihood_thin40.npz
 echo "================ 4. paired comparison with the full-sky strict ensemble ================"
 run .venv/bin/python -u scripts/diagnostics/compare_realsky_fullsky.py --real $STRICT --full $FULL \

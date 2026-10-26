@@ -12,7 +12,7 @@ Writes <indir>/expected_aware_bias_flat_prior.npz (per-bin expected mean for
 each noise model, plus the sky files used), which fig2_bias_reduction.py draws
 as the aware-fit reference band when its skies match the figure's.
 
-Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/expected_aware_bias_flat_prior.py [--indir DIR]
+Usage: PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/expected_aware_bias_flat_prior.py [--indir DIR]
 """
 import os
 import sys
@@ -20,9 +20,10 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [HERE, os.path.join(HERE, "paper")]
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 import argparse
 
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import null_alm_power_rank_flat_prior as nul
 from diagnose_calibration_stationarity import chain_files
 from fig2_bias_reduction import BINS

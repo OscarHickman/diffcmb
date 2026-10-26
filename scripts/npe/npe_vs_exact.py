@@ -23,7 +23,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "paper"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+import _paths  # noqa: E402,F401  (puts every script folder on sys.path)
 import npe_simulate as ns  # noqa: E402
 from fig_convergence import bulk_ess  # noqa: E402
 from npe_compress import load_conditioning  # noqa: E402

@@ -16,7 +16,7 @@ Usage:
       --a1 results/analysis/realdata_smica_l64_A1_n30_clnu30/summary.npz \
       --a3000 results/analysis/realdata_smica_l64_A3000_n30_clnu30/summary.npz \
       --sevem results/analysis/realdata_sevemR4_l64_A1_n30_clnu30/summary.npz \
-      --outdir <plots>/figure_realdata
+      --outdir <plots>/figure8
 """
 
 import argparse

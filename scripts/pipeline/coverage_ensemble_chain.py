@@ -1,7 +1,7 @@
 """
 ROADMAP.md Section 1, Priority 1: one realization of the multi-realization
 rank/coverage ensemble. Run as a SLURM array task (one task per realization);
-`scripts/aggregate_coverage_ranks.py` pools the outputs into the uniformity
+`scripts/calibration/aggregate_coverage_ranks.py` pools the outputs into the uniformity
 assessment.
 
 Each task draws its OWN independent (alm_true, phi_true, noise) triple from the
@@ -51,7 +51,7 @@ aggregator's header for exactly what each reported number does and does not
 establish.
 
 Usage (single task):
-  PYTHONPATH=diffcmb .venv/bin/python scripts/coverage_ensemble_chain.py \
+  PYTHONPATH=diffcmb .venv/bin/python scripts/pipeline/coverage_ensemble_chain.py \
       --realization 0 --lmax 128 --nside 128 \
       --n_burnin 100 --n_samples 600 --phi_n_lfs 80
 """

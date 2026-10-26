@@ -102,7 +102,7 @@ def test_cli_skips_checkpoint_files(tmp_path):
     _ensemble(tmp_path, 3, 5)
     np.savez(tmp_path / "chain_r000_ckpt.npz", x=np.zeros(3))
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
-    res = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "strict_sbc_ranks.py"),
+    res = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "calibration", "strict_sbc_ranks.py"),
                           "--indir", str(tmp_path), "--thin", "10", "--out", str(tmp_path / "s.npz")],
                          env=env, capture_output=True, text=True, timeout=600)
     assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
@@ -115,7 +115,7 @@ def test_cli_runs_on_a_real_strict_chain(tmp_path):
     for r in (1, 2):
         _run_chain(tmp_path, "--cl_prior_nu", "30", "--cl_phiphi_prior_nu", "30", realization=r)
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"))
-    res = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "strict_sbc_ranks.py"),
+    res = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "calibration", "strict_sbc_ranks.py"),
                           "--indir", str(tmp_path), "--thin", "1", "--out", str(tmp_path / "s.npz")],
                          env=env, capture_output=True, text=True, timeout=600)
     assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]

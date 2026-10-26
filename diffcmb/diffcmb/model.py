@@ -117,7 +117,7 @@ class CosmologyAdvancedSampling:
         # Lensing operator (ROADMAP D3, 2026-09-23). 'bilinear' interpolates
         # the unlensed map on the nside grid (hp.get_interp_weights) -- at
         # nside = lmax its smoothing dominates physical lensing in C_l^TT
-        # (scripts/validate_lensing_power_transfer.py, job 12037446).
+        # (scripts/calibration/validate_lensing_power_transfer.py, job 12037446).
         # 'exact' evaluates the band-limited alm at the deflected positions
         # (ducc0 synthesis_general, accurate to ~1e-10). Opt-in so existing
         # call sites and saved chains keep their meaning; production uses

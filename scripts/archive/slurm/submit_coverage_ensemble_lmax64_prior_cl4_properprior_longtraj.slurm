@@ -80,10 +80,10 @@
 # HARVEST. .err for tracebacks first (SLURM COMPLETED is not enough), then
 # per-realization phi power ratio O(1), then re-derive --thin from THIS
 # run's own tau_int (do not carry 90 over) and:
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/validate_coverage_rank_nulls.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/validate_coverage_rank_nulls.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_longtraj \
 #       --thin <tau> --control_lags 1,10,50
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_longtraj \
 #       --thin <tau>
 # The decisive line is STRICT C_L^phiphi SBC; the aggregator's C_L^phiphi
@@ -120,7 +120,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 ON, proper prior nu=6, phi_n_lfs=${PHI_N_LFS} = 2x job 11903182)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \

@@ -137,7 +137,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--outdir",
-                   default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure_schematic")
+                   # paper renumbered 2026-10-26 (was figure_schematic)
+                   default="/cosma/apps/durham/dc-hick2/papers/7_DiffCMB/plots/figure1")
     make(p.parse_args().outdir)
 
 

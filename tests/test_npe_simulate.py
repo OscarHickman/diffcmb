@@ -100,7 +100,7 @@ def test_cli_writes_a_training_block_and_refuses_a_mismatched_qe_file(tmp_path):
     np.savez(tmp_path / "qe.npz", **good)
     np.savez(tmp_path / "qe_bad.npz", **{**good, "phi_amplitude": 1.0})
     env = dict(os.environ, PYTHONPATH=os.path.join(REPO, "diffcmb"), OMP_NUM_THREADS="2")
-    base = [sys.executable, os.path.join(SCRIPTS, "npe_simulate.py"), "--lmax", str(LMAX),
+    base = [sys.executable, os.path.join(SCRIPTS, "npe", "npe_simulate.py"), "--lmax", str(LMAX),
             "--nside", str(NSIDE), "--noisesig", "1", "--phi_amplitude", str(AMP),
             "--nu_tt", str(NU), "--nu_pp", str(NU), "--first", "100000", "--n", "3"]
     ok = subprocess.run(base + ["--qe_file", str(tmp_path / "qe.npz"),
@@ -120,7 +120,7 @@ def test_cli_writes_a_training_block_and_refuses_a_mismatched_qe_file(tmp_path):
 def _cli(script, *args):
     env = dict(os.environ, PYTHONPATH=os.pathsep.join([os.path.join(REPO, "diffcmb"), SCRIPTS]),
                OMP_NUM_THREADS="2")
-    return subprocess.run([sys.executable, os.path.join(SCRIPTS, script), *map(str, args)],
+    return subprocess.run([sys.executable, os.path.join(SCRIPTS, "npe", script), *map(str, args)],
                           env=env, capture_output=True, text=True, timeout=1200)
 
 

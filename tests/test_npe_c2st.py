@@ -1,4 +1,4 @@
-"""C2ST classifier behaviour on known cases (scripts/npe_c2st.py)."""
+"""C2ST classifier behaviour on known cases (scripts/npe/npe_c2st.py)."""
 
 import os
 import sys

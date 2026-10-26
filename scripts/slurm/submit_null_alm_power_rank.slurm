@@ -24,7 +24,7 @@ mkdir -p logs
 export TMPDIR="/tmp/dc-hick2-${SLURM_JOB_ID}"; mkdir -p "$TMPDIR"
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/diffcmb
 export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4
-.venv/bin/python -u scripts/null_alm_power_rank_flat_prior.py \
+.venv/bin/python -u scripts/calibration/null_alm_power_rank_flat_prior.py \
     --indir results/analysis/ens_exact_l64_A3000_n30_nocl4 \
     --indir results/analysis/ens_exact_l64_A3000_n30_long \
     --indir results/analysis/ens_exact_l64_A3000_n30_nu30_long \

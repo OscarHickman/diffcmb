@@ -4,7 +4,7 @@ These are the fast, deterministic checks (project convention: `tests/` is
 small-lmax pytest, `scripts/` carries the production validation). The
 *physics* validation of N_L -- agreement with the autodiff/FD Fisher
 curvature of the real forward model -- lives in
-`scripts/validate_qe_noise.py`, because it needs a built model and is far
+`scripts/calibration/validate_qe_noise.py`, because it needs a built model and is far
 too slow for the unit suite.
 """
 
@@ -94,7 +94,7 @@ def test_nl_absolute_normalisation_is_frozen_at_lmax16():
     independent implementation of the module-docstring formula -- sympy's
     exact 3j symbols and plain loops, no ducc0 -- and matched qe_tt_noise_nl
     to 4e-16. Change them only with a re-derivation and a fresh
-    scripts/validate_qe_noise.py run.
+    scripts/calibration/validate_qe_noise.py run.
     """
     lmax = 16
     cl = _toy_cl(lmax)

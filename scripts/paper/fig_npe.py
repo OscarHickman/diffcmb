@@ -24,7 +24,8 @@ The [60,64) band edge is drawn hollow and left out of every pooled number
 
 Usage:
   PYTHONPATH=diffcmb:scripts:scripts/paper .venv/bin/python scripts/paper/fig_npe.py \
-      --flow results/analysis/npe_sims_l64_A3000_n30_nu30/flow_maf5x256 --outdir <plots>/figure_npe
+      --flow results/analysis/npe_sims_l64_A3000_n30_nu30/flow_maf5x256 --outdir <plots>/appendix
+      (make figure-npe then moves the three headline panels to <plots>/figure7)
 """
 
 import argparse

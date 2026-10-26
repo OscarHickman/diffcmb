@@ -55,10 +55,10 @@
 # each realization's phi_power_ratio_to_truth is O(1), re-derive --thin
 # from this run's own tau_int (do not carry 90 over unchanged), then the
 # decisive check is the STRICT C_L^phiphi SBC rank against 0.5:
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/validate_coverage_rank_nulls.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/validate_coverage_rank_nulls.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
 #       --thin <tau> --control_lags 1,10,50
-#   PYTHONPATH=diffcmb .venv/bin/python scripts/aggregate_coverage_ranks.py \
+#   PYTHONPATH=diffcmb .venv/bin/python scripts/calibration/aggregate_coverage_ranks.py \
 #       --indir results/analysis/coverage_ensemble_lmax64_prior_cl4_properprior_packingv2 \
 #       --thin <tau>
 # Compare the strict rank directly against job 11903182's 0.3802/0.0013
@@ -95,7 +95,7 @@ export CUDA_VISIBLE_DEVICES=0
 echo "Coverage ensemble realization ${SLURM_ARRAY_TASK_ID} at lmax=${LMAX} (prior mass matrix, Block 4 ON + PROPER C_L^phiphi prior nu=6, restored 2L+1 packing)"
 echo "Using Python: $($PYTHON --version 2>&1)"
 
-$PYTHON -u scripts/coverage_ensemble_chain.py \
+$PYTHON -u scripts/pipeline/coverage_ensemble_chain.py \
     --realization ${SLURM_ARRAY_TASK_ID} \
     --lmax $LMAX \
     --nside $NSIDE \
