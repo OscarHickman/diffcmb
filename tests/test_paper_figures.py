@@ -707,3 +707,52 @@ def test_fig_npe_draws_the_per_multipole_width_only_when_saved(tmp_path, monkeyp
     expect = ramp[(ell >= 30) & (ell < 60)].mean()
     assert float(row.group(1)) == pytest.approx(expect, abs=0.005)
     assert float(row.group(2)) == pytest.approx(2 * expect - 1, abs=0.005)
+
+
+# --- T1.4 LCDM figure (fig_lcdm.py) ---
+
+def _write_lcdm_products(d, centre=(1.03, 1.05), oracle=True, seed=8):
+    """Synthetic br_lcdm.py outputs: Gaussian (A_30, n_s) posteriors and calibration rows."""
+    rng = np.random.default_rng(seed)
+    d.mkdir(parents=True, exist_ok=True)
+    a, n = np.linspace(0.6, 1.5, 361), np.linspace(0.3, 1.7, 141)
+    aa, nn = np.meshgrid(a, n, indexing="ij")
+    post = np.exp(-0.5 * (((aa - centre[0]) / 0.033) ** 2 + ((nn - centre[1]) / 0.06) ** 2))
+    for m in ("smica", "sevemR4"):
+        np.savez(d / f"{m}_A1_pooled8.npz", post=post / post.sum(), A_grid=a, ns_grid=n, lmin=2, lmax_use=60)
+    for e in ("d5_calibration", "realsky_strict_calibration"):
+        o = np.column_stack([1 + 0.03 * rng.standard_normal(48), np.full(48, 0.03),
+                             0.965 + 0.05 * rng.standard_normal(48), np.full(48, 0.05),
+                             rng.uniform(size=48), rng.uniform(size=48), np.full(48, 500.0), np.zeros(48)])
+        r = o.copy()
+        r[:, [0, 2]] += 0.01 * rng.standard_normal((48, 2))
+        extra = {"oracle": o} if oracle else {}
+        np.savez(d / f"{e}.npz", rows=r, **extra)
+
+
+def _run_fig_lcdm(indir, outdir, monkeypatch, capsys):
+    import fig_lcdm
+
+    monkeypatch.setattr(sys, "argv", ["fig_lcdm", "--indir", str(indir), "--outdir", str(outdir)])
+    fig_lcdm.main()
+    return capsys.readouterr().out
+
+
+def test_fig_lcdm_builds_every_panel_and_compares_with_planck(tmp_path, monkeypatch, capsys):
+    _write_lcdm_products(tmp_path / "br")
+    out = _run_fig_lcdm(tmp_path / "br", tmp_path / "out", monkeypatch, capsys)
+    for name in ("lcdm_posterior", "lcdm_chain_vs_oracle_ns", "lcdm_chain_vs_oracle_A"):
+        w, h = _pdf_size_inches(tmp_path / "out" / f"{name}.pdf")
+        assert (w, h) == pytest.approx(paper_style.FIG_1COL, abs=1e-3)
+    p = float(re.search(r"SMICA: .*chi2_2 p ([\d.]+)", out).group(1))
+    # (1.0743, 0.9649) against N((1.03, 1.05), (0.033, 0.06)): chi2 = 1.78 + 2.0
+    assert p == pytest.approx(np.exp(-0.5 * (((1.0743 - 1.03) / 0.033) ** 2 + ((0.9649 - 1.05) / 0.06) ** 2)), abs=0.02)
+
+
+def test_fig_lcdm_refuses_a_truncated_posterior_and_a_calibration_without_oracle(tmp_path, monkeypatch, capsys):
+    _write_lcdm_products(tmp_path / "edge", centre=(1.49, 1.05))
+    with pytest.raises(SystemExit, match="touches its grid"):
+        _run_fig_lcdm(tmp_path / "edge", tmp_path / "o1", monkeypatch, capsys)
+    _write_lcdm_products(tmp_path / "noor", oracle=False)
+    with pytest.raises(SystemExit, match="no oracle rows"):
+        _run_fig_lcdm(tmp_path / "noor", tmp_path / "o2", monkeypatch, capsys)
