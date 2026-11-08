@@ -209,24 +209,34 @@ def plot_corr(vs, outpath):
 
 
 def plot_c2st(c2st, outpath):
+    """Per-sky C2ST accuracies. The standardised comparison uses shape_matched
+    when the product has it (npe_c2st.py, 2026-11-04): the standardised
+    accuracy sits below 0.5 by an amount that depends on the sample size, and
+    null_shape has half the draws per class of shape, so only shape_matched is
+    like for like with its null. Older products fall back to shape, labelled
+    as such in the printed caption facts."""
+    shape_key = "shape_matched" if "shape_matched" in c2st.files else "shape"
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
     edges = np.linspace(0.3, 1.0, 29)
     series = (("raw", "learned vs exact", ps.COL_AWARE, "-"),
               ("null", "exact vs exact", ps.COL_AWARE, ":"),
-              ("shape", "learned vs exact, standardised", ps.COL_BLIND, "-"),
+              (shape_key, "learned vs exact, standardised", ps.COL_BLIND, "-"),
               ("null_shape", "exact vs exact, standardised", ps.COL_BLIND, ":"))
     for key, label, col, ls in series:
         ax.hist(c2st[key], bins=edges, histtype="step", color=col, ls=ls, lw=1.2, label=label)
-    ax.axvline(0.5, color="0.45", lw=0.7, ls="--", zorder=0)
+    ax.axvline(0.5, ymax=0.80, color="0.45", lw=0.7, ls="--", zorder=0)  # clear of the stat box
     ax.set_xlabel("classifier accuracy per sky")
     ax.set_ylabel("skies")
     ax.set_xlim(edges[0], edges[-1])
     ax.margins(y=0.35)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(loc="upper right", fontsize=6, handlelength=1.6)
-    ps.stat_box(ax, f"raw {c2st['raw'].mean():.3f}\nshape {c2st['shape'].mean():.3f} "
-                f"(null {c2st['null_shape'].mean():.3f})", loc="upper left")
+    d = c2st[shape_key] - c2st["null_shape"]
+    ps.stat_box(ax, f"raw {c2st['raw'].mean():.3f} (null {c2st['null'].mean():.3f})\n"
+                f"std. {d.mean():+.3f}$\\pm${d.std(ddof=1) / np.sqrt(d.size):.3f} vs null",
+                loc="upper left")
     ps.save(fig, outpath)
+    return shape_key, d
 
 
 def main():
@@ -246,8 +256,9 @@ def main():
     for block, name in ((TT, "npe_sbc_cltt"), (PP, "npe_sbc_clpp")):
         plot_sbc(sbc, block, out(name))
     dmax = plot_corr(vs, out("npe_corr"))
+    c2st_diff = None
     if c2st is not None:
-        plot_c2st(c2st, out("npe_c2st"))
+        c2st_diff = plot_c2st(c2st, out("npe_c2st"))
 
     wr = vs["width_ratio"]
     print("\nCAPTION FACTS (do not draw these into the panels):")
@@ -267,9 +278,13 @@ def main():
             print(f"  width per multipole, {_bin_label(lo, hi)} mean: C_l^TT {h[TT]:.2f}, "
                   f"C_L^phiphi {h[PP]:.2f}")
     if c2st is not None:
+        key, d = c2st_diff
         print(f"  C2ST mean accuracy: raw {c2st['raw'].mean():.3f}, shape {c2st['shape'].mean():.3f};"
               f" exact-vs-exact null raw {c2st['null'].mean():.3f}, "
               f"shape {c2st['null_shape'].mean():.3f}")
+        print(f"  standardised learned-vs-exact minus its null ({key}"
+              + ("" if key == "shape_matched" else ", NOT matched in sample size")
+              + f"): {d.mean():+.3f} +/- {d.std(ddof=1) / np.sqrt(d.size):.3f} (paired s.e.)")
 
 
 if __name__ == "__main__":

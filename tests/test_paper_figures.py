@@ -267,8 +267,57 @@ def test_fig1_end_to_end_passes_a_correct_sampler(tmp_path, capsys, monkeypatch)
     _write_synthetic_ensemble(ens, n_chains=24, n_samp=120)
     p = _run_fig1(ens, tmp_path / "out", capsys, monkeypatch)
     assert all(v > 0.01 for v in p.values()), p
-    for name in ("rank_histograms", "clpp_sbc", "validation_power"):
+    for name in ("rank_histograms", "clpp_sbc", "validation_power", "rank_moments_by_bin"):
         assert (tmp_path / "out" / f"{name}.pdf").exists()
+
+
+def test_fig1_rank_moment_panel_reports_the_p_values_behind_p_bin(tmp_path, capsys,
+                                                                  monkeypatch):
+    """The per-bin panel (e) and p_bin must be the same test: the Bonferroni
+    minimum of the panel's per-bin p-values reproduces each block's p_bin."""
+    import fig1_validation as f1
+
+    ens = tmp_path / "ens"
+    ens.mkdir()
+    _write_synthetic_ensemble(ens, n_chains=24, n_samp=120, bias=0.15, lmax=40)
+    monkeypatch.setattr(sys, "argv", ["fig1", "--indir", str(ens), "--outdir",
+                                      str(tmp_path / "out"), "--thin", "2", "--n_rep", "50"])
+    f1.main()
+    out = capsys.readouterr().out
+    for tag, label in (("phi_power", r"$\phi$"), ("alm_power", r"$a_{\ell m}$")):
+        p_bin = float(re.search(rf"{tag}.*?corrected min ([\d.]+)", out).group(1))
+        rows = [ln for ln in out.splitlines() if ln.strip().startswith(label + " [")]
+        assert len(rows) == 3, rows          # [2,10), [10,30), [30,40) at lmax 40
+        pv = [float(x) for ln in rows for x in re.findall(r"p ([\d.]+)\)", ln)]
+        assert len(pv) == 2 * len(rows)
+        assert min(1.0, len(pv) * min(pv)) == pytest.approx(p_bin, abs=1.5e-3 * len(pv))
+
+
+def test_phi_equilibration_edge_is_measured_from_the_chains(tmp_path):
+    """Fig. 5's shaded range is where the median phi_LM ESS is below the rank
+    draws, not a fixed L = 10: slow low-L modes push the edge up, iid draws
+    leave it at the floor."""
+    import fig3_uncertainty_propagation as f3
+
+    from diffcmb.lensing import _packed_coord_multipole
+
+    lmax, n = 32, 600
+    ell = _packed_coord_multipole(lmax)
+    rng = np.random.default_rng(0)
+    for c in range(3):
+        x = rng.normal(size=(n, ell.size))
+        slow = ell < 17
+        for t in range(1, n):  # AR(1) rho = 0.97 (tau ~ 65) on L < 17
+            x[t, slow] = 0.97 * x[t - 1, slow] + np.sqrt(1 - 0.97 ** 2) * x[t, slow]
+        np.savez(tmp_path / f"chain_r{c:03d}.npz", lmax=lmax, phi_samples=x)
+    files = sorted(str(p) for p in tmp_path.glob("chain_r*.npz"))
+    edge, _ells, med = f3.phi_equilibrated_from(files, min_ess=72.0)
+    assert edge == 17, (edge, med[:20])
+    for f in files:
+        d = dict(np.load(f))
+        d["phi_samples"] = rng.normal(size=(n, ell.size))
+        np.savez(f, **d)
+    assert f3.phi_equilibrated_from(files, min_ess=72.0)[0] == f3.UNRELIABLE_L_MAX
 
 
 def test_fig1_power_table_matches_the_curve(tmp_path, capsys, monkeypatch):
@@ -286,9 +335,13 @@ def test_fig1_power_table_matches_the_curve(tmp_path, capsys, monkeypatch):
                re.findall(r"shift=([\d.]+) sigma\s+power=\s*([\d.]+)%", out)}
     rows = np.loadtxt(tmp_path / "out" / "validation_power_table.csv", delimiter=",",
                       skiprows=1)
-    assert {round(s, 1): p for s, p in rows} == pytest.approx(printed, abs=1e-3)
+    assert {round(s, 1): p for s, p, _ in rows} == pytest.approx(printed, abs=1e-3)
+    # The corrected test (what p_bin applies) can never be more powerful than
+    # one uncorrected test on the same draws.
+    assert np.all(rows[:, 1] <= rows[:, 2] + 1e-12)
     tex = (tmp_path / "out" / "validation_power_table.tex").read_text()
     assert r"\begin{tabular}" in tex and "24 chains" in tex
+    assert "width factor" in tex
     assert tex.count(r"\\") >= len(rows) + 1
 
 

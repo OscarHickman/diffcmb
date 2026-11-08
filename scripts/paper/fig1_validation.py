@@ -4,8 +4,11 @@ Every claim after this figure is only as credible as the sampler validated
 here, so this figure has to cover the sampler the TITLE claims: a joint Gibbs
 sampler over (alm, C_l, phi, C_L^phiphi). THREE standalone panel PDFs:
 
-  (a) rank_histograms.pdf   -- pooled phi and alm field-power ranks, N=24
-                               chains at thin=10 (~60 draws/chain).
+  (a) rank_histograms.pdf   -- pooled phi and alm field-power ranks over the
+                               4 l-bins of every chain (N = 4 x chains). The
+                               band treats those N ranks as independent, so it
+                               is only a guide: bins of one chain are
+                               correlated, and the calibrated test is per bin.
   (b) clpp_sbc.pdf          -- the STRICT SBC rank of C_L^phiphi itself: the
                                rank of the true C_L^phiphi among the Block 4
                                samples that produced it.
@@ -15,6 +18,12 @@ sampler over (alm, C_l, phi, C_L^phiphi). THREE standalone panel PDFs:
                                D7): the strict SBC rank of C_l^TT, the Block 1
                                twin of (b). There the a_lm row is read against
                                uniform, since its truth comes from the prior.
+  (e) rank_moments_by_bin.pdf -- the per-bin test itself (p_bin): rank mean and
+                               rank spread per l-bin for every block, against
+                               the 95% interval of the same statistic under the
+                               null at this many chains. This is where a reader
+                               sees WHICH bin fails (the pooled histograms of
+                               (a) cannot show it).
 
 WHY PANEL (b) EXISTS. Until 2026-09-18 this figure showed only the phi and alm
 field ranks. Those certify two of the four blocks. The paper's title claims the
@@ -372,6 +381,65 @@ def plot_rank_histograms(records, n_draws, outpath, alm_null=None):
     ps.save(fig, outpath)
 
 
+def bin_null_interval(n_chains, n_draws, pool=None, alpha=0.05, n_rep=40000, seed=13):
+    """Central (1 - alpha) intervals of the rank mean and spread over n_chains under the null."""
+    rng = np.random.default_rng(seed)
+    sim = _sim_u(rng, n_rep * n_chains, n_draws, pool).reshape(n_rep, n_chains)
+    q = [50 * alpha, 100 - 50 * alpha]
+    return np.percentile(sim.mean(axis=1), q), np.percentile(sim.std(axis=1), q)
+
+
+def plot_rank_moments(blocks, n_draws, outpath, alpha=0.05):
+    """(e) The per-bin statistics behind p_bin, for every block.
+
+    `blocks` is a list of (label, color, {(lo, hi): ranks}, {(lo, hi): pool or None}).
+    Each point is one l-bin of one block: the mean (left) and sd (right) of the
+    normalised rank over the chains, with the null's interval at that chain
+    count AT THE CORRECTED LEVEL alpha / n_tests, so that a point outside its
+    band is a point that fails p_bin (an uncorrected 95% band put passing points
+    outside it). A point is also drawn open when its Bonferroni-corrected p
+    (over all bins x 2 statistics of that block, as p_bin) falls below alpha.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=ps.FIG_2COL)
+    n_blk = len(blocks)
+    width = 0.8 / n_blk
+    for k, (label, color, per_bin, pools) in enumerate(blocks):
+        # Keys may be truncated at lmax ((30, 40) for (30, 60)): place by lower edge.
+        bins = sorted(b for b in per_bin if len(per_bin[b]) > 0)
+        n_tests = 2 * len(bins)
+        for i, b in enumerate(bins):
+            x = [lo for lo, _ in ELL_BINS].index(b[0]) + (k - (n_blk - 1) / 2) * width
+            r = np.asarray(per_bin[b])
+            u = (r + 0.5) / (n_draws + 1.0)
+            p_mean, p_sd = mean_sd_p(r, n_draws, null_u=pools.get(b))
+            (m_lo, m_hi), (s_lo, s_hi) = bin_null_interval(len(r), n_draws, pools.get(b),
+                                                           alpha=alpha / n_tests)
+            for ax, val, lo, hi, pv in ((axes[0], u.mean(), m_lo, m_hi, p_mean),
+                                        (axes[1], u.std(), s_lo, s_hi, p_sd)):
+                first = k == 0 and i == 0 and ax is axes[0]
+                ax.fill_between([x - width / 2, x + width / 2], lo, hi,
+                                color=ps.COL_NULL, alpha=0.6, lw=0,
+                                label=rf"null, $\alpha/{n_tests}$" if first else None)
+                failed = min(1.0, n_tests * pv) < alpha
+                ax.plot(x, val, "o", ms=4, color=color,
+                        mfc="white" if failed else color,
+                        label=label if (i == 0 and ax is axes[0]) else None)
+            print(f"  {label:>12s} [{b[0]:2d},{b[1]:2d}): mean_u {u.mean():.3f} "
+                  f"(null at alpha/{n_tests} {m_lo:.3f}-{m_hi:.3f}, p {p_mean:.3f}); sd_u {u.std():.3f} "
+                  f"(null {s_lo:.3f}-{s_hi:.3f}, p {p_sd:.3f})")
+    for ax, ylab, ref in ((axes[0], r"rank mean $\bar u$ per bin", 0.5),
+                          (axes[1], r"rank spread sd$_u$ per bin", 1 / np.sqrt(12))):
+        ax.axhline(ref, color="0.45", lw=0.7, ls="--", zorder=0)
+        ax.set_xticks(range(len(ELL_BINS)))
+        ax.set_xticklabels([f"[{lo},{hi})" for lo, hi in ELL_BINS])
+        ax.set_xlabel(r"multipole bin, $\ell$ or $L$")
+        ax.set_ylabel(ylab)
+    axes[0].legend(loc="upper left", ncol=2)
+    n_ch = len(next(iter(blocks[0][2].values())))
+    ps.stat_box(axes[0], rf"$N$={n_ch} chains per bin", loc="lower right")
+    ps.save(fig, outpath)
+
+
 def records_bins(records, tag):
     """The (lo, hi) ell bins present for `tag`, in ELL_BINS order."""
     return [(lo, hi) for (t, lo, hi) in sorted(records, key=lambda k: k[1]) if t == tag]
@@ -403,54 +471,98 @@ def plot_clpp_sbc(us, n_draws, nu, n_chains, outpath, tag="clpp",
           f"corrected min {p_corr:.3f}  [pooled chi2 cal_p={cal_p:.4f}, not drawn]")
 
 
-def plot_power_curve(n_real, n_draws, n_rep, seed, outpath):
+def _two_sided_limits(null, alpha):
+    return np.percentile(null, [50 * alpha, 100 - 50 * alpha])
+
+
+def plot_power_curve(n_real, n_draws, n_rep, seed, outpath, n_tests=8):
+    """P(detect) against an injected mean shift, AT THE LEVEL p_bin USES.
+
+    p_bin is the Bonferroni-corrected minimum over n_tests per-bin tests (4
+    l-bins x {rank mean, rank spread}), so a single bin's mean test only flags
+    at alpha / n_tests. Until 2026-11-04 this curve used the uncorrected
+    alpha = 0.05, which overstated the power of the test the paper applies
+    (50 % power at 0.28 sigma uncorrected). Both curves are now computed; the
+    corrected one is the bound, the uncorrected one is drawn dotted for
+    reference. The rank SPREAD's power against a too-narrow or too-wide
+    posterior (sd_scale) is computed the same way and goes into the table:
+    the mean test has no power against a width error.
+    """
     rng = np.random.default_rng(seed)
-    null_means = np.array([sbc_ranks(n_real, n_draws, rng).mean()
-                           for _ in range(n_rep)])
-    lo, hi = np.percentile(null_means, [2.5, 97.5])
+    alpha, alpha_c = 0.05, 0.05 / n_tests
+    n_null = 10 * n_rep
+    null = np.array([sbc_ranks(n_real, n_draws, rng) for _ in range(n_null)])
+    m_lim = {a: _two_sided_limits(null.mean(axis=1), a) for a in (alpha, alpha_c)}
+    s_lim = {a: _two_sided_limits(null.std(axis=1), a) for a in (alpha, alpha_c)}
+
+    def power(stat, lim):
+        return float(np.mean((stat < lim[0]) | (stat > lim[1])))
 
     shifts = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0])
-    power = np.empty_like(shifts)
+    p_mean = np.empty((shifts.size, 2))
     for i, b in enumerate(shifts):
         means = np.array([sbc_ranks(n_real, n_draws, rng, mean_shift=b).mean()
                           for _ in range(n_rep)])
-        power[i] = np.mean((means < lo) | (means > hi))
+        p_mean[i] = power(means, m_lim[alpha_c]), power(means, m_lim[alpha])
+    scales = np.array([0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5])
+    p_sd = np.empty((scales.size, 2))
+    for i, c in enumerate(scales):
+        sds = np.array([sbc_ranks(n_real, n_draws, rng, sd_scale=c).std()
+                        for _ in range(n_rep)])
+        p_sd[i] = power(sds, s_lim[alpha_c]), power(sds, s_lim[alpha])
 
-    # Where the curve crosses 50% -- the number the caption quotes as the bound.
-    knee = np.interp(0.5, power, shifts)
+    # Where the corrected curve crosses 50% -- the number the caption quotes.
+    knee = float(np.interp(0.5, p_mean[:, 0], shifts))
+    knee_single = float(np.interp(0.5, p_mean[:, 1], shifts))
 
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    ax.plot(shifts, power, "o-", color=ps.COL_AWARE, ms=3)
+    ax.plot(shifts, p_mean[:, 0], "o-", color=ps.COL_AWARE, ms=3,
+            label=rf"per-bin test at $\alpha/{n_tests}$ (as $p_{{\rm bin}}$)")
+    ax.plot(shifts, p_mean[:, 1], "o:", color=ps.COL_AWARE, ms=2.5, alpha=0.6,
+            label=r"one bin alone, $\alpha=0.05$")
     ax.axhline(0.5, color=ps.COL_NULL, lw=0.8, ls=":")
     ax.axvline(knee, color=ps.COL_NULL, lw=0.8, ls=":")
     ax.set_xlabel(r"injected posterior mean shift ($\sigma$)")
     ax.set_ylabel("P(detected)")
     ax.set_ylim(-0.03, 1.03)
+    ax.legend(loc="upper left")
     ps.stat_box(ax, rf"$N$={n_real} chains, {n_draws} draws" "\n"
                 rf"50% power at {knee:.2f}$\sigma$", loc="lower right")
     ps.save(fig, outpath)
-    for b, p in zip(shifts, power):
-        print(f"  shift={b:.1f} sigma  power={p:6.1%}")
-    print(f"  50% power at {knee:.3f} sigma")
-    write_power_table(shifts, power, knee, n_real, n_draws,
+    for b, (pc, p1) in zip(shifts, p_mean):
+        print(f"  shift={b:.1f} sigma  power={pc:6.1%}  (single test {p1:6.1%})")
+    for c, (pc, p1) in zip(scales, p_sd):
+        print(f"  sd_scale={c:.2f}  spread power={pc:6.1%}  (single test {p1:6.1%})")
+    print(f"  50% power at {knee:.3f} sigma at alpha/{n_tests} "
+          f"({knee_single:.3f} sigma for one uncorrected test)")
+    write_power_table(shifts, p_mean, scales, p_sd, knee, n_real, n_draws, n_tests,
                       os.path.splitext(outpath)[0] + "_table")
 
 
-def write_power_table(shifts, power, knee, n_real, n_draws, stem):
+def write_power_table(shifts, p_mean, scales, p_sd, knee, n_real, n_draws, n_tests, stem):
     """<stem>.csv and <stem>.tex: the power curve as the paper's table.
 
     Written by the same run as the curve, so the table and the figure can
-    never disagree.
+    never disagree. Columns: power at alpha/n_tests (the test p_bin applies),
+    then for one uncorrected test. The tex adds the spread's power against a
+    posterior whose width is wrong by sd_scale.
     """
-    np.savetxt(stem + ".csv", np.column_stack([shifts, power]), delimiter=",",
-               fmt=("%.2f", "%.4f"), header="shift_sigma,power", comments="")
-    rows = "\n".join(rf"{b:.1f} & {100 * p:.1f}\% \\" for b, p in zip(shifts, power))
+    np.savetxt(stem + ".csv", np.column_stack([shifts, p_mean]), delimiter=",",
+               fmt=("%.2f", "%.4f", "%.4f"),
+               header="shift_sigma,power_corrected,power_single", comments="")
+    rows = "\n".join(rf"{b:.1f} & {100 * p[0]:.1f}\% & {100 * p[1]:.1f}\% \\"
+                     for b, p in zip(shifts, p_mean))
+    rows_sd = "\n".join(rf"{c:.2f} & {100 * p[0]:.1f}\% & {100 * p[1]:.1f}\% \\"
+                        for c, p in zip(scales, p_sd))
     with open(stem + ".tex", "w") as fh:
         fh.write("% generated by scripts/paper/fig1_validation.py; do not edit\n"
-                 f"% {n_real} chains, {n_draws} draws per chain; 50% power at {knee:.3f} sigma\n"
-                 "\\begin{tabular}{cc}\n\\hline\n"
-                 r"shift ($\sigma$) & $P$(detected) \\" "\n\\hline\n"
-                 f"{rows}\n\\hline\n\\end{{tabular}}\n")
+                 f"% {n_real} chains, {n_draws} draws per chain; 50% power at {knee:.3f} sigma"
+                 f" (alpha/{n_tests})\n"
+                 "\\begin{tabular}{ccc}\n\\hline\n"
+                 rf"mean shift ($\sigma$) & $P$, $\alpha/{n_tests}$ & $P$, one bin \\" "\n\\hline\n"
+                 f"{rows}\n\\hline\n"
+                 rf"width factor & $P$, $\alpha/{n_tests}$ & $P$, one bin \\" "\n\\hline\n"
+                 f"{rows_sd}\n\\hline\n\\end{{tabular}}\n")
     print(f"wrote {stem}.csv, {stem}.tex")
 
 
@@ -518,8 +630,34 @@ def main():
                       os.path.join(args.outdir, "cltt_sbc.pdf"), tag="cltt",
                       label=r"$C_\ell^{TT}$ (strict SBC)", color=ps.COL_CLTT)
 
+    def split_bins(us_blk, n_dr):
+        """Bins-outermost u vector -> {(lo, hi): integer ranks}."""
+        ranks = np.rint(us_blk * (n_dr + 1.0) - 0.5).astype(np.int64)
+        present = [b for b in ELL_BINS if b[0] < min(b[1], lmax_ens)]
+        return dict(zip(present, ranks.reshape(-1, len(files))))
+
+    lmax_ens = int(np.load(files[0])["lmax"])
+    blocks = []
+    if strict:
+        blocks.append((r"$C_\ell^{TT}$", ps.COL_CLTT, split_bins(us_tt, tt_draws), {}))
+    alm_pools = {} if alm_null is None else dict(alm_null)
+    blocks.append((r"$a_{\ell m}$", ps.COL_ALM,
+                   {(lo, hi): records[("alm_power", lo, hi)]
+                    for (_t, lo, hi) in records if _t == "alm_power"}, alm_pools))
+    blocks.append((r"$\phi$", ps.COL_PHI,
+                   {(lo, hi): records[("phi_power", lo, hi)]
+                    for (_t, lo, hi) in records if _t == "phi_power"}, {}))
+    if us is not None:
+        blocks.append((r"$C_L^{\phi\phi}$", ps.COL_CLPP, split_bins(us, clpp_draws), {}))
+    if len({n_draws, clpp_draws} - {None}) == 1 and (not strict or tt_draws == n_draws):
+        plot_rank_moments(blocks, n_draws,
+                          os.path.join(args.outdir, "rank_moments_by_bin.pdf"))
+    else:
+        print("  ! blocks have different draw counts; rank_moments_by_bin.pdf skipped")
+
+    n_tests = 2 * len([b for b in ELL_BINS if b[0] < min(b[1], lmax_ens)])
     plot_power_curve(len(files), n_draws, args.n_rep, args.seed,
-                     os.path.join(args.outdir, "validation_power.pdf"))
+                     os.path.join(args.outdir, "validation_power.pdf"), n_tests=n_tests)
 
 
 if __name__ == "__main__":

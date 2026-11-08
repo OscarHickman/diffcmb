@@ -17,7 +17,7 @@ Three panels:
   (b) bias_per_sky.pdf  per sky, in the bin with the largest lensing effect:
                         bias against that sky's own lensing effect. The blind
                         fit tracks the diagonal (it absorbs the lensing); the
-                        aware fit sits on zero.
+                        aware fit sits on zero. Axes zoomed to the data.
   (c) bias_aware_zoom.pdf  the aware residual alone, zoomed, against the
                         exact-sampler expectation band (panel (a)'s scale
                         makes that band a sliver).
@@ -223,7 +223,12 @@ def main():
     ax.legend(loc="best")
     blind_abs = np.nanmean(np.abs(mean[:, 1]))
     aware_abs = np.nanmean(np.abs(mean[:, 0]))
-    ps.stat_box(ax, f"{n} skies\nreduction {100 * (1 - aware_abs / blind_abs):.0f}%",
+    # No "bias reduction" percentage here: the blind bias is the lensing each sky
+    # received, which the amplification A_phi sets, so blind/aware ratios measure
+    # A_phi, not the sampler (and 93.6 % sits beside the retracted 93.7 %). The
+    # A_phi-independent number is how far the blind fit lands from the lensing.
+    blind_off = np.nanmax(np.abs(mean[:, 1] - mean[:, 2]))
+    ps.stat_box(ax, f"{n} skies\n" r"$|{\rm blind}-{\rm received}|\leq$" f" {blind_off:.1f}%",
                 loc="upper right")
     ps.save(fig, os.path.join(a.outdir, "bias_by_bin.pdf"))
     plot_aware_zoom(centres, mean, sem, band, keep, lmax, n,
@@ -233,17 +238,22 @@ def main():
     j = keep[int(np.nanargmax(np.abs(mean[:, 2])))]
     x = sky[:, j, 2]
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    lim = 1.15 * np.nanmax(np.abs(np.concatenate([x, sky[:, j, 1]])))
-    ax.plot([-lim, lim], [-lim, lim], color=ps.COL_NULL, lw=0.8)
+    # Zoom to the data: a symmetric +/-lim frame left the 48 skies in one corner.
+    x_pad = 0.15 * (np.nanmax(x) - np.nanmin(x))
+    xlim = (np.nanmin(x) - x_pad, np.nanmax(x) + x_pad)
+    yall = np.concatenate([sky[:, j, 1], sky[:, j, 0], [0.0]])
+    y_pad = 0.08 * (np.nanmax(yall) - np.nanmin(yall))
+    ylim = (np.nanmin(yall) - y_pad, np.nanmax(yall) + y_pad)
+    ax.plot(xlim, xlim, color=ps.COL_NULL, lw=0.8)
     ax.axhline(0.0, color="0.3", lw=0.6)
     ax.plot(x, sky[:, j, 1], "o", ms=3.5, color=ps.COL_BLIND, label="lensing-blind")
     ax.plot(x, sky[:, j, 0], "s", ms=3.5, color=ps.COL_AWARE, label="lensing-aware")
     jlo, jhi = BINS[j][0], min(BINS[j][1], lmax)
     ax.set_xlabel(rf"lensing received, $\ell\in[{jlo},{jhi})$ (%)")
     ax.set_ylabel(r"bias in $C_\ell^{TT}$ (%)")
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-    ax.legend(loc="upper left")
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.legend(loc="center left")
     r_blind = float(np.corrcoef(x, sky[:, j, 1])[0, 1])
     ps.stat_box(ax, rf"$r_{{\rm blind}}={r_blind:.2f}$", loc="lower right")
     ps.save(fig, os.path.join(a.outdir, "bias_per_sky.pdf"))
@@ -265,7 +275,8 @@ def main():
                   f"effective {band[1][i]:+6.3f}%  -> z {(m - band[0][i]) / e:+.2f} / "
                   f"{(m - band[1][i]) / e:+.2f}")
     print(f"  mean |bias| over bins: blind {blind_abs:.3f}%, aware {aware_abs:.3f}% "
-          f"-> reduction {100 * (1 - aware_abs / blind_abs):.1f}%")
+          f"(their ratio scales with A_phi: do not quote it as a 'bias reduction')")
+    print(f"  max over bins |blind - lensing received| = {blind_off:.2f}% (the stat box)")
     print(f"  panel (b) bin [{jlo},{jhi}): corr(blind bias, lensing received) = {r_blind:.3f}")
 
 

@@ -49,3 +49,24 @@ def test_thin_exact_keeps_one_draw_per_autocorrelation_time():
     kept = c2.thin_exact(x)
     assert 80 < len(kept) < 600
     assert len(c2.thin_exact(rng.standard_normal((n, 2)))) > 1500
+
+
+def test_standardised_accuracy_falls_below_chance_more_for_small_samples():
+    """Why null_shape must be compared at its own sample size (shape_matched)."""
+    def mean_acc(n):
+        return np.mean([c2.c2st(c2.standardise(draw(n, s)), c2.standardise(draw(n, s + 500)),
+                                seed=s) for s in range(30)])
+    small, large = mean_acc(30), mean_acc(240)
+    assert small < large - 0.01
+    assert small < 0.5
+
+
+def test_shape_matched_equals_its_null_when_learned_is_exact():
+    """With learned draws from the exact distribution, shape_matched agrees with
+    null_shape on average (same draws per class), while shape, at twice the draws
+    per class, sits measurably above it: the sample-size bias that made
+    shape - null_shape look like a detection (2026-11-04)."""
+    rows = [c2.score_sky(draw(40, s), draw(400, s + 1000), s) for s in range(300)]
+    col = {k: np.array([r[k] for r in rows]) for k in rows[0]}
+    assert abs(np.mean(col["shape_matched"] - col["null_shape"])) < 0.02
+    assert np.mean(col["shape"] - col["null_shape"]) > 0.025

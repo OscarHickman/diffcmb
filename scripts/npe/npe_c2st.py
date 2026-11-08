@@ -12,6 +12,12 @@ number of learned draws is used. Three accuracies per sky:
   * null, null_shape: exact vs exact (alternate thinned draws), raw and standardised
             the same way as the shape test: the accuracy of a classifier with nothing
             to find (standardising each class costs a little accuracy in cross-validation).
+  * shape_matched: the shape test at the null's sample size (the even exact draws
+            against as many learned draws). Added 2026-11-04: the standardised
+            cross-validated accuracy sits below 0.5 by an amount that grows as the
+            sample shrinks, and null_shape uses half the draws per class that shape
+            does, so shape - null_shape was not like for like. Compare
+            shape_matched with null_shape.
 The quadratic features see means, widths and the correlation matrix, not higher
 moments, so a pass is a pass against those. Not a full-space test: the chains'
 ESS does not support one.
@@ -92,9 +98,11 @@ def score_sky(exact_bins, learned_bins, seed):
     m = len(e)
     rng = np.random.default_rng(seed)
     lr = learned_bins[rng.choice(len(learned_bins), size=m, replace=False)]
+    half = e[0::2]
     return {"n_exact": m,
             "raw": c2st(e, lr, seed),
             "shape": c2st(standardise(e), standardise(lr), seed),
+            "shape_matched": c2st(standardise(half), standardise(lr[:len(half)]), seed),
             "null": c2st(e[0::2], e[1::2], seed),
             "null_shape": c2st(standardise(e[0::2]), standardise(e[1::2]), seed)}
 
@@ -124,12 +132,16 @@ def main():
               f"shape {rows[-1]['shape']:.3f}  null_shape {rows[-1]['null_shape']:.3f}", flush=True)
     stack = {k: np.array([row[k] for row in rows]) for k in rows[0]}
     print(f"C2ST on {len(rows)} skies, {len(pooled)} pooled bin coordinates (0.5 = indistinguishable)")
-    for k in ("raw", "shape", "null", "null_shape"):
+    for k in ("raw", "shape", "shape_matched", "null", "null_shape"):
         v = stack[k]
         print(f"  {k:>5}: mean {v.mean():.3f}  median {np.median(v):.3f}  "
               f"[{v.min():.3f}, {v.max():.3f}]  s.e. {v.std(ddof=1) / np.sqrt(len(v)):.3f}")
     dn = stack["shape"] - stack["null_shape"]
-    print(f"  shape - null_shape: {dn.mean():+.3f} (paired s.e. {dn.std(ddof=1) / np.sqrt(len(dn)):.3f})")
+    print(f"  shape - null_shape: {dn.mean():+.3f} (paired s.e. {dn.std(ddof=1) / np.sqrt(len(dn)):.3f};"
+          " NOT like for like: different sample sizes)")
+    dm = stack["shape_matched"] - stack["null_shape"]
+    print(f"  shape_matched - null_shape: {dm.mean():+.3f} "
+          f"(paired s.e. {dm.std(ddof=1) / np.sqrt(len(dm)):.3f}; the like-for-like comparison)")
     np.savez(args.out, realization=np.array(reals), pooled_bins=np.array(pooled), **stack,
              flow=args.flow, chains_dir=args.chains_dir)
     print(f"Saved {args.out}")

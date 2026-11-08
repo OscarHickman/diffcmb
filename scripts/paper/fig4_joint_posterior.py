@@ -54,7 +54,7 @@ from plot_joint_cl_clpp_posterior import (  # noqa: E402
 )
 
 
-def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
+def plot_scatter(pairs, corr, null_abs95, outpath, caveat, n_above=None, n_cells=None):
     """The strongest bin pair, with the null it fails to clear drawn in.
 
     The regression line alone reads as a detection to the eye even when the
@@ -62,6 +62,11 @@ def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
     it: the reader sees the fitted slope sitting inside the range of slopes
     the null itself produces. That is the honest presentation of a capability
     claim whose correlation is currently consistent with zero.
+
+    This pair is chosen as the most extreme of n_cells, so it can sit just
+    outside its own cell's null by chance (it does at N = 48: r = +0.032
+    against 0.03). The stat box therefore carries the multiplicity count, which
+    is the number that supports "no correlation detected".
     """
     fig, ax = plt.subplots(figsize=ps.FIG_1COL_TALL)
     i, j = np.unravel_index(np.argmax(np.abs(corr) / null_abs95), corr.shape)
@@ -90,6 +95,9 @@ def plot_scatter(pairs, corr, null_abs95, outpath, caveat):
     # The legend already carries both numbers (measured r and its null);
     # "consistent with zero" is the caption's sentence, not the panel's.
     ax.legend(loc="upper left")
+    if n_above is not None:
+        ps.stat_box(ax, f"{n_above}/{n_cells} cells outside null\n"
+                    f"{0.05 * n_cells:.1f} expected by chance", loc="lower right")
     ps.save(fig, outpath)
 
 
@@ -178,7 +186,8 @@ def main():
     print("\n  CAPTION TEXT (paste into main.tex, do not draw on the panel):\n"
           f"    {caveat}\n")
     plot_scatter(pairs, corr, null_abs95,
-                os.path.join(args.outdir, "joint_posterior_scatter.pdf"), caveat)
+                os.path.join(args.outdir, "joint_posterior_scatter.pdf"), caveat,
+                n_above=n_above, n_cells=n_cells)
     plot_heatmap(corr, null_abs95,
                 os.path.join(args.outdir, "joint_posterior_heatmap.pdf"), caveat)
 

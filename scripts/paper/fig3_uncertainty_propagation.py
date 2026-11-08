@@ -78,7 +78,14 @@ from diffcmb.alm_utils import packed_length  # noqa: E402
 
 # phi does not equilibrate at the very lowest L (achievements.md); the measured
 # width there is a lower bound on the true posterior width, not a measurement.
+# UNRELIABLE_L_MAX is the floor; the edge actually used is measured from the
+# chains (phi_equilibrated_from): the lowest L above which the median per-chain
+# bulk ESS of phi_LM stays at or above the rank draws of figure 3 (3600/50 = 72),
+# the same line the convergence appendix draws. Until 2026-11-04 this was a
+# fixed L = 10, while the convergence panel shows phi ESS below that line up to
+# L ~ 17, so the first ratio bin sat in poorly-mixed multipoles.
 UNRELIABLE_L_MAX = 10
+MIN_BIN_MULTIPOLES = 5      # a bin cut down by the edge to fewer L than this is dropped
 
 # Reporting bins, matched to the coverage ensemble's so figure, chains and
 # validation all speak about the same L ranges.
@@ -144,6 +151,27 @@ def posterior_sigma_per_L(files, thin):
     return np.sqrt(var_acc / n_chain), lmax_seen, np.asarray(per_chain)
 
 
+def phi_equilibrated_from(files, min_ess, floor=UNRELIABLE_L_MAX):
+    """Lowest L from which the median (over chains) phi_LM bulk ESS stays >= min_ess."""
+    from fig_convergence import bulk_ess, per_multipole_median
+
+    from diffcmb.lensing import _packed_coord_multipole
+
+    per_chain = []
+    for f in files:
+        d = np.load(f, allow_pickle=True)
+        lmax = int(d["lmax"])
+        ells = np.arange(2, lmax)
+        per_chain.append(per_multipole_median(bulk_ess(d["phi_samples"]),
+                                              _packed_coord_multipole(lmax), ells))
+    med = np.median(np.asarray(per_chain), axis=0)
+    ok = med >= min_ess
+    # last multipole that fails, +1; every L above it passes
+    bad = np.nonzero(~ok)[0]
+    edge = int(ells[bad[-1]] + 1) if bad.size else int(ells[0])
+    return max(floor, edge), ells, med
+
+
 def _meta(d, key, default):
     return d[key].item() if key in d.files else default
 
@@ -194,7 +222,7 @@ def load_validated_qe(validation_npz, lmax, nside, noisesig, chain=None):
     return v["nl_qe"], noise, resp
 
 
-def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath):
+def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath, l_eq=UNRELIABLE_L_MAX):
     """Everything normalised to the PRIOR width, sqrt(C_L^phiphi).
 
     Normalising is what makes the panel readable and the comparison fair. In
@@ -210,8 +238,8 @@ def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath):
     too, to show how little the QE alone constrains phi at this configuration.
     """
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    good = (L >= UNRELIABLE_L_MAX) & (cl_pp > 0) & np.isfinite(nl_qe)
-    low = (L >= 2) & (L < UNRELIABLE_L_MAX) & (cl_pp > 0) & np.isfinite(nl_qe)
+    good = (L >= l_eq) & (cl_pp > 0) & np.isfinite(nl_qe)
+    low = (L >= 2) & (L < l_eq) & (cl_pp > 0) & np.isfinite(nl_qe)
 
     prior = np.sqrt(np.where(cl_pp > 0, cl_pp, np.nan))
     comb = np.sqrt(1.0 / (1.0 / np.where(cl_pp > 0, cl_pp, np.nan)
@@ -224,14 +252,15 @@ def plot_curves(L, sigma_post, nl_qe, cl_pp, outpath):
             label="joint posterior")
     ax.plot(L[low], (sigma_post / prior)[low], ":", color=ps.COL_AWARE,
             alpha=0.5)
-    ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
+    ax.plot(L[low], (comb / prior)[low], ":", color=ps.COL_QE, alpha=0.5)
+    ax.axvspan(2, l_eq, color=ps.COL_NULL, alpha=0.30, lw=0)
     ax.set_xlabel(r"multipole $L$")
     ax.set_ylabel(r"width / prior width $\sqrt{C_L^{\phi\phi}}$")
     ax.legend(loc="lower right")
     ps.save(fig, outpath)
 
 
-def plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var, outpath):
+def plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var, outpath, l_eq=UNRELIABLE_L_MAX):
     """Joint posterior width divided by the QE-plus-prior width, BINNED.
 
     Below 1 means the joint sampler extracts more about phi than the quadratic
@@ -256,21 +285,22 @@ def plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var, outpath):
 
     centres, vals, errs = [], [], []
     for lo, hi in L_BINS:
-        sel = ((L >= max(lo, UNRELIABLE_L_MAX)) & (L < hi) & (cl_pp > 0)
+        sel = ((L >= max(lo, l_eq)) & (L < hi) & (cl_pp > 0)
                & (nl_qe > 0) & np.isfinite(nl_qe))
-        if not np.any(sel):
+        if np.sum(sel) < MIN_BIN_MULTIPOLES:
             continue
         # Per chain: bin-averaged posterior variance -> width -> ratio.
         r_chain = np.array([np.sqrt(pc[sel].mean()) / comb[sel].mean()
                             for pc in per_chain_var])
-        centres.append(0.5 * (max(lo, UNRELIABLE_L_MAX) + hi))
+        centres.append(0.5 * (max(lo, l_eq) + hi))
         vals.append(r_chain.mean())
         errs.append(r_chain.std(ddof=1) / np.sqrt(r_chain.size))
 
     ax.errorbar(centres, vals, yerr=errs, fmt="o-", color=ps.COL_AWARE,
                 ms=3.4, capsize=2, lw=1.2,
                 elinewidth=0.8, capthick=0.8)
-    ax.axvspan(2, UNRELIABLE_L_MAX, color=ps.COL_NULL, alpha=0.30, lw=0)
+    ax.axvspan(2, l_eq, color=ps.COL_NULL, alpha=0.30, lw=0)
+    ax.set_xlim(0, L[-1] + 2)
     ax.set_xlabel(r"multipole $L$")
     ax.set_ylabel("joint posterior / (QE " r"$\oplus$" " prior)")
     if vals:
@@ -288,6 +318,9 @@ def main():
         "--indir",
         default="results/analysis/ens_exact_l64_A3000_n30")
     ap.add_argument("--thin", type=int, default=10)
+    ap.add_argument("--min_ess", type=float, default=72.0,
+                    help="phi_LM bulk ESS per chain below which a multipole is shaded as "
+                         "not equilibrated (default: figure 3's 72 rank draws, 3600/50)")
     ap.add_argument("--noisesig", type=float, default=None,
                     help="per-pixel noise sigma; read from the chains when they "
                          "record it (checked against the QE validation run)")
@@ -314,10 +347,14 @@ def main():
     nl_qe = np.asarray(nl_qe, dtype=np.float64)[:lmax]
     L = np.arange(lmax)
 
+    l_eq, _ells, med_ess = phi_equilibrated_from(files, args.min_ess)
+    print(f"  phi equilibrated from L = {l_eq} (median phi_LM bulk ESS >= {args.min_ess:g} "
+          f"above it; ESS at L = 2 / 10 / {l_eq}: {med_ess[0]:.0f} / {med_ess[8]:.0f} / "
+          f"{med_ess[l_eq - 2]:.0f}); widths below are lower bounds")
     plot_curves(L, sigma_post, nl_qe, cl_pp,
-                os.path.join(args.outdir, "phi_uncertainty_vs_L.pdf"))
+                os.path.join(args.outdir, "phi_uncertainty_vs_L.pdf"), l_eq=l_eq)
     plot_ratio(L, sigma_post, nl_qe, cl_pp, per_chain_var,
-               os.path.join(args.outdir, "phi_uncertainty_ratio.pdf"))
+               os.path.join(args.outdir, "phi_uncertainty_ratio.pdf"), l_eq=l_eq)
 
 
 if __name__ == "__main__":

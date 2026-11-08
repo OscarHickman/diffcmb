@@ -6,9 +6,11 @@ Standalone panels (plots/STORY.md panel convention):
                                  centred on its own mean (the chains are
                                  different skies, so absolute levels differ)
   convergence_rhat.pdf           rank-normalised, folded split-R-hat per chain
-                                 (Vehtari et al. 2021, arXiv:1903.08008) for the
-                                 two spectrum blocks, median and 16-84% band
-                                 over chains, against the recommended 1.01
+                                 (Vehtari et al. 2021, arXiv:1903.08008) for all
+                                 four blocks, median and 16-84% band over
+                                 chains, against the recommended 1.01. Blocks 2
+                                 and 3 (the fields) are the median over each
+                                 multipole's coordinates, as for their ESS.
   convergence_autocorr_ess.pdf   bulk ESS per multipole for all four blocks:
                                  C_l (Block 1), a_lm (2), phi_LM (3),
                                  C_L^phiphi (4), against the number of draws
@@ -141,7 +143,7 @@ def main():
     n_burn = int(chains[0]["n_burnin"])
     draws = n_sw // a.rank_thin
 
-    rhat = {1: [], 4: []}
+    rhat = {1: [], 2: [], 3: [], 4: []}
     ess = {1: [], 2: [], 3: [], 4: []}
     for c in chains:
         lncl = c["alm_samples"][:, :n_cl]
@@ -149,6 +151,8 @@ def main():
         cpp = c["cl_phiphi_samples"]
         rhat[1].append(rank_rhat(lncl))
         rhat[4].append(rank_rhat(cpp))
+        rhat[2].append(per_multipole_median(rank_rhat(alm), ell_coord, ells))
+        rhat[3].append(per_multipole_median(rank_rhat(c["phi_samples"]), ell_coord, ells))
         ess[1].append(bulk_ess(lncl))
         ess[4].append(bulk_ess(cpp))
         ess[2].append(per_multipole_median(bulk_ess(alm), ell_coord, ells))
@@ -178,7 +182,8 @@ def main():
 
     # (b) rank-normalised split-R-hat -------------------------------------
     fig, ax = plt.subplots(figsize=ps.FIG_1COL)
-    for blk, lab in ((1, r"$C_\ell^{TT}$ (Block 1)"), (4, r"$C_L^{\phi\phi}$ (Block 4)")):
+    for blk, lab in ((1, r"$C_\ell^{TT}$"), (2, r"$a_{\ell m}$"), (3, r"$\phi_{LM}$"),
+                     (4, r"$C_L^{\phi\phi}$")):
         lo, med, hi = np.percentile(rhat[blk], [16, 50, 84], axis=0)
         ax.fill_between(ells, lo, hi, color=COL_BLOCK[blk], alpha=0.22, lw=0)
         ax.plot(ells, med, color=COL_BLOCK[blk], lw=1.1, label=lab)
@@ -188,10 +193,11 @@ def main():
     ax.set_ylabel(r"rank-normalised split-$\hat R$")
     ax.set_xlim(2, lmax - 1)
     ax.set_ylim(0.99, None)
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper right", ncol=2, columnspacing=0.8, handlelength=1.2)
     frac = {k: float(np.mean(rhat[k] > RHAT_TARGET)) for k in rhat}
-    ps.stat_box(ax, rf"$\hat R>{RHAT_TARGET}$: " + f"{100 * frac[1]:.0f}% / {100 * frac[4]:.0f}%",
-                xy=(0.03, 0.70), loc="upper left")
+    ps.stat_box(ax, rf"$\hat R>{RHAT_TARGET}$, Blocks 1/2/3/4:" "\n"
+                + " / ".join(f"{100 * frac[k]:.0f}%" for k in (1, 2, 3, 4)),
+                xy=(0.30, 0.78), loc="upper left")   # clear of the low-L phi band
     ps.save(fig, os.path.join(a.outdir, "convergence_rhat.pdf"))
 
     # (c) bulk ESS per multipole, all four blocks --------------------------
@@ -217,9 +223,9 @@ def main():
     print(f"  ensemble: {a.indir}  ({n_ch} chains, Block 4 ON, nu="
           f"{float(chains[0]['cl_phiphi_prior_nu'])}); {n_sw} saved sweeps/chain "
           f"after {n_burn} burn-in")
-    print(f"  R-hat > {RHAT_TARGET}: Block 1 {100 * frac[1]:.1f}%, Block 4 "
-          f"{100 * frac[4]:.1f}% of (chain, multipole) pairs; max "
-          f"{rhat[1].max():.3f} / {rhat[4].max():.3f}")
+    print(f"  R-hat > {RHAT_TARGET} of (chain, multipole) pairs (Blocks 2, 3: per-multipole "
+          f"median over coordinates): " + ", ".join(
+              f"Block {k} {100 * frac[k]:.1f}% (max {rhat[k].max():.3f})" for k in (1, 2, 3, 4)))
     for blk in (1, 2, 3, 4):
         e = ess[blk]
         below = float(np.mean(e < draws))
